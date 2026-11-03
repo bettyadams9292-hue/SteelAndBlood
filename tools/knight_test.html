@@ -1,0 +1,14 @@
+<!doctype html><html><body style="margin:0;background:#1a1414"><canvas id=c width=1280 height=420></canvas>
+<script src="../src/core/base.js"></script><script src="../src/data/items.js"></script><script src="../src/data/world.js"></script><script src="../src/render/art.js"></script>
+<script>
+const ctx=document.getElementById('c').getContext('2d');
+IF.ARMOUR_SETS.forEach((s,i)=>{
+  const eq={}; for(const sl of IF.ARMOUR_SLOTS) eq[sl]={set:s.id,rarity:'epic'};
+  const look=IF.art.knightLook(eq);
+  ctx.save(); ctx.translate(90+i*170,330); ctx.scale(1.4,1.4);
+  const pose={hipX:0,hipY:-70,lean:0.08,footF:{x:10,y:0},footB:{x:-10,y:0},handF:{x:22,y:-62},handB:{x:-6,y:-50},shieldMode:'back',capeWave:0.2,tabardSway:0,
+   drawWeapon:(c)=>{c.save();c.translate(22,-62);c.rotate(-1.1);IF.art.drawWeapon(c,IF.WEAPON['steel_longsword'],i%6,0);c.restore();}};
+  IF.art.drawKnight(ctx,pose,look,0); ctx.restore();
+  ctx.fillStyle='#ccc';ctx.font='13px sans-serif';ctx.fillText(s.name,40+i*170,400);
+});
+</script></body></html>
