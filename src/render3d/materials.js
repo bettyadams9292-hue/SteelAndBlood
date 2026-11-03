@@ -88,6 +88,26 @@ IF.mat = {
     const normal = this.normalFromHeight(N, n, 3);
     return (this.tex.skin = { map, normal });
   },
+  /* Ashlar masonry: staggered blocks with recessed mortar, weathering noise and soot near the base. */
+  stoneSet() {
+    if (this.tex.stone) return this.tex.stone;
+    const N = 256, n = this.noiseField(N, 8, 4, 77), n2 = this.noiseField(N, 3, 3, 78), h = new Float32Array(N * N), tint = new Float32Array(N * N);
+    const rows = 4, bh = N / rows;
+    for (let y = 0; y < N; y++) {
+      const r = Math.floor(y / bh), off = (r % 2) * N / 4, bw = N / 2;
+      for (let x = 0; x < N; x++) {
+        const xx = (x + off) % N, bx = xx % bw, by = y % bh, edge = Math.min(bx, bw - bx, by, bh - by);
+        const block = Math.floor(xx / bw) + r * 7;
+        const m = Math.min(1, edge / 5); h[y * N + x] = m * (0.75 + n[y * N + x] * 0.25) - (1 - m) * 0.2;
+        tint[y * N + x] = ((block * 9301 + 49297) % 233280) / 233280;
+      }
+    }
+    const map = this.fieldToTex(N, h, (v, i) => { const k = 0.72 + tint[i] * 0.2 + n2[i] * 0.2 + n[i] * 0.12, mort = v < 0.2 ? 0.55 : 1; return [128 * k * mort, 124 * k * mort, 118 * k * mort]; });
+    const normal = this.normalFromHeight(N, h, 3.5);
+    const rough = this.fieldToTex(N, n, (v) => { const c = 200 + v * 50; return [c, c, c]; }, true);
+    return (this.tex.stone = { map, normal, rough });
+  },
+  stone(color = '#8a847c', key) { return this.get(key || 'st' + color, () => { const s = this.stoneSet(); const m = new this.T.MeshStandardMaterial({ color, map: s.map, normalMap: s.normal, roughnessMap: s.rough, roughness: 1, metalness: 0 }); m.userData.worldUV = 2.2; return m; }); },
   woodSet() {
     if (this.tex.wood) return this.tex.wood;
     const N = 256, n = this.noiseField(N, 4, 4, 51);

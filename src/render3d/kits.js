@@ -7,10 +7,16 @@ IF.kit = {
   init() { this.T = IF.r3.T; },
   g() { return new this.T.Group(); },
   mesh(geo, mat, x = 0, y = 0, z = 0, parent) { const m = new this.T.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; if (parent) parent.add(m); return m; },
-  box(w, h, d, mat, x, y, z, p) { return this.mesh(new this.T.BoxGeometry(w, h, d), mat, x, y, z, p); },
+  box(w, h, d, mat, x, y, z, p) { const geo = new this.T.BoxGeometry(w, h, d); if (mat.userData && mat.userData.worldUV) this.worldUV(geo, w, h, d, mat.userData.worldUV); return this.mesh(geo, mat, x, y, z, p); },
+  /* Scale a box's per-face UVs by its real size so tiling textures (masonry) keep a constant world scale. */
+  worldUV(geo, w, h, d, tile) {
+    const uv = geo.attributes.uv, dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+    for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) { const i = f * 4 + v; uv.setXY(i, uv.getX(i) * dims[f][0] / tile, uv.getY(i) * dims[f][1] / tile); }
+    uv.needsUpdate = true;
+  },
   cyl(rt, rb, h, mat, x, y, z, p, seg = 12) { return this.mesh(new this.T.CylinderGeometry(rt, rb, h, seg), mat, x, y, z, p); },
   M() { const m = IF.mat; return {
-    stone: m.basic('#6e675e', 0.92), stoneDark: m.basic('#4a453f', 0.95), plaster: m.basic('#8a7d6a', 0.95), timber: m.wood('#7a6048'), timberDark: m.wood('#4a3a2c'),
+    stone: m.stone('#8a847c'), stoneDark: m.stone('#5e5952', 'stDark'), plaster: m.basic('#8a7d6a', 0.95), timber: m.wood('#7a6048'), timberDark: m.wood('#4a3a2c'),
     thatch: m.basic('#5a4a30', 1), roofTile: m.basic('#5a3028', 0.9), iron: m.metal('#4a4c50', 0.55, 0.85), rust: m.metal('#6a3a22', 0.85, 0.5), steel: m.metal('#8a9096', 0.4, 0.9),
     olive: m.metal('#4a5233', 0.7, 0.35), concrete: m.basic('#7a7872', 0.95), concreteDark: m.basic('#55534e', 0.95), sand: m.cloth('#9a8a62'), tyre: m.basic('#151515', 0.9),
     glass: m.basic('#1c2630', 0.15, 0.5), red: m.metal('#8a1e14', 0.55, 0.4), canvas: m.cloth('#6a6448'), white: m.cloth('#e6e0d2'), crimson: m.cloth('#8e1218'), dark: m.basic('#121212', 0.9),

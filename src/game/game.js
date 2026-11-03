@@ -82,9 +82,10 @@ IF.Run = class Run {
     // gate opens once the gate horde (or the boss) is dead
     if (!W.gateOpen) {
       const clear = W.isBoss ? (W.bossSpawned && this.boss && this.boss.dead) : (W.gateWave && this.aliveCount() === 0);
-      if (clear) { W.gateOpen = true; W.rightBound = W.end + 200; IF.audio.ui('upgrade'); if (!W.isBoss) { this.banner = { top: 'SECTION CLEARED', main: 'The gate opens' }; this.bannerT = 1.8; } }
+      if (clear) { W.gateOpen = true; W.rightBound = W.end + 200; IF.audio.ui('upgrade'); IF.audio.gate && IF.audio.gate(); IF.gate3d.openShot(this); if (!W.isBoss) { this.banner = { top: 'SECTION CLEARED', main: 'The gate opens' }; this.bannerT = 1.8; } }
     }
-    if (W.gateOpen && pl.x > W.gateX + 70 && !pl.dead) { IF.game.openReward(); return; }
+    if (this.transition) { pl.autoWalk = true; if (IF.gate3d.stepTransition(this, dt)) { pl.autoWalk = false; IF.gate3d.endTransition(this); IF.game.openReward(); return; } }
+    else if (W.gateOpen && pl.x > W.gateX - 40 && !pl.dead) { if (IF.r3.ok) { IF.gate3d.startTransition(this); for (const e of this.enemies) if (!e.dead && !e.boss) e.x = Math.min(e.x, pl.x - 700); } else { IF.game.openReward(); return; } }
     // enemies
     for (const e of this.enemies) e.update(dt);
     if (this.enemies.length > 60 || this.enemies.some((e) => e.dead && e.deadT > 5)) this.enemies = this.enemies.filter((e) => !(e.dead && e.deadT > 5));
@@ -218,7 +219,9 @@ IF.game = {
 
   loop(now) {
     requestAnimationFrame((t) => this.loop(t));
-    let dt = Math.min(0.05, (now - (this.last || now)) / 1000); this.last = now;
+    const realDt = (now - (this.last || now)) / 1000;
+    let dt = Math.min(0.05, realDt); this.last = now;
+    if (this.state === 'playing' && IF.r3.ok && !document.hidden && realDt < 1) IF.r3.autoTune(realDt);
     this.fpsAcc += dt; this.fpsN++; if (this.fpsAcc > 0.5) { this.fps = this.fpsN / this.fpsAcc; this.fpsAcc = 0; this.fpsN = 0; }
     const t0 = performance.now();
     IF.input.update(now);
@@ -288,7 +291,7 @@ IF.game = {
     ctx.restore();
     this.renderWeather(ctx, run, t);
     this.renderLighting(ctx, run, true);
-    this.renderHud(ctx, run, t);
+    if (run.transition) IF.gate3d.drawFade(ctx, run); else this.renderHud(ctx, run, t);
   },
   renderWeather(ctx, run, t) {
     const w = run.world.biome.weather, q = IF.fx.quality(); if (w === 'none') return;

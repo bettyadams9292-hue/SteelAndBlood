@@ -2244,6 +2244,12 @@ IF.audio = {
   hurt() { if (!this.ready || !this._ok('hurt', 150)) return; const t = this.ctx.currentTime; this._tone(t, 0.3, { type: 'sawtooth', f: 220, f2: 110, vol: 0.14 }); this._noise(t, 0.15, { type: 'lowpass', f: 700, vol: 0.35 }); this._tone(t, 0.25, { type: 'triangle', f: 1500, vol: 0.06 }); },
   pickup() { if (!this.ready || !this._ok('pick', 60)) return; const t = this.ctx.currentTime; this._tone(t, 0.12, { type: 'triangle', f: 880, vol: 0.12 }); this._tone(t + 0.06, 0.15, { type: 'triangle', f: 1320, vol: 0.1 }); },
   coin() { if (!this.ready || !this._ok('coin', 50)) return; const t = this.ctx.currentTime; this._tone(t, 0.1, { type: 'square', f: 1975, vol: 0.04 }); this._tone(t + 0.05, 0.18, { type: 'square', f: 2637, vol: 0.04 }); },
+  gate() { // portcullis: deep rumble, ratcheting chain clanks, a final iron thud
+    if (!this.ready) return; const t = this.ctx.currentTime;
+    this._noise(t, 2.2, { type: 'lowpass', f: 180, vol: 0.35 });
+    for (let i = 0; i < 14; i++) this._tone(t + i * 0.13, 0.05, { type: 'square', f: 140 + (i % 3) * 30, vol: 0.05 });
+    this._tone(t + 2.0, 0.5, { type: 'sine', f: 70, f2: 40, vol: 0.3 });
+  },
   ui(kind) {
     if (!this.ready) return; const t = this.ctx.currentTime;
     if (kind === 'hover') { if (this._ok('hover', 50)) this._tone(t, 0.05, { type: 'triangle', f: 1400, vol: 0.03 }); }
@@ -2353,7 +2359,7 @@ IF.save = {
       seen: {}, // weapon ids ever obtained
       tutorialDone: false, dailyBest: {},
       appearance: { name: 'Sir Aldric', tabard: 'auto', emblem: 'cross', cross: 'auto', cape: 'auto', plume: 'auto', helm: 'auto', finish: 'auto' },
-      settings: { music: 0.55, sfx: 0.8, gore: 'full', shake: true, dmgNumbers: true, particles: 'high', touch: 'auto', touchSize: 1, touchOpacity: 0.5, keys: {}, pad: {}, showFps: false, mode: 'endless' },
+      settings: { music: 0.55, sfx: 0.8, gore: 'full', shake: true, dmgNumbers: true, particles: 'high', touch: 'auto', touchSize: 1, touchOpacity: 0.5, keys: {}, pad: {}, showFps: false, mode: 'endless', graphics: 'auto' },
     };
   },
 
@@ -3470,7 +3476,9 @@ IF.r3 = {
   init(canvas) {
     const T = window.THREE; if (!T) return false;
     try {
-      const r = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+      const lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || /Mobi|Android/i.test(navigator.userAgent);
+      const r = new T.WebGLRenderer({ canvas, antialias: !lowEnd, powerPreference: 'high-performance' });
+      if (lowEnd) this.autoTier = 'medium';
       if (!r.capabilities.isWebGL2) throw new Error('WebGL2 required');
       r.outputColorSpace = T.SRGBColorSpace; r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
       r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
@@ -3483,7 +3491,7 @@ IF.r3 = {
       const sh = this.sun.shadow; sh.mapSize.set(2048, 1024); sh.camera.left = -16; sh.camera.right = 16; sh.camera.top = 9; sh.camera.bottom = -6; sh.camera.near = 1; sh.camera.far = 80; sh.bias = -0.0006; sh.normalBias = 0.02;
       sc.add(this.sun, this.sun.target);
       this.rim = new T.DirectionalLight('#9ab0ff', 0.7); sc.add(this.rim);
-      for (let i = 0; i < 6; i++) { const p = new T.PointLight('#ff9a40', 0, 9, 1.6); p.visible = false; sc.add(p); this.pointLights.push(p); }
+      for (let i = 0; i < 6; i++) { const p = new T.PointLight("#ff9a40", 0, 9, 1.6); sc.add(p); this.pointLights.push(p); }
       this.world = new T.Group(); sc.add(this.world);
       // image-based lighting from a simple procedural studio so PBR metal reads well
       const pm = new T.PMREMGenerator(r), es = new T.Scene();
@@ -3498,19 +3506,42 @@ IF.r3 = {
       return true;
     } catch (e) { console.warn('3D renderer unavailable, using 2D fallback:', e); this.ok = false; return false; }
   },
+  /* Graphics tiers. 'auto' starts high and steps down while the measured frame time stays too long. */
+  TIERS: {
+    high: { shadows: true, soft: true, map: [2048, 1024], pr: 2, lights: 6, scale: 1 },
+    medium: { shadows: true, soft: false, map: [1024, 512], pr: 1.25, lights: 4, scale: 1 },
+    low: { shadows: false, soft: false, map: [512, 256], pr: 1, lights: 2, scale: 0.8 },
+    potato: { shadows: false, soft: false, map: [512, 256], pr: 0.75, lights: 0, scale: 0.6 },
+  },
+  tierName() { const q = IF.save.data.settings.graphics || 'auto'; return q === 'auto' ? (this.autoTier || 'high') : q; },
   applyQuality() {
-    if (!this.ok) return; const q = IF.save.data.settings.graphics || 'high';
-    this.renderer.shadowMap.enabled = q !== 'low';
-    this.sun.shadow.mapSize.set(q === 'high' ? 2048 : 1024, q === 'high' ? 1024 : 512);
+    if (!this.ok) return; const Q = this.TIERS[this.tierName()] || this.TIERS.high, T = this.T;
+    this.tier = Q;
+    this.renderer.shadowMap.enabled = Q.shadows; this.renderer.shadowMap.type = Q.soft ? T.PCFSoftShadowMap : T.PCFShadowMap;
+    this.sun.shadow.mapSize.set(Q.map[0], Q.map[1]);
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
+    // the light count is part of every shader, so it only changes here (never per frame)
+    this.pointLights.forEach((p, i) => { p.visible = i < Q.lights; });
+    this.scene.traverse((o) => { if (o.material) [].concat(o.material).forEach((m) => (m.needsUpdate = true)); });
     this.resize();
   },
   resize() {
-    if (!this.ok) return; const c = this.renderer.domElement, q = IF.save.data.settings.graphics || 'high';
+    if (!this.ok) return; const c = this.renderer.domElement, Q = this.tier || this.TIERS.high;
     const w = c.clientWidth || IF.W, h = c.clientHeight || IF.H;
-    const pr = Math.min(window.devicePixelRatio || 1, q === 'high' ? 2 : q === 'medium' ? 1.25 : 0.85);
+    const pr = Math.min(window.devicePixelRatio || 1, Q.pr) * Q.scale;
     this.renderer.setPixelRatio(pr); this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
+  },
+  /* Called once per frame with the real frame time; drops a tier after ~3 s of sustained slow frames. */
+  autoTune(dt) {
+    if ((IF.save.data.settings.graphics || 'auto') !== 'auto' || !this.ok) return;
+    const a = this._auto || (this._auto = { t: 0, acc: 0, n: 0, warm: 2.5 });
+    if (a.warm > 0) { a.warm -= dt; return; } // ignore shader-compile hitches right after load
+    a.t += dt; a.acc += Math.min(dt, 0.25); a.n++;
+    if (a.t < 3) return;
+    const avg = a.acc / a.n; a.t = a.acc = a.n = 0;
+    const order = ['high', 'medium', 'low', 'potato'], i = order.indexOf(this.autoTier || 'high');
+    if (avg > 1 / 45 && i < order.length - 1) { this.autoTier = order[i + 1]; a.warm = 2; this.applyQuality(); IF.ui && IF.ui.toast && IF.ui.toast('Graphics adjusted: ' + this.autoTier); }
   },
 
   /* ---------- lane <-> world ---------- */
@@ -3541,7 +3572,7 @@ IF.r3 = {
     const tgtLook = new T.Vector3(cx, Math.max(footY, py - 1.2) + 1.95, 0);
     const tgtPos = new T.Vector3(cx - 1.2, tgtLook.y + 0.55, 11.8);
     if (this.cine) this.cine.apply(tgtPos, tgtLook, dt);
-    const k = Math.min(1, dt * (this.cine ? 3 : 6));
+    const k = this.snapCam ? 1 : Math.min(1, dt * (this.cine ? 3 : 6)); this.snapCam = false;
     this.camPos.lerp(tgtPos, k); this.camLook.lerp(tgtLook, k);
     cam.position.copy(this.camPos); cam.position.x += IF.fx.shakeX * this.S * 1.4; cam.position.y += IF.fx.shakeY * this.S * 1.4;
     cam.lookAt(this.camLook);
@@ -3562,8 +3593,8 @@ IF.r3 = {
     em.sort((a, b) => Math.abs(a.x - cx) / a.i - Math.abs(b.x - cx) / b.i);
     for (let i = 0; i < this.pointLights.length; i++) {
       const p = this.pointLights[i], e = em[i];
-      if (e && Math.abs(e.x - cx) < 1100) { p.visible = true; p.color.set(e.c); p.intensity = e.i; p.distance = e.r || 9; this.toWorld(e.x, e.y, e.z || 0.6, p.position); }
-      else p.visible = false;
+      if (e && Math.abs(e.x - cx) < 1100) { p.color.set(e.c); p.intensity = e.i; p.distance = e.r || 9; this.toWorld(e.x, e.y, e.z || 0.6, p.position); }
+      else p.intensity = 0; // never toggle visibility: changing the light count recompiles every shader
     }
     em.length = 0;
   },
@@ -3660,6 +3691,26 @@ IF.mat = {
     const normal = this.normalFromHeight(N, n, 3);
     return (this.tex.skin = { map, normal });
   },
+  /* Ashlar masonry: staggered blocks with recessed mortar, weathering noise and soot near the base. */
+  stoneSet() {
+    if (this.tex.stone) return this.tex.stone;
+    const N = 256, n = this.noiseField(N, 8, 4, 77), n2 = this.noiseField(N, 3, 3, 78), h = new Float32Array(N * N), tint = new Float32Array(N * N);
+    const rows = 4, bh = N / rows;
+    for (let y = 0; y < N; y++) {
+      const r = Math.floor(y / bh), off = (r % 2) * N / 4, bw = N / 2;
+      for (let x = 0; x < N; x++) {
+        const xx = (x + off) % N, bx = xx % bw, by = y % bh, edge = Math.min(bx, bw - bx, by, bh - by);
+        const block = Math.floor(xx / bw) + r * 7;
+        const m = Math.min(1, edge / 5); h[y * N + x] = m * (0.75 + n[y * N + x] * 0.25) - (1 - m) * 0.2;
+        tint[y * N + x] = ((block * 9301 + 49297) % 233280) / 233280;
+      }
+    }
+    const map = this.fieldToTex(N, h, (v, i) => { const k = 0.72 + tint[i] * 0.2 + n2[i] * 0.2 + n[i] * 0.12, mort = v < 0.2 ? 0.55 : 1; return [128 * k * mort, 124 * k * mort, 118 * k * mort]; });
+    const normal = this.normalFromHeight(N, h, 3.5);
+    const rough = this.fieldToTex(N, n, (v) => { const c = 200 + v * 50; return [c, c, c]; }, true);
+    return (this.tex.stone = { map, normal, rough });
+  },
+  stone(color = '#8a847c', key) { return this.get(key || 'st' + color, () => { const s = this.stoneSet(); const m = new this.T.MeshStandardMaterial({ color, map: s.map, normalMap: s.normal, roughnessMap: s.rough, roughness: 1, metalness: 0 }); m.userData.worldUV = 2.2; return m; }); },
   woodSet() {
     if (this.tex.wood) return this.tex.wood;
     const N = 256, n = this.noiseField(N, 4, 4, 51);
@@ -3772,10 +3823,16 @@ IF.kit = {
   init() { this.T = IF.r3.T; },
   g() { return new this.T.Group(); },
   mesh(geo, mat, x = 0, y = 0, z = 0, parent) { const m = new this.T.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; if (parent) parent.add(m); return m; },
-  box(w, h, d, mat, x, y, z, p) { return this.mesh(new this.T.BoxGeometry(w, h, d), mat, x, y, z, p); },
+  box(w, h, d, mat, x, y, z, p) { const geo = new this.T.BoxGeometry(w, h, d); if (mat.userData && mat.userData.worldUV) this.worldUV(geo, w, h, d, mat.userData.worldUV); return this.mesh(geo, mat, x, y, z, p); },
+  /* Scale a box's per-face UVs by its real size so tiling textures (masonry) keep a constant world scale. */
+  worldUV(geo, w, h, d, tile) {
+    const uv = geo.attributes.uv, dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+    for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) { const i = f * 4 + v; uv.setXY(i, uv.getX(i) * dims[f][0] / tile, uv.getY(i) * dims[f][1] / tile); }
+    uv.needsUpdate = true;
+  },
   cyl(rt, rb, h, mat, x, y, z, p, seg = 12) { return this.mesh(new this.T.CylinderGeometry(rt, rb, h, seg), mat, x, y, z, p); },
   M() { const m = IF.mat; return {
-    stone: m.basic('#6e675e', 0.92), stoneDark: m.basic('#4a453f', 0.95), plaster: m.basic('#8a7d6a', 0.95), timber: m.wood('#7a6048'), timberDark: m.wood('#4a3a2c'),
+    stone: m.stone('#8a847c'), stoneDark: m.stone('#5e5952', 'stDark'), plaster: m.basic('#8a7d6a', 0.95), timber: m.wood('#7a6048'), timberDark: m.wood('#4a3a2c'),
     thatch: m.basic('#5a4a30', 1), roofTile: m.basic('#5a3028', 0.9), iron: m.metal('#4a4c50', 0.55, 0.85), rust: m.metal('#6a3a22', 0.85, 0.5), steel: m.metal('#8a9096', 0.4, 0.9),
     olive: m.metal('#4a5233', 0.7, 0.35), concrete: m.basic('#7a7872', 0.95), concreteDark: m.basic('#55534e', 0.95), sand: m.cloth('#9a8a62'), tyre: m.basic('#151515', 0.9),
     glass: m.basic('#1c2630', 0.15, 0.5), red: m.metal('#8a1e14', 0.55, 0.4), canvas: m.cloth('#6a6448'), white: m.cloth('#e6e0d2'), crimson: m.cloth('#8e1218'), dark: m.basic('#121212', 0.9),
@@ -4122,6 +4179,133 @@ IF.terrain = {
     for (const g of groups) { g.updateMatrixWorld(true); g.traverse((o) => { if (!o.isMesh || !o.visible) return; let geo = o.geometry.clone().applyMatrix4(o.matrixWorld); if (geo.index) geo = geo.toNonIndexed(); for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(k)) geo.deleteAttribute(k); if (!geo.attributes.uv) geo.setAttribute('uv', new T.BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2)); const k = o.material.uuid; if (!byMat.has(k)) byMat.set(k, { mat: o.material, geos: [] }); byMat.get(k).geos.push(geo); }); }
     for (const { mat, geos } of byMat.values()) { const merged = BGU.mergeGeometries(geos); if (!merged) continue; const m = new T.Mesh(merged, mat); m.castShadow = true; m.receiveShadow = true; out.add(m); geos.forEach((gg) => gg.dispose()); }
     return out;
+  },
+};
+
+/* ==== render3d/gate3d.js ==== */
+/* Section gate — a ruined stone gatehouse with an animated iron portcullis, braziers and heraldry,
+ * plus the cinematic that plays when it opens and when the knight walks through it.
+ * The gate wall is turned towards the camera so the portcullis reads clearly from the side-on view. */
+'use strict';
+
+IF.gate3d = {
+  ANGLE: 0.62, // how far the gate face is turned towards the camera (radians)
+  cur: null,
+
+  build(W, chunk) {
+    const K = IF.kit, T = IF.r3.T, M = K.mats(), S = IF.r3.S;
+    const b = W.biome.id, modern = /highway|checkpoint|city|battlefield|base|industrial|bunker|lab|settlement/.test(b);
+    const root = new T.Group(), g = new T.Group(); root.add(g); g.rotation.y = this.ANGLE;
+    const X = W.gateX * S, Y = IF.terrain.laneHeight(W.gateX);
+    root.position.set(X, Y - 0.05, 0);
+    const stone = modern ? M.concrete : M.stone, stoneDark = modern ? M.concreteDark : M.stoneDark;
+    const OPEN = 1.75, H = 3.9; // half-width and height of the arch opening (metres, local z / y)
+
+    // plinth and threshold
+    K.box(2.4, 0.18, OPEN * 2 + 4, stoneDark, 0, 0.05, 0, g);
+    // back tower (tall) and front tower (ruined stump so it never hides the knight)
+    const tw = (z, h, ruined) => {
+      const t = K.box(2.2, h, 2.0, stone, 0, h / 2, z, g);
+      for (let i = 0; i < 3; i++) for (const sx of [-1, 1]) if (!ruined || i < 2) K.box(0.5, 0.7, 0.45, stone, sx * 0.85, h + 0.35, z - 0.75 + i * 0.75, g);
+      K.box(2.3, 0.22, 2.1, stoneDark, 0, h * 0.62, z, g);
+      for (let i = 0; i < 2; i++) K.box(0.08, 0.7, 0.24, M.dark, -1.11, h * (0.4 + i * 0.25), z, g); // arrow slits
+      return t;
+    };
+    tw(-(OPEN + 1.0), 8.4, false);
+    // the near-side tower has collapsed: a low jamb and scattered blocks keep the knight in view
+    K.box(1.3, H + 1.5, 0.75, stone, 0, (H + 1.5) / 2, OPEN + 0.45, g);
+    K.box(1.4, 0.2, 0.85, stoneDark, 0, H * 0.62, OPEN + 0.45, g);
+    for (let i = 0; i < 7; i++) { const r = K.box(0.35 + Math.random() * 0.35, 0.25 + Math.random() * 0.25, 0.45, stone, -0.8 + Math.random() * 2, 0.15, OPEN + 1.2 + Math.random() * 1.6, g); r.rotation.set(Math.random() * 0.6, Math.random() * 3, Math.random() * 0.6); }
+    // lintel / gatehouse bridge over the opening
+    K.box(2.0, 1.5, OPEN * 2 + 0.6, stone, 0, H + 0.75, -0.25, g);
+    K.box(2.1, 0.2, OPEN * 2 + 0.8, stoneDark, 0, H + 0.05, -0.25, g);
+    for (let i = 0; i < 5; i++) K.box(0.5, 0.6, 0.45, stone, -0.75, H + 1.8, -OPEN + 0.2 + i * 0.75, g);
+    // curtain wall running back into the scene
+    const wallLen = 12, wz = -(OPEN + 2.0) - wallLen / 2;
+    K.box(1.4, 5.6, wallLen, stone, 0.2, 2.8, wz, g);
+    for (let i = 0; i < wallLen / 1.1; i++) K.box(0.5, 0.7, 0.5, stone, -0.25, 5.95, wz - wallLen / 2 + 0.4 + i * 1.1, g);
+    if (modern) { // razor wire and floodlight on the modern variant
+      for (let i = 0; i < 8; i++) { const c = new T.Mesh(new T.TorusGeometry(0.28, 0.012, 4, 14), M.steel); c.position.set(0.2, 5.85, wz - wallLen / 2 + 0.7 + i * 1.4); c.rotation.y = Math.PI / 2; g.add(c); }
+      const pole = K.cyl(0.06, 0.06, 2.4, M.steel, -0.6, H + 2.6, -OPEN - 0.6, g, 8);
+      K.box(0.3, 0.25, 0.5, IF.mat.glow('#e8f0ff', 2.5), -0.75, H + 3.8, -OPEN - 0.6, g);
+    }
+    // heraldry: a long banner hanging from the gatehouse and a gold sigil over the arch
+    const ban = K.mesh(new T.PlaneGeometry(1.1, 2.6, 3, 8), K.heraldryMat(), -1.02, H - 0.2, -OPEN - 0.9, g); ban.rotation.y = -Math.PI / 2; ban.userData.wave = true;
+    const sig = K.mesh(new T.CircleGeometry(0.42, 24), IF.mat.metal('#c9a24a', 0.35, 1), -1.02, H + 0.8, -0.25, g); sig.rotation.y = -Math.PI / 2;
+    const sigGlow = K.mesh(new T.RingGeometry(0.44, 0.52, 24), IF.mat.glow('#ffcc66', 0.2), -1.03, H + 0.8, -0.25, g); sigGlow.rotation.y = -Math.PI / 2; sigGlow.material = sigGlow.material.clone();
+    // portcullis: iron grid with spiked feet, raised when the section is cleared
+    const bars = [];
+    const bw = OPEN * 2 - 0.1, bh = H - 0.05, nV = 9, nH = 6;
+    for (let i = 0; i < nV; i++) {
+      const z = -bw / 2 + (i + 0.5) * bw / nV;
+      bars.push(new T.BoxGeometry(0.08, bh, 0.08).translate(0, bh / 2, z));
+      bars.push(new T.ConeGeometry(0.06, 0.24, 6).rotateZ(Math.PI).translate(0, -0.1, z));
+    }
+    for (let j = 0; j < nH; j++) bars.push(new T.BoxGeometry(0.1, 0.07, bw).translate(0, 0.35 + j * (bh - 0.5) / (nH - 1), 0));
+    const port = new T.Mesh(BGU.mergeGeometries(bars.map((x) => x.toNonIndexed())), IF.mat.metal('#3a3c40', 0.5, 0.9));
+    port.castShadow = true; port.position.set(-0.4, 0, -0.25); g.add(port);
+    // chains running up into the gatehouse
+    for (const z of [-OPEN + 0.3, OPEN - 0.8]) K.cyl(0.025, 0.025, 1.6, M.iron, -0.9, H + 0.6, z, g, 4);
+    // braziers either side of the approach
+    const lights = [];
+    for (const z of [-(OPEN + 0.4), OPEN + 0.2]) {
+      const br = K.brazier(); br.scale.setScalar(1.25); br.position.set(-1.7, 0, z); g.add(br);
+      br.traverse((o) => { if (o.userData.flame) { o.userData.fid = Math.random() * 10; chunk.flames.push(o); } });
+      lights.push({ lx: -1.7, lz: z });
+    }
+    // world positions of the brazier fires for the point-light pool
+    root.updateMatrixWorld(true);
+    for (const L of lights) { const v = new T.Vector3(L.lx, 0, L.lz).applyMatrix4(g.matrixWorld); chunk.lights.push({ x: v.x / S, y: IF.GROUND - 125, z: v.z + 0.3, i: 5, c: '#ff8a3a', r: 10 }); }
+    g.traverse((o) => { if (o.userData.wave && !o.userData.base) { o.userData.base = Float32Array.from(o.geometry.attributes.position.array); chunk.wavers.push(o); } });
+    this.cur = { W, root, port, sig: sigGlow, lift: W.gateOpen ? 1 : 0, shake: 0, wasOpen: !!W.gateOpen };
+    return root;
+  },
+
+  update(run, t) {
+    const c = this.cur; if (!c || c.W !== run.world) return;
+    const dt = run.lastDt || 1 / 60, open = c.W.gateOpen;
+    if (open && !c.wasOpen) { c.wasOpen = true; c.shake = 1.4; IF.audio.ui && IF.audio.ui('gate'); }
+    const tgt = open ? 1 : 0; c.lift += (tgt - c.lift) * Math.min(1, dt * 0.9) + (open ? dt * 0.08 : 0); c.lift = Math.min(1, c.lift);
+    const jitter = c.shake > 0 ? Math.sin(t * 60) * 0.02 * c.shake : 0; c.shake = Math.max(0, c.shake - dt);
+    c.port.position.y = c.lift * 3.6 + jitter;
+    if (c.shake > 0 && Math.random() < 0.5) IF.fx.dust(c.W.gateX + (Math.random() - 0.5) * 60, IF.GROUND, 1, 'rgba(160,150,130,0.5)');
+    c.sig.material.emissiveIntensity = open ? 1.6 + Math.sin(t * 3) * 0.5 : 0.15;
+  },
+
+  /* ---------- cinematics ---------- */
+  /* Played when the gate opens: a short dolly that swings in towards the rising portcullis, then hands back. */
+  openShot(run) {
+    if (!IF.r3.ok) return;
+    const W = run.world, S = IF.r3.S, X = W.gateX * S, Y = IF.terrain.laneHeight(W.gateX);
+    let t = 0;
+    IF.r3.cine = { apply(pos, look, dt) {
+      t += dt; const k = Math.min(1, t / 2.2), e = k * k * (3 - 2 * k);
+      look.set(X - 0.5, Y + 2.4, 0); pos.set(X - 9 + e * 3.5, Y + 3.2 - e * 0.6, 9 - e * 1.5);
+      if (t > 2.6) IF.r3.cine = null;
+    } };
+  },
+  /* Played as the knight walks through: the camera follows from behind the shoulder, then the screen fades. */
+  startTransition(run) {
+    run.transition = { t: 0, dur: 2.6 }; run.world.rightBound = run.world.end + 1200;
+    if (!IF.r3.ok) return;
+    const W = run.world, S = IF.r3.S;
+    IF.r3.cine = { apply(pos, look, dt) { // pull back and rise over the gatehouse as the knight strides through
+      const p = run.player, X = p.x * S, Y = IF.r3.wy(p.x, IF.GROUND), k = Math.min(1, run.transition ? run.transition.t / 2.2 : 1), e = k * k * (3 - 2 * k);
+      look.set(X + 1.2 + e * 2, Y + 1.4 + e * 0.6, -e * 1.5); pos.set(X - 1.5 + e * 1.5, Y + 2.4 + e * 2.6, 10 - e * 1.5);
+    } };
+  },
+  /* Drives the walk-through; returns true when the reward screen should open. */
+  stepTransition(run, dt) {
+    const tr = run.transition; tr.t += dt;
+    return tr.t >= tr.dur;
+  },
+  endTransition(run) { run.transition = null; if (IF.r3.ok) { IF.r3.cine = null; IF.r3.snapCam = true; } },
+  drawFade(ctx, run) {
+    const tr = run.transition; if (!tr) return;
+    const a = Math.max(0, Math.min(1, (tr.t - (tr.dur - 1.0)) / 0.9));
+    if (a > 0) { ctx.fillStyle = 'rgba(6,4,4,' + a + ')'; ctx.fillRect(0, 0, IF.W, IF.H); }
+    // letterbox bars for the cinematic
+    const lb = Math.min(1, tr.t / 0.4) * 60; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, IF.W, lb); ctx.fillRect(0, IF.H - lb, IF.W, lb);
   },
 };
 
@@ -4844,6 +5028,10 @@ IF.Player = class Player {
   }
 
   updateNormal(dt) {
+    if (this.autoWalk) { // gate cinematic: the knight strides through on his own
+      this.crouch = this.blocking = false; this.facing = 1; this.show = 'melee';
+      this.vx = IF.util.approach(this.vx, 210, 1800 * dt); return;
+    }
     const I = IF.input, ax = I.axisX;
     this.crouch = this.onGround && I.down('down');
     this.blocking = I.down('block') && this.onGround;
@@ -6139,9 +6327,10 @@ IF.Run = class Run {
     // gate opens once the gate horde (or the boss) is dead
     if (!W.gateOpen) {
       const clear = W.isBoss ? (W.bossSpawned && this.boss && this.boss.dead) : (W.gateWave && this.aliveCount() === 0);
-      if (clear) { W.gateOpen = true; W.rightBound = W.end + 200; IF.audio.ui('upgrade'); if (!W.isBoss) { this.banner = { top: 'SECTION CLEARED', main: 'The gate opens' }; this.bannerT = 1.8; } }
+      if (clear) { W.gateOpen = true; W.rightBound = W.end + 200; IF.audio.ui('upgrade'); IF.audio.gate && IF.audio.gate(); IF.gate3d.openShot(this); if (!W.isBoss) { this.banner = { top: 'SECTION CLEARED', main: 'The gate opens' }; this.bannerT = 1.8; } }
     }
-    if (W.gateOpen && pl.x > W.gateX + 70 && !pl.dead) { IF.game.openReward(); return; }
+    if (this.transition) { pl.autoWalk = true; if (IF.gate3d.stepTransition(this, dt)) { pl.autoWalk = false; IF.gate3d.endTransition(this); IF.game.openReward(); return; } }
+    else if (W.gateOpen && pl.x > W.gateX - 40 && !pl.dead) { if (IF.r3.ok) { IF.gate3d.startTransition(this); for (const e of this.enemies) if (!e.dead && !e.boss) e.x = Math.min(e.x, pl.x - 700); } else { IF.game.openReward(); return; } }
     // enemies
     for (const e of this.enemies) e.update(dt);
     if (this.enemies.length > 60 || this.enemies.some((e) => e.dead && e.deadT > 5)) this.enemies = this.enemies.filter((e) => !(e.dead && e.deadT > 5));
@@ -6275,7 +6464,9 @@ IF.game = {
 
   loop(now) {
     requestAnimationFrame((t) => this.loop(t));
-    let dt = Math.min(0.05, (now - (this.last || now)) / 1000); this.last = now;
+    const realDt = (now - (this.last || now)) / 1000;
+    let dt = Math.min(0.05, realDt); this.last = now;
+    if (this.state === 'playing' && IF.r3.ok && !document.hidden && realDt < 1) IF.r3.autoTune(realDt);
     this.fpsAcc += dt; this.fpsN++; if (this.fpsAcc > 0.5) { this.fps = this.fpsN / this.fpsAcc; this.fpsAcc = 0; this.fpsN = 0; }
     const t0 = performance.now();
     IF.input.update(now);
@@ -6345,7 +6536,7 @@ IF.game = {
     ctx.restore();
     this.renderWeather(ctx, run, t);
     this.renderLighting(ctx, run, true);
-    this.renderHud(ctx, run, t);
+    if (run.transition) IF.gate3d.drawFade(ctx, run); else this.renderHud(ctx, run, t);
   },
   renderWeather(ctx, run, t) {
     const w = run.world.biome.weather, q = IF.fx.quality(); if (w === 'none') return;
@@ -6754,13 +6945,13 @@ IF.ui = {
     const sel = (k, label, opts) => '<label class="set"><span>' + label + '</span><span class="opts">' + opts.map((o) => '<button class="btn ' + (s[k] === o ? 'pri' : '') + '" data-act="opt" data-k="' + k + '" data-v="' + o + '" data-nav>' + o + '</button>').join('') + '</span></label>';
     const keyRows = IF.ACTIONS.map((a) => '<tr><td>' + IF.ACTION_LABELS[a] + '</td><td><button class="btn key" data-act="rebind" data-a="' + a + '" data-kind="key" data-nav>' + this.esc((b.keys[a] || []).map((c) => this.keyName(c)).join(' / ') || '—') + '</button></td><td><button class="btn key" data-act="rebind" data-a="' + a + '" data-kind="pad" data-nav>' + ((b.pad[a] || []).map((i) => IF.PAD_NAMES[i] || 'B' + i).join(' / ') || '—') + '</button></td></tr>').join('');
     return this.header('Settings') + '<div class="settings"><div class="col"><h4>Audio</h4>' + range('music', 'Music volume') + range('sfx', 'Effects volume') +
-      '<h4>Display</h4>' + sel('gore', 'Gore & dismemberment', ['full', 'reduced', 'off']) + tog('shake', 'Screen shake') + tog('dmgNumbers', 'Damage numbers') + tog('showFps', 'Show FPS') + sel('particles', 'Effects quality', ['low', 'medium', 'high']) +
+      '<h4>Display</h4>' + sel('gore', 'Gore & dismemberment', ['full', 'reduced', 'off']) + tog('shake', 'Screen shake') + tog('dmgNumbers', 'Damage numbers') + tog('showFps', 'Show FPS') + sel('particles', 'Effects quality', ['low', 'medium', 'high']) + (IF.r3.ok ? sel('graphics', '3D graphics', ['auto', 'high', 'medium', 'low', 'potato']) : '') +
       '<h4>Touch controls</h4>' + sel('touch', 'On-screen controls', ['auto', 'on', 'off']) + '<label class="set"><span>Button size</span><input type="range" min="0.7" max="1.5" step="0.05" value="' + s.touchSize + '" data-setting="touchSize" data-nav></label><label class="set"><span>Button opacity</span><input type="range" min="0.2" max="1" step="0.05" value="' + s.touchOpacity + '" data-setting="touchOpacity" data-nav></label>' +
       '<h4>Save data</h4><div class="acts"><button class="btn" data-act="export" data-nav>Export save</button><button class="btn" data-act="import" data-nav>Import save</button><button class="btn" data-act="resetkeys" data-nav>Reset controls</button></div><p class="dim">Progress saves automatically with a verified backup copy.</p></div>' +
       '<div class="col"><h4>Controls <small class="dim">(click a binding, then press a key or controller button)</small></h4><div class="scroll"><table class="keys rebind"><tr><th>Action</th><th>Keyboard / Mouse</th><th>Controller</th></tr>' + keyRows + '</table></div></div></div>';
   },
   keyName(c) { const m = { Mouse0: 'Left Click', Mouse2: 'Right Click', Wheel: 'Mouse Wheel', Space: 'Space', ShiftLeft: 'L-Shift', ShiftRight: 'R-Shift', Escape: 'Esc', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓' }; return m[c] || c.replace('Key', '').replace('Digit', ''); },
-  setSetting(k, v) { const s = IF.save.data.settings; s[k] = v; IF.audio.applyVolumes(); IF.touch && IF.touch.applySettings(); IF.save.markDirty(); },
+  setSetting(k, v) { const s = IF.save.data.settings; s[k] = v; IF.audio.applyVolumes(); IF.touch && IF.touch.applySettings(); if (k === 'graphics') { IF.r3.autoTier = null; IF.r3._auto = null; IF.r3.applyQuality(); } IF.save.markDirty(); },
 
   /* ---------- PAUSE / DEATH / REWARD ---------- */
   r_pause() {
@@ -6847,7 +7038,7 @@ IF.ui = {
       case 'gowpn': this.sel.weapon = ds.uid; this.show('armoury', true); break;
       case 'goarm': { const it = IF.loot.findItem(ds.uid); this.sel.slot = it.slot; this.sel.item = it.uid; this.show('equipment', true); break; }
       case 'toggle': d.settings[ds.k] = !d.settings[ds.k]; IF.save.write(); this.render(); break;
-      case 'opt': d.settings[ds.k] = ds.v; IF.save.write(); IF.touch && IF.touch.applySettings(); if (IF.game.run) this.hud(true); this.render(); break;
+      case 'opt': d.settings[ds.k] = ds.v; if (ds.k === 'graphics') { IF.r3.autoTier = null; IF.r3._auto = null; IF.r3.applyQuality(); } IF.save.write(); IF.touch && IF.touch.applySettings(); if (IF.game.run) this.hud(true); this.render(); break;
       case 'rebind': el.textContent = ds.kind === 'key' ? 'Press a key…' : 'Press a button…'; IF.input.startRebind(ds.a, ds.kind, () => this.render()); break;
       case 'resetkeys': d.settings.keys = {}; d.settings.pad = {}; IF.save.write(); this.render(); break;
       case 'export': { const s = IF.save.exportString(); try { navigator.clipboard.writeText(s).then(() => this.toast('Save copied to clipboard'), () => {}); } catch (e) {} this.dialog('Export save', 'Your save string (also copied to the clipboard where allowed). Keep it somewhere safe:', null, null, { area: true, value: s }); break; }

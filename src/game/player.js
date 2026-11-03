@@ -111,6 +111,10 @@ IF.Player = class Player {
   }
 
   updateNormal(dt) {
+    if (this.autoWalk) { // gate cinematic: the knight strides through on his own
+      this.crouch = this.blocking = false; this.facing = 1; this.show = 'melee';
+      this.vx = IF.util.approach(this.vx, 210, 1800 * dt); return;
+    }
     const I = IF.input, ax = I.axisX;
     this.crouch = this.onGround && I.down('down');
     this.blocking = I.down('block') && this.onGround;

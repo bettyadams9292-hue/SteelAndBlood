@@ -13,7 +13,9 @@ IF.r3 = {
   init(canvas) {
     const T = window.THREE; if (!T) return false;
     try {
-      const r = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+      const lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || /Mobi|Android/i.test(navigator.userAgent);
+      const r = new T.WebGLRenderer({ canvas, antialias: !lowEnd, powerPreference: 'high-performance' });
+      if (lowEnd) this.autoTier = 'medium';
       if (!r.capabilities.isWebGL2) throw new Error('WebGL2 required');
       r.outputColorSpace = T.SRGBColorSpace; r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
       r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
@@ -26,7 +28,7 @@ IF.r3 = {
       const sh = this.sun.shadow; sh.mapSize.set(2048, 1024); sh.camera.left = -16; sh.camera.right = 16; sh.camera.top = 9; sh.camera.bottom = -6; sh.camera.near = 1; sh.camera.far = 80; sh.bias = -0.0006; sh.normalBias = 0.02;
       sc.add(this.sun, this.sun.target);
       this.rim = new T.DirectionalLight('#9ab0ff', 0.7); sc.add(this.rim);
-      for (let i = 0; i < 6; i++) { const p = new T.PointLight('#ff9a40', 0, 9, 1.6); p.visible = false; sc.add(p); this.pointLights.push(p); }
+      for (let i = 0; i < 6; i++) { const p = new T.PointLight("#ff9a40", 0, 9, 1.6); sc.add(p); this.pointLights.push(p); }
       this.world = new T.Group(); sc.add(this.world);
       // image-based lighting from a simple procedural studio so PBR metal reads well
       const pm = new T.PMREMGenerator(r), es = new T.Scene();
@@ -41,19 +43,42 @@ IF.r3 = {
       return true;
     } catch (e) { console.warn('3D renderer unavailable, using 2D fallback:', e); this.ok = false; return false; }
   },
+  /* Graphics tiers. 'auto' starts high and steps down while the measured frame time stays too long. */
+  TIERS: {
+    high: { shadows: true, soft: true, map: [2048, 1024], pr: 2, lights: 6, scale: 1 },
+    medium: { shadows: true, soft: false, map: [1024, 512], pr: 1.25, lights: 4, scale: 1 },
+    low: { shadows: false, soft: false, map: [512, 256], pr: 1, lights: 2, scale: 0.8 },
+    potato: { shadows: false, soft: false, map: [512, 256], pr: 0.75, lights: 0, scale: 0.6 },
+  },
+  tierName() { const q = IF.save.data.settings.graphics || 'auto'; return q === 'auto' ? (this.autoTier || 'high') : q; },
   applyQuality() {
-    if (!this.ok) return; const q = IF.save.data.settings.graphics || 'high';
-    this.renderer.shadowMap.enabled = q !== 'low';
-    this.sun.shadow.mapSize.set(q === 'high' ? 2048 : 1024, q === 'high' ? 1024 : 512);
+    if (!this.ok) return; const Q = this.TIERS[this.tierName()] || this.TIERS.high, T = this.T;
+    this.tier = Q;
+    this.renderer.shadowMap.enabled = Q.shadows; this.renderer.shadowMap.type = Q.soft ? T.PCFSoftShadowMap : T.PCFShadowMap;
+    this.sun.shadow.mapSize.set(Q.map[0], Q.map[1]);
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
+    // the light count is part of every shader, so it only changes here (never per frame)
+    this.pointLights.forEach((p, i) => { p.visible = i < Q.lights; });
+    this.scene.traverse((o) => { if (o.material) [].concat(o.material).forEach((m) => (m.needsUpdate = true)); });
     this.resize();
   },
   resize() {
-    if (!this.ok) return; const c = this.renderer.domElement, q = IF.save.data.settings.graphics || 'high';
+    if (!this.ok) return; const c = this.renderer.domElement, Q = this.tier || this.TIERS.high;
     const w = c.clientWidth || IF.W, h = c.clientHeight || IF.H;
-    const pr = Math.min(window.devicePixelRatio || 1, q === 'high' ? 2 : q === 'medium' ? 1.25 : 0.85);
+    const pr = Math.min(window.devicePixelRatio || 1, Q.pr) * Q.scale;
     this.renderer.setPixelRatio(pr); this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
+  },
+  /* Called once per frame with the real frame time; drops a tier after ~3 s of sustained slow frames. */
+  autoTune(dt) {
+    if ((IF.save.data.settings.graphics || 'auto') !== 'auto' || !this.ok) return;
+    const a = this._auto || (this._auto = { t: 0, acc: 0, n: 0, warm: 2.5 });
+    if (a.warm > 0) { a.warm -= dt; return; } // ignore shader-compile hitches right after load
+    a.t += dt; a.acc += Math.min(dt, 0.25); a.n++;
+    if (a.t < 3) return;
+    const avg = a.acc / a.n; a.t = a.acc = a.n = 0;
+    const order = ['high', 'medium', 'low', 'potato'], i = order.indexOf(this.autoTier || 'high');
+    if (avg > 1 / 45 && i < order.length - 1) { this.autoTier = order[i + 1]; a.warm = 2; this.applyQuality(); IF.ui && IF.ui.toast && IF.ui.toast('Graphics adjusted: ' + this.autoTier); }
   },
 
   /* ---------- lane <-> world ---------- */
@@ -84,7 +109,7 @@ IF.r3 = {
     const tgtLook = new T.Vector3(cx, Math.max(footY, py - 1.2) + 1.95, 0);
     const tgtPos = new T.Vector3(cx - 1.2, tgtLook.y + 0.55, 11.8);
     if (this.cine) this.cine.apply(tgtPos, tgtLook, dt);
-    const k = Math.min(1, dt * (this.cine ? 3 : 6));
+    const k = this.snapCam ? 1 : Math.min(1, dt * (this.cine ? 3 : 6)); this.snapCam = false;
     this.camPos.lerp(tgtPos, k); this.camLook.lerp(tgtLook, k);
     cam.position.copy(this.camPos); cam.position.x += IF.fx.shakeX * this.S * 1.4; cam.position.y += IF.fx.shakeY * this.S * 1.4;
     cam.lookAt(this.camLook);
@@ -105,8 +130,8 @@ IF.r3 = {
     em.sort((a, b) => Math.abs(a.x - cx) / a.i - Math.abs(b.x - cx) / b.i);
     for (let i = 0; i < this.pointLights.length; i++) {
       const p = this.pointLights[i], e = em[i];
-      if (e && Math.abs(e.x - cx) < 1100) { p.visible = true; p.color.set(e.c); p.intensity = e.i; p.distance = e.r || 9; this.toWorld(e.x, e.y, e.z || 0.6, p.position); }
-      else p.visible = false;
+      if (e && Math.abs(e.x - cx) < 1100) { p.color.set(e.c); p.intensity = e.i; p.distance = e.r || 9; this.toWorld(e.x, e.y, e.z || 0.6, p.position); }
+      else p.intensity = 0; // never toggle visibility: changing the light count recompiles every shader
     }
     em.length = 0;
   },

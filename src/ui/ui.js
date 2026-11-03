@@ -286,13 +286,13 @@ IF.ui = {
     const sel = (k, label, opts) => '<label class="set"><span>' + label + '</span><span class="opts">' + opts.map((o) => '<button class="btn ' + (s[k] === o ? 'pri' : '') + '" data-act="opt" data-k="' + k + '" data-v="' + o + '" data-nav>' + o + '</button>').join('') + '</span></label>';
     const keyRows = IF.ACTIONS.map((a) => '<tr><td>' + IF.ACTION_LABELS[a] + '</td><td><button class="btn key" data-act="rebind" data-a="' + a + '" data-kind="key" data-nav>' + this.esc((b.keys[a] || []).map((c) => this.keyName(c)).join(' / ') || '—') + '</button></td><td><button class="btn key" data-act="rebind" data-a="' + a + '" data-kind="pad" data-nav>' + ((b.pad[a] || []).map((i) => IF.PAD_NAMES[i] || 'B' + i).join(' / ') || '—') + '</button></td></tr>').join('');
     return this.header('Settings') + '<div class="settings"><div class="col"><h4>Audio</h4>' + range('music', 'Music volume') + range('sfx', 'Effects volume') +
-      '<h4>Display</h4>' + sel('gore', 'Gore & dismemberment', ['full', 'reduced', 'off']) + tog('shake', 'Screen shake') + tog('dmgNumbers', 'Damage numbers') + tog('showFps', 'Show FPS') + sel('particles', 'Effects quality', ['low', 'medium', 'high']) +
+      '<h4>Display</h4>' + sel('gore', 'Gore & dismemberment', ['full', 'reduced', 'off']) + tog('shake', 'Screen shake') + tog('dmgNumbers', 'Damage numbers') + tog('showFps', 'Show FPS') + sel('particles', 'Effects quality', ['low', 'medium', 'high']) + (IF.r3.ok ? sel('graphics', '3D graphics', ['auto', 'high', 'medium', 'low', 'potato']) : '') +
       '<h4>Touch controls</h4>' + sel('touch', 'On-screen controls', ['auto', 'on', 'off']) + '<label class="set"><span>Button size</span><input type="range" min="0.7" max="1.5" step="0.05" value="' + s.touchSize + '" data-setting="touchSize" data-nav></label><label class="set"><span>Button opacity</span><input type="range" min="0.2" max="1" step="0.05" value="' + s.touchOpacity + '" data-setting="touchOpacity" data-nav></label>' +
       '<h4>Save data</h4><div class="acts"><button class="btn" data-act="export" data-nav>Export save</button><button class="btn" data-act="import" data-nav>Import save</button><button class="btn" data-act="resetkeys" data-nav>Reset controls</button></div><p class="dim">Progress saves automatically with a verified backup copy.</p></div>' +
       '<div class="col"><h4>Controls <small class="dim">(click a binding, then press a key or controller button)</small></h4><div class="scroll"><table class="keys rebind"><tr><th>Action</th><th>Keyboard / Mouse</th><th>Controller</th></tr>' + keyRows + '</table></div></div></div>';
   },
   keyName(c) { const m = { Mouse0: 'Left Click', Mouse2: 'Right Click', Wheel: 'Mouse Wheel', Space: 'Space', ShiftLeft: 'L-Shift', ShiftRight: 'R-Shift', Escape: 'Esc', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓' }; return m[c] || c.replace('Key', '').replace('Digit', ''); },
-  setSetting(k, v) { const s = IF.save.data.settings; s[k] = v; IF.audio.applyVolumes(); IF.touch && IF.touch.applySettings(); IF.save.markDirty(); },
+  setSetting(k, v) { const s = IF.save.data.settings; s[k] = v; IF.audio.applyVolumes(); IF.touch && IF.touch.applySettings(); if (k === 'graphics') { IF.r3.autoTier = null; IF.r3._auto = null; IF.r3.applyQuality(); } IF.save.markDirty(); },
 
   /* ---------- PAUSE / DEATH / REWARD ---------- */
   r_pause() {
@@ -379,7 +379,7 @@ IF.ui = {
       case 'gowpn': this.sel.weapon = ds.uid; this.show('armoury', true); break;
       case 'goarm': { const it = IF.loot.findItem(ds.uid); this.sel.slot = it.slot; this.sel.item = it.uid; this.show('equipment', true); break; }
       case 'toggle': d.settings[ds.k] = !d.settings[ds.k]; IF.save.write(); this.render(); break;
-      case 'opt': d.settings[ds.k] = ds.v; IF.save.write(); IF.touch && IF.touch.applySettings(); if (IF.game.run) this.hud(true); this.render(); break;
+      case 'opt': d.settings[ds.k] = ds.v; if (ds.k === 'graphics') { IF.r3.autoTier = null; IF.r3._auto = null; IF.r3.applyQuality(); } IF.save.write(); IF.touch && IF.touch.applySettings(); if (IF.game.run) this.hud(true); this.render(); break;
       case 'rebind': el.textContent = ds.kind === 'key' ? 'Press a key…' : 'Press a button…'; IF.input.startRebind(ds.a, ds.kind, () => this.render()); break;
       case 'resetkeys': d.settings.keys = {}; d.settings.pad = {}; IF.save.write(); this.render(); break;
       case 'export': { const s = IF.save.exportString(); try { navigator.clipboard.writeText(s).then(() => this.toast('Save copied to clipboard'), () => {}); } catch (e) {} this.dialog('Export save', 'Your save string (also copied to the clipboard where allowed). Keep it somewhere safe:', null, null, { area: true, value: s }); break; }

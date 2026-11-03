@@ -21,7 +21,7 @@ IF.save = {
       seen: {}, // weapon ids ever obtained
       tutorialDone: false, dailyBest: {},
       appearance: { name: 'Sir Aldric', tabard: 'auto', emblem: 'cross', cross: 'auto', cape: 'auto', plume: 'auto', helm: 'auto', finish: 'auto' },
-      settings: { music: 0.55, sfx: 0.8, gore: 'full', shake: true, dmgNumbers: true, particles: 'high', touch: 'auto', touchSize: 1, touchOpacity: 0.5, keys: {}, pad: {}, showFps: false, mode: 'endless' },
+      settings: { music: 0.55, sfx: 0.8, gore: 'full', shake: true, dmgNumbers: true, particles: 'high', touch: 'auto', touchSize: 1, touchOpacity: 0.5, keys: {}, pad: {}, showFps: false, mode: 'endless', graphics: 'auto' },
     };
   },
 
