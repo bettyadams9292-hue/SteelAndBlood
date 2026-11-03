@@ -177,3 +177,8 @@ h4 { color: var(--gold); }
 .ovbox, .dlg, .panel { background: linear-gradient(180deg, rgba(34,37,41,0.97), rgba(16,17,19,0.97)) !important; border: 1px solid #5c6268 !important; box-shadow: 0 0 0 1px #0a0a0a, inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 60px rgba(0,0,0,0.7) !important; position: relative; }
 .ovbox::before, .dlg::before { content: ''; position: absolute; inset: 4px; border: 1px solid rgba(201,162,74,0.25); pointer-events: none; }
 .comp { background: linear-gradient(160deg, rgba(42,45,49,0.95), rgba(20,21,24,0.95)); border-color: rgba(168,173,178,0.28); }
+
+.splash .loading { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); width: min(520px, 70%); text-align: center; }
+.splash .lbar { height: 8px; background: rgba(14,15,17,0.85); border: 1px solid #6a7076; box-shadow: 0 0 0 1px #000, 0 0 18px rgba(0,0,0,0.8); }
+.splash .lbar i { display: block; height: 100%; background: linear-gradient(90deg, #5a0b0f, #a3181e 60%, #e8c878); transition: width 0.25s ease-out; box-shadow: 0 0 12px rgba(200,40,40,0.6); }
+.splash .ltext { margin-top: 10px; font-size: 0.9em; letter-spacing: 0.3em; text-transform: uppercase; color: #ece4d2; text-shadow: 0 0 10px #000, 0 0 2px #000; }

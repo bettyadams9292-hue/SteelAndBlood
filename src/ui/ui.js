@@ -61,7 +61,16 @@ IF.ui = {
 
   /* ---------- SPLASH ---------- */
   r_splash() {
-    return '<div class="splash" data-act="start"><img src="' + IF.ASSETS.splash + '" alt="Steel & Blood: Knights of the Apocalypse"><div class="press">' + ('ontouchstart' in window ? 'TAP TO BEGIN' : 'PRESS ANY KEY') + '</div><div class="ver">v' + IF.VERSION + '</div></div>';
+    const ready = IF.game.loaded;
+    return '<div class="splash" data-act="start"><img src="' + IF.ASSETS.splash + '" alt="Steel & Blood: Knights of the Apocalypse">' +
+      (ready ? '<div class="press">' + ('ontouchstart' in window ? 'TAP TO BEGIN' : 'PRESS ANY KEY') + '</div>'
+        : '<div class="loading"><div class="lbar"><i id="lfill" style="width:0%"></i></div><div class="ltext" id="ltext">Loading…</div></div>') +
+      '<div class="ver">v' + IF.VERSION + '</div></div>';
+  },
+  setLoading(label, k) {
+    if (label === null) { if (this.screen === 'splash') this.render(); return; }
+    const f = document.getElementById('lfill'), t = document.getElementById('ltext');
+    if (f) f.style.width = Math.round(k * 100) + '%'; if (t) t.textContent = label + '…  ' + Math.round(k * 100) + '%';
   },
   /* ---------- MAIN MENU ---------- */
   r_menu() {
@@ -371,7 +380,7 @@ IF.ui = {
     const d = IF.save.data;
     if (a !== 'claim') IF.audio.ui('click');
     switch (a) {
-      case 'start': IF.audio.unlock(); IF.audio.setMusic(0, false); this.show('menu'); break;
+      case 'start': if (!IF.game.loaded) return; IF.audio.unlock(); IF.audio.setMusic(0, false); this.show('menu'); break;
       case 'back': this.back(); break;
       case 'play': IF.game.newRun('endless'); break;
       case 'modes': case 'armoury': case 'equipment': case 'skills': case 'forge': case 'stats': case 'achievements': case 'settings': case 'howto': case 'companions': this.show(a, true); break;

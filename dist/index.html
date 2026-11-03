@@ -189,6 +189,11 @@ h4 { color: var(--gold); }
 .ovbox::before, .dlg::before { content: ''; position: absolute; inset: 4px; border: 1px solid rgba(201,162,74,0.25); pointer-events: none; }
 .comp { background: linear-gradient(160deg, rgba(42,45,49,0.95), rgba(20,21,24,0.95)); border-color: rgba(168,173,178,0.28); }
 
+.splash .loading { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); width: min(520px, 70%); text-align: center; }
+.splash .lbar { height: 8px; background: rgba(14,15,17,0.85); border: 1px solid #6a7076; box-shadow: 0 0 0 1px #000, 0 0 18px rgba(0,0,0,0.8); }
+.splash .lbar i { display: block; height: 100%; background: linear-gradient(90deg, #5a0b0f, #a3181e 60%, #e8c878); transition: width 0.25s ease-out; box-shadow: 0 0 12px rgba(200,40,40,0.6); }
+.splash .ltext { margin-top: 10px; font-size: 0.9em; letter-spacing: 0.3em; text-transform: uppercase; color: #ece4d2; text-shadow: 0 0 10px #000, 0 0 2px #000; }
+
 </style>
 </head>
 <body>
@@ -1570,7 +1575,7 @@ window.BGU={computeMikkTSpaceTangents,mergeGeometries,mergeAttributes,deepCloneA
  * concatenates modules in dependency order (see build.js MODULES list). */
 'use strict';
 const IF = (window.IF = window.IF || {});
-IF.VERSION = '1.0.0';
+IF.VERSION = '2.0.0';
 IF.TITLE = 'Steel & Blood: Knights of the Apocalypse';
 IF.W = 1280; // logical render width
 IF.H = 720;  // logical render height
@@ -7027,7 +7032,6 @@ IF.game = {
     this.canvas = document.getElementById('game'); this.ctx = this.canvas.getContext('2d');
     IF.save.load(); // settings are needed by the renderer
     this.gl = document.getElementById('gl');
-    if (IF.r3.init(this.gl)) { IF.kit.init(); IF.crowd.init(); IF.fx3d.init(); IF.VIEW_W = 1260; } else { this.gl.style.display = 'none'; this.canvas.classList.add('solo'); }
     this.resize(); window.addEventListener('resize', () => this.resize());
     IF.fx.init(); IF.combat.init(); IF.input.init(this.canvas);
     IF.ui.init();
@@ -7035,6 +7039,21 @@ IF.game = {
     IF.events.on('levelup', (lv) => { IF.audio.levelUp(); IF.ui.toast('LEVEL ' + lv + ' — skill point earned', 'level'); if (this.run) { this.run.player.refreshStats(); IF.fx.ring(this.run.player.x, this.run.player.y - 80, 160, '#ffd36b'); } });
     IF.events.on('achievement', (a) => IF.ui.toast('ACHIEVEMENT · ' + a.name, 'ach', a.desc));
     IF.events.on('toast', (o) => IF.ui.toast(o.text, o.bad ? 'bad' : ''));
+    this.boot();
+  },
+  /* Staged loading behind the title art: renderer, procedural materials, rigs, effect pools, shader warm-up. */
+  async boot() {
+    const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))), t0 = performance.now();
+    const steps = [
+      ['Forging steel', () => { if (IF.r3.init(this.gl)) { IF.VIEW_W = 1260; } else { this.gl.style.display = 'none'; this.canvas.classList.add('solo'); } }],
+      ['Tempering the armour', () => { if (IF.r3.ok) { IF.mat.stoneSet(); IF.mat.woodSet(); IF.mat.metalSet(); IF.kit.init(); } }],
+      ['Raising the dead', () => { if (IF.r3.ok) IF.crowd.init(); }],
+      ['Lighting the braziers', () => { if (IF.r3.ok) IF.fx3d.init(); }],
+      ['Sharpening blades', () => { if (IF.r3.ok) { try { IF.r3.renderer.compile(IF.r3.scene, IF.r3.camera); } catch (e) { /* warm-up is best effort */ } } }],
+    ];
+    for (let i = 0; i < steps.length; i++) { IF.ui.setLoading(steps[i][0], i / steps.length); await frame(); try { steps[i][1](); } catch (e) { console.error(e); } }
+    while (performance.now() - t0 < 1600) { IF.ui.setLoading('Ready', Math.min(1, (performance.now() - t0) / 1600)); await frame(); }
+    this.resize(); this.loaded = true; IF.ui.setLoading(null, 1);
     requestAnimationFrame((t) => this.loop(t));
   },
   resize() {
@@ -7343,7 +7362,16 @@ IF.ui = {
 
   /* ---------- SPLASH ---------- */
   r_splash() {
-    return '<div class="splash" data-act="start"><img src="' + IF.ASSETS.splash + '" alt="Steel & Blood: Knights of the Apocalypse"><div class="press">' + ('ontouchstart' in window ? 'TAP TO BEGIN' : 'PRESS ANY KEY') + '</div><div class="ver">v' + IF.VERSION + '</div></div>';
+    const ready = IF.game.loaded;
+    return '<div class="splash" data-act="start"><img src="' + IF.ASSETS.splash + '" alt="Steel & Blood: Knights of the Apocalypse">' +
+      (ready ? '<div class="press">' + ('ontouchstart' in window ? 'TAP TO BEGIN' : 'PRESS ANY KEY') + '</div>'
+        : '<div class="loading"><div class="lbar"><i id="lfill" style="width:0%"></i></div><div class="ltext" id="ltext">Loading…</div></div>') +
+      '<div class="ver">v' + IF.VERSION + '</div></div>';
+  },
+  setLoading(label, k) {
+    if (label === null) { if (this.screen === 'splash') this.render(); return; }
+    const f = document.getElementById('lfill'), t = document.getElementById('ltext');
+    if (f) f.style.width = Math.round(k * 100) + '%'; if (t) t.textContent = label + '…  ' + Math.round(k * 100) + '%';
   },
   /* ---------- MAIN MENU ---------- */
   r_menu() {
@@ -7653,7 +7681,7 @@ IF.ui = {
     const d = IF.save.data;
     if (a !== 'claim') IF.audio.ui('click');
     switch (a) {
-      case 'start': IF.audio.unlock(); IF.audio.setMusic(0, false); this.show('menu'); break;
+      case 'start': if (!IF.game.loaded) return; IF.audio.unlock(); IF.audio.setMusic(0, false); this.show('menu'); break;
       case 'back': this.back(); break;
       case 'play': IF.game.newRun('endless'); break;
       case 'modes': case 'armoury': case 'equipment': case 'skills': case 'forge': case 'stats': case 'achievements': case 'settings': case 'howto': case 'companions': this.show(a, true); break;

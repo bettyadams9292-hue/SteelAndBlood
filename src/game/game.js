@@ -163,7 +163,6 @@ IF.game = {
     this.canvas = document.getElementById('game'); this.ctx = this.canvas.getContext('2d');
     IF.save.load(); // settings are needed by the renderer
     this.gl = document.getElementById('gl');
-    if (IF.r3.init(this.gl)) { IF.kit.init(); IF.crowd.init(); IF.fx3d.init(); IF.VIEW_W = 1260; } else { this.gl.style.display = 'none'; this.canvas.classList.add('solo'); }
     this.resize(); window.addEventListener('resize', () => this.resize());
     IF.fx.init(); IF.combat.init(); IF.input.init(this.canvas);
     IF.ui.init();
@@ -171,6 +170,21 @@ IF.game = {
     IF.events.on('levelup', (lv) => { IF.audio.levelUp(); IF.ui.toast('LEVEL ' + lv + ' — skill point earned', 'level'); if (this.run) { this.run.player.refreshStats(); IF.fx.ring(this.run.player.x, this.run.player.y - 80, 160, '#ffd36b'); } });
     IF.events.on('achievement', (a) => IF.ui.toast('ACHIEVEMENT · ' + a.name, 'ach', a.desc));
     IF.events.on('toast', (o) => IF.ui.toast(o.text, o.bad ? 'bad' : ''));
+    this.boot();
+  },
+  /* Staged loading behind the title art: renderer, procedural materials, rigs, effect pools, shader warm-up. */
+  async boot() {
+    const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))), t0 = performance.now();
+    const steps = [
+      ['Forging steel', () => { if (IF.r3.init(this.gl)) { IF.VIEW_W = 1260; } else { this.gl.style.display = 'none'; this.canvas.classList.add('solo'); } }],
+      ['Tempering the armour', () => { if (IF.r3.ok) { IF.mat.stoneSet(); IF.mat.woodSet(); IF.mat.metalSet(); IF.kit.init(); } }],
+      ['Raising the dead', () => { if (IF.r3.ok) IF.crowd.init(); }],
+      ['Lighting the braziers', () => { if (IF.r3.ok) IF.fx3d.init(); }],
+      ['Sharpening blades', () => { if (IF.r3.ok) { try { IF.r3.renderer.compile(IF.r3.scene, IF.r3.camera); } catch (e) { /* warm-up is best effort */ } } }],
+    ];
+    for (let i = 0; i < steps.length; i++) { IF.ui.setLoading(steps[i][0], i / steps.length); await frame(); try { steps[i][1](); } catch (e) { console.error(e); } }
+    while (performance.now() - t0 < 1600) { IF.ui.setLoading('Ready', Math.min(1, (performance.now() - t0) / 1600)); await frame(); }
+    this.resize(); this.loaded = true; IF.ui.setLoading(null, 1);
     requestAnimationFrame((t) => this.loop(t));
   },
   resize() {
