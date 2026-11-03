@@ -37,6 +37,8 @@ window.BOT = {
         if (g && g.mag + (run.ammo[g.def.ammo] || 0) > 0) T.shoot = g.def.auto ? true : this.toggle; else if (nd < 200) T.attack = this.toggle;
         return;
       }
+      // use the tactical belt now and then: grenades into crowds, traps and the sentry when swarmed
+      if (run.tac && this.tick % 240 === 0) { const crowd = run.enemies.filter((e) => !e.dead && Math.abs(e.x - pl.x) < 400).length; if (crowd >= 4) { run.tac.sel = [0, 1, 2, 3, 4][(this.tick / 240) % 5 | 0]; T.tactical = true; } }
       if (nd < 120) { IF.input.touchAxis = dir * 0.3; T.attack = this.toggle; if (near.def.low) T.down = false; if (this.tick % 90 === 0) T.block = true; }
       else if (nd < 650 && g && pl.facing !== dir) IF.input.touchAxis = dir * 0.3;
       else if (nd < 650 && g && (g.mag + (run.ammo[g.def.ammo] || 0)) > 0) { IF.input.touchAxis = dir * 0.01; T.shoot = g.def.auto ? true : this.toggle; if (near.def.low) T.down = true; }

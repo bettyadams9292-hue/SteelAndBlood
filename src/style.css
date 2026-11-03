@@ -1,5 +1,5 @@
-/* Steel & Blood — UI theme: blackened iron, parchment, blood-red crusader accents. */
-:root { --red: #b3151d; --red2: #e8302a; --gold: #c9a35a; --bone: #f2e8d8; --dim: #9a8c78; --ink: #0d0909; --panel: rgba(16, 10, 9, 0.92); --line: #4a3a2e; --serif: 'Cinzel', 'Trajan Pro', 'Cormorant Garamond', Georgia, 'DejaVu Serif', serif; }
+/* Steel & Blood — UI theme: gunmetal plate, aged silver edging, deep crimson, bone white and gilt. */
+:root { --red: #8e1218; --red2: #d42a2a; --gold: #c9a24a; --gold2: #e8c878; --bone: #ece4d2; --silver: #a8adb2; --silver2: #d6dadd; --gunmetal: #2a2d31; --gunmetal2: #1a1c1f; --dim: #9a958a; --ink: #0b0c0d; --panel: rgba(22, 24, 27, 0.94); --line: #4c5157; --serif: 'Cinzel', 'Trajan Pro', 'Cormorant Garamond', Georgia, 'DejaVu Serif', serif; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: #050303; overflow: hidden; color: var(--bone); font-family: var(--serif); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 #wrap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
@@ -158,3 +158,22 @@ table.keys { width: 100%; border-collapse: collapse; font-size: 0.85em; } table.
 .comp .cstats span { background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 2px; }
 .comp .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .acts.center { justify-content: center; display: flex; padding: 8px; }
+
+/* ================= Gunmetal & silver overhaul ================= */
+.btn { background: linear-gradient(180deg, #3a3e43 0%, #25282c 52%, #1c1e21 100%); border: 1px solid #5c6268; border-top-color: #8a9096; border-bottom-color: #121315; color: var(--bone); border-radius: 2px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 4px rgba(0,0,0,0.5); text-shadow: 0 1px 0 #000; }
+.btn:hover:not([disabled]), .btn.focus { border-color: var(--gold); background: linear-gradient(180deg, #474c52 0%, #2c3035 55%, #1f2125 100%); color: #fff6e0; }
+.btn.pri { background: linear-gradient(180deg, #a3181e 0%, #7a1015 55%, #4e0a0d 100%); border-color: #c9a24a; border-top-color: #e8c878; color: #fff4e0; }
+.btn.pri:hover:not([disabled]) { background: linear-gradient(180deg, #c01c22 0%, #8e1218 55%, #5a0b0f 100%); }
+.btn.on { border-color: var(--gold); color: var(--gold2); }
+kbd { background: #2a2d31; border-color: #5c6268; }
+h4 { color: var(--gold); }
+.mbtn { background: linear-gradient(90deg, rgba(42,45,49,0.95), rgba(26,28,31,0.85)) !important; border: 1px solid rgba(168,173,178,0.35) !important; border-left: 3px solid var(--red) !important; color: var(--bone) !important; }
+.mbtn:hover, .mbtn.focus { border-left-color: var(--gold) !important; background: linear-gradient(90deg, rgba(70,20,24,0.95), rgba(30,32,36,0.9)) !important; }
+.mbtn small { color: var(--silver) !important; }
+.hdr { border-bottom: 1px solid rgba(168,173,178,0.3) !important; background: linear-gradient(180deg, rgba(30,32,36,0.95), rgba(16,17,19,0.9)) !important; }
+.hdr h2 { color: var(--bone); text-shadow: 0 2px 0 #000, 0 0 18px rgba(142,18,24,0.45); }
+.scr { background-color: #0e0f11; }
+.toast { background: linear-gradient(90deg, rgba(26,28,31,0.97), rgba(52,14,16,0.95)); border: 1px solid #4c5157; border-left: 4px solid var(--gold); border-radius: 2px; }
+.ovbox, .dlg, .panel { background: linear-gradient(180deg, rgba(34,37,41,0.97), rgba(16,17,19,0.97)) !important; border: 1px solid #5c6268 !important; box-shadow: 0 0 0 1px #0a0a0a, inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 60px rgba(0,0,0,0.7) !important; position: relative; }
+.ovbox::before, .dlg::before { content: ''; position: absolute; inset: 4px; border: 1px solid rgba(201,162,74,0.25); pointer-events: none; }
+.comp { background: linear-gradient(160deg, rgba(42,45,49,0.95), rgba(20,21,24,0.95)); border-color: rgba(168,173,178,0.28); }
