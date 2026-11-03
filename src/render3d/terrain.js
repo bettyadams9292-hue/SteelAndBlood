@@ -79,6 +79,7 @@ IF.terrain = {
     // gate
     IF.gate3d && group.add(IF.gate3d.build(W, chunk));
     // biome set dressing, placed in depth bands behind and in front of the lane
+    this._occ = [];
     this.dress(b, cfg, W, rng, group, statics, chunk, x0, x1, seed);
     this.vegetation(cfg, rng, group, x0, x1, seed);
     group.add(this.batch(statics));
@@ -88,7 +89,7 @@ IF.terrain = {
   },
   fitToWidth(g, p) { // scale lane props to the gameplay footprint so platforms line up with physics
     const box = new IF.r3.T.Box3().setFromObject(g), w = (box.max.x - box.min.x) / this.S;
-    if (w > 1 && p.platform) { const k = p.w / w; g.scale.set(k, Math.max(0.6, Math.min(1.6, p.h / ((box.max.y - box.min.y) / this.S))), Math.min(1.4, Math.max(0.8, k))); }
+    if (w > 0.3 && p.platform) { const k = Math.max(0.75, Math.min(1.35, p.w / w)); g.scale.set(k, Math.max(0.6, Math.min(1.6, p.h / ((box.max.y - box.min.y) / this.S))), Math.min(1.4, Math.max(0.8, k))); }
   },
   wreckMesh(group, cx, p) { const g = IF.kit.rubble(6); g.position.set(cx * this.S, this.laneHeight(cx), 0.1); g.visible = false; group.add(g); return g; },
   harvest(g, chunk, lx, ly) { // collect animated parts and light emitters from a built kit object
@@ -134,7 +135,7 @@ IF.terrain = {
 
   /* Biome recipes: what stands behind the lane. */
   dress(b, cfg, W, rng, group, statics, chunk, x0, x1, seed) {
-    const K = IF.kit, S = this.S, place = (obj, X, Z, rotY, batch = true) => { obj.position.set(X, this.height(X, Z, cfg, seed) - 0.05, Z); obj.rotation.y = rotY || 0; if (batch) statics.push(obj); else group.add(obj); this.harvest(obj, chunk); return obj; };
+    const K = IF.kit, S = this.S, place = (obj, X, Z, rotY, batch = true) => { { const bx = new IF.r3.T.Box3().setFromObject(obj); const r = Math.max(bx.max.x - bx.min.x, bx.max.z - bx.min.z) / 2; if (r > 0.8) this._occ.push([X, Z, r + 1.2]); } obj.position.set(X, this.height(X, Z, cfg, seed) - 0.05, Z); obj.rotation.y = rotY || 0; if (batch) statics.push(obj); else group.add(obj); this.harvest(obj, chunk); return obj; };
     const span = (step, fn) => { for (let X = x0 + rng.next() * step; X < x1; X += step * (0.6 + rng.next() * 0.8)) fn(X); };
     switch (b.id) {
       case 'village': case 'settlement':
@@ -176,13 +177,13 @@ IF.terrain = {
     const T = IF.r3.T, M = IF.kit.mats(), dummy = new T.Object3D();
     const inst = (geo, mat, list, shadow) => { if (!list.length) return; const im = new T.InstancedMesh(geo, mat, list.length); list.forEach((t, i) => { dummy.position.set(t[0], t[1], t[2]); dummy.rotation.set(t[5] || 0, t[3], 0); dummy.scale.setScalar(t[4]); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); }); im.castShadow = !!shadow; im.receiveShadow = true; group.add(im); };
     const trees = [], dead = [], rocks = [], grass = [];
-    const put = (arr, X, Z, s, tilt) => arr.push([X, this.height(X, Z, cfg, seed) - 0.05, Z, rng.next() * 6.28, s, tilt || 0]);
+    const occ = this._occ || [], free = (X, Z, s) => !occ.some(([ox, oz, r]) => Math.hypot(X - ox, Z - oz) < r + 1.5 * s);
+    const put = (arr, X, Z, s, tilt) => free(X, Z, s) && arr.push([X, this.height(X, Z, cfg, seed) - 0.05, Z, rng.next() * 6.28, s, tilt || 0]);
     const dens = cfg.veg === 'pine' ? 2.4 : cfg.veg === 'mixed' ? 0.9 : cfg.veg === 'dead' ? 0.5 : 0;
     for (let X = x0; X < x1; X += 1 / Math.max(0.01, dens)) {
       if (!dens) break; const Z = -10 - rng.next() * 50;
       if (cfg.veg === 'dead' || (cfg.veg === 'mixed' && rng.chance(0.4))) put(dead, X, Z, 0.7 + rng.next() * 0.8, (rng.next() - 0.5) * 0.2); else put(trees, X, Z, 0.6 + rng.next() * 0.9);
     }
-    if (cfg.veg === 'pine') for (let X = x0; X < x1; X += 3 + rng.next() * 4) put(trees, X, 4 + rng.next() * 4, 0.7 + rng.next() * 0.5); // foreground trunks frame the shot
     for (let X = x0; X < x1; X += 0.9) { const Z = rng.chance(0.5) ? -2.6 - rng.next() * 20 : 2.8 + rng.next() * 5; if (rng.chance(0.55)) put(rocks, X, Z, 0.15 + rng.next() * (Z < -8 ? 1.4 : 0.45), rng.next()); }
     if (cfg.grassDensity) for (let X = x0; X < x1; X += 0.18 / cfg.grassDensity) { const Z = (rng.chance(0.7) ? -2.3 - rng.next() * 9 : 2.2 + rng.next() * 6); put(grass, X, Z, 0.5 + rng.next() * 0.7); }
     if (trees.length) inst(this.shared('pine', () => IF.kit.pineGeo(9)), IF.mat.basic(cfg.veg === 'pine' ? '#1c2a1e' : '#26301e', 1), trees, true);

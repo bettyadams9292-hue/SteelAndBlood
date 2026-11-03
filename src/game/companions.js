@@ -107,7 +107,7 @@ IF.Companion = class Companion {
     const run = this.run, pl = run.player, def = this.def;
     this.t += dt; this.stateT += dt; this.cd -= dt; this.abilT -= dt; this.flashT -= dt;
     this.x += this.vx * dt; this.vx *= Math.pow(0.02, dt);
-    const W = run.world; this.x = IF.util.clamp(this.x, W.leftBound + 10, (W.gateOpen ? W.end + 1200 : W.rightBound) - 10);
+    const W = run.world; this.x = IF.util.clamp(this.x, W.leftBound + 10, (W.gateOpen ? W.end + 1200 : Math.min(W.rightBound, W.gateX) - 30));
     if (this.down) { // knocked out: recover over time, faster if the medic or the knight is near
       const medic = run.allies.some((a) => a.def && a.def.id === 'moreau' && !a.down && Math.abs(a.x - this.x) < 200);
       this.downT -= dt * (medic ? 3 : 1) * (Math.abs(pl.x - this.x) < 90 ? 2 : 1);

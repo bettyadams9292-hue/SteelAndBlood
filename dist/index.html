@@ -3920,7 +3920,9 @@ IF.kit = {
   stump() { const M = this.mats(), g = this.g(); this.cyl(0.2, 0.26, 0.32, M.bark, 0, 0.16, 0, g); return g; },
   rockProp(w = 0.7) { const M = this.mats(), g = this.g(); const m = this.mesh(new this.T.DodecahedronGeometry(w / 2, 1), M.rock, 0, w * 0.22, 0, g); m.scale.set(1, 0.6, 0.8); this.jitter(m.geometry, 0.08); return g; },
   banner(clothMat) { const M = this.mats(), g = this.g(); this.cyl(0.03, 0.035, 1.8, M.timberDark, 0, 0.9, 0, g, 6); const cloth = this.mesh(new this.T.PlaneGeometry(0.45, 0.85, 4, 8), clothMat || this.heraldryMat(), 0.24, 1.35, 0, g); cloth.userData.wave = true; this.box(0.6, 0.03, 0.03, M.timberDark, 0.24, 1.78, 0, g); g.userData.cloth = cloth; return g; },
-  brazier() { const M = this.mats(), g = this.g(); this.cyl(0.03, 0.03, 0.7, M.iron, 0, 0.35, 0, g); this.cyl(0.24, 0.12, 0.2, M.iron, 0, 0.78, 0, g, 10); const fire = this.mesh(new this.T.ConeGeometry(0.16, 0.42, 8), IF.mat.glow('#ff8a2a', 3), 0, 1.05, 0, g); fire.castShadow = false; fire.userData.flame = true; g.userData.light = { y: -95, i: 4, c: '#ff8a3a' }; return g; },
+  brazier() { const M = this.mats(), g = this.g(); this.cyl(0.03, 0.03, 0.7, M.iron, 0, 0.35, 0, g); this.cyl(0.24, 0.12, 0.2, M.iron, 0, 0.78, 0, g, 10); const T = this.T, fm = (c, o) => IF.mat.get('flame' + c, () => new T.MeshBasicMaterial({ color: c, transparent: true, opacity: o, blending: T.AdditiveBlending, depthWrite: false }));
+    const flameGeo = this._flameGeo || (this._flameGeo = (() => { const pts = []; for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push(new T.Vector2(Math.sin(Math.PI * Math.pow(t, 0.7)) * 0.16 * (1 - t * 0.4), t * 0.5)); } return new T.LatheGeometry(pts, 10); })());
+    [['#ff5a10', 0.55, 1.15], ['#ffa030', 0.7, 0.85], ['#fff0a0', 0.85, 0.5]].forEach(([c, o, k], i) => { const f = new T.Mesh(flameGeo, fm(c, o)); f.position.set(0, 0.86, 0); f.scale.set(k, k * (1.1 - i * 0.1), k); f.castShadow = false; f.renderOrder = 2 + i; f.userData.flame = true; g.add(f); }); g.userData.light = { y: -95, i: 4, c: '#ff8a3a' }; return g; },
   barrier() { const M = this.mats(), g = this.g(); const sh = new this.T.Shape(); sh.moveTo(-0.32, 0); sh.lineTo(0.32, 0); sh.lineTo(0.12, 0.2); sh.lineTo(0.08, 0.44); sh.lineTo(-0.08, 0.44); sh.lineTo(-0.12, 0.2); sh.closePath(); const geo = new this.T.ExtrudeGeometry(sh, { depth: 1.1, bevelEnabled: false }); const m = this.mesh(geo, M.concrete, 0.55, 0, 0, g); m.rotation.y = -Math.PI / 2; for (let i = 0; i < 3; i++) this.box(0.18, 0.06, 0.01, IF.mat.basic('#a3181e', 0.7), -0.3 + i * 0.3, 0.36, 0.1, g); return g; },
   tyres() { const M = this.mats(), g = this.g(); for (let i = 0; i < 3; i++) { const t = this.mesh(new this.T.TorusGeometry(0.24, 0.09, 8, 18), M.tyre, (Math.random() - 0.5) * 0.06, 0.09 + i * 0.17, 0, g); t.rotation.x = Math.PI / 2; } return g; },
   cone() { const g = this.g(); this.mesh(new this.T.ConeGeometry(0.11, 0.32, 12), IF.mat.basic('#d0601a', 0.6), 0, 0.16, 0, g); return g; },
@@ -4117,6 +4119,7 @@ IF.terrain = {
     // gate
     IF.gate3d && group.add(IF.gate3d.build(W, chunk));
     // biome set dressing, placed in depth bands behind and in front of the lane
+    this._occ = [];
     this.dress(b, cfg, W, rng, group, statics, chunk, x0, x1, seed);
     this.vegetation(cfg, rng, group, x0, x1, seed);
     group.add(this.batch(statics));
@@ -4126,7 +4129,7 @@ IF.terrain = {
   },
   fitToWidth(g, p) { // scale lane props to the gameplay footprint so platforms line up with physics
     const box = new IF.r3.T.Box3().setFromObject(g), w = (box.max.x - box.min.x) / this.S;
-    if (w > 1 && p.platform) { const k = p.w / w; g.scale.set(k, Math.max(0.6, Math.min(1.6, p.h / ((box.max.y - box.min.y) / this.S))), Math.min(1.4, Math.max(0.8, k))); }
+    if (w > 0.3 && p.platform) { const k = Math.max(0.75, Math.min(1.35, p.w / w)); g.scale.set(k, Math.max(0.6, Math.min(1.6, p.h / ((box.max.y - box.min.y) / this.S))), Math.min(1.4, Math.max(0.8, k))); }
   },
   wreckMesh(group, cx, p) { const g = IF.kit.rubble(6); g.position.set(cx * this.S, this.laneHeight(cx), 0.1); g.visible = false; group.add(g); return g; },
   harvest(g, chunk, lx, ly) { // collect animated parts and light emitters from a built kit object
@@ -4172,7 +4175,7 @@ IF.terrain = {
 
   /* Biome recipes: what stands behind the lane. */
   dress(b, cfg, W, rng, group, statics, chunk, x0, x1, seed) {
-    const K = IF.kit, S = this.S, place = (obj, X, Z, rotY, batch = true) => { obj.position.set(X, this.height(X, Z, cfg, seed) - 0.05, Z); obj.rotation.y = rotY || 0; if (batch) statics.push(obj); else group.add(obj); this.harvest(obj, chunk); return obj; };
+    const K = IF.kit, S = this.S, place = (obj, X, Z, rotY, batch = true) => { { const bx = new IF.r3.T.Box3().setFromObject(obj); const r = Math.max(bx.max.x - bx.min.x, bx.max.z - bx.min.z) / 2; if (r > 0.8) this._occ.push([X, Z, r + 1.2]); } obj.position.set(X, this.height(X, Z, cfg, seed) - 0.05, Z); obj.rotation.y = rotY || 0; if (batch) statics.push(obj); else group.add(obj); this.harvest(obj, chunk); return obj; };
     const span = (step, fn) => { for (let X = x0 + rng.next() * step; X < x1; X += step * (0.6 + rng.next() * 0.8)) fn(X); };
     switch (b.id) {
       case 'village': case 'settlement':
@@ -4214,13 +4217,13 @@ IF.terrain = {
     const T = IF.r3.T, M = IF.kit.mats(), dummy = new T.Object3D();
     const inst = (geo, mat, list, shadow) => { if (!list.length) return; const im = new T.InstancedMesh(geo, mat, list.length); list.forEach((t, i) => { dummy.position.set(t[0], t[1], t[2]); dummy.rotation.set(t[5] || 0, t[3], 0); dummy.scale.setScalar(t[4]); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); }); im.castShadow = !!shadow; im.receiveShadow = true; group.add(im); };
     const trees = [], dead = [], rocks = [], grass = [];
-    const put = (arr, X, Z, s, tilt) => arr.push([X, this.height(X, Z, cfg, seed) - 0.05, Z, rng.next() * 6.28, s, tilt || 0]);
+    const occ = this._occ || [], free = (X, Z, s) => !occ.some(([ox, oz, r]) => Math.hypot(X - ox, Z - oz) < r + 1.5 * s);
+    const put = (arr, X, Z, s, tilt) => free(X, Z, s) && arr.push([X, this.height(X, Z, cfg, seed) - 0.05, Z, rng.next() * 6.28, s, tilt || 0]);
     const dens = cfg.veg === 'pine' ? 2.4 : cfg.veg === 'mixed' ? 0.9 : cfg.veg === 'dead' ? 0.5 : 0;
     for (let X = x0; X < x1; X += 1 / Math.max(0.01, dens)) {
       if (!dens) break; const Z = -10 - rng.next() * 50;
       if (cfg.veg === 'dead' || (cfg.veg === 'mixed' && rng.chance(0.4))) put(dead, X, Z, 0.7 + rng.next() * 0.8, (rng.next() - 0.5) * 0.2); else put(trees, X, Z, 0.6 + rng.next() * 0.9);
     }
-    if (cfg.veg === 'pine') for (let X = x0; X < x1; X += 3 + rng.next() * 4) put(trees, X, 4 + rng.next() * 4, 0.7 + rng.next() * 0.5); // foreground trunks frame the shot
     for (let X = x0; X < x1; X += 0.9) { const Z = rng.chance(0.5) ? -2.6 - rng.next() * 20 : 2.8 + rng.next() * 5; if (rng.chance(0.55)) put(rocks, X, Z, 0.15 + rng.next() * (Z < -8 ? 1.4 : 0.45), rng.next()); }
     if (cfg.grassDensity) for (let X = x0; X < x1; X += 0.18 / cfg.grassDensity) { const Z = (rng.chance(0.7) ? -2.3 - rng.next() * 9 : 2.2 + rng.next() * 6); put(grass, X, Z, 0.5 + rng.next() * 0.7); }
     if (trees.length) inst(this.shared('pine', () => IF.kit.pineGeo(9)), IF.mat.basic(cfg.veg === 'pine' ? '#1c2a1e' : '#26301e', 1), trees, true);
@@ -4408,9 +4411,9 @@ IF.wep3d = {
     const key = def.id + ':' + rarityIndex; if (this.cache[key]) return this.cache[key].clone();
     const T = IF.r3.T, g = new T.Group();
     if (def.slot === 'melee') this.melee(g, def); else if (def.cls === 'bow') this.bow(g, def); else if (def.cls === 'crossbow') this.crossbow(g, def); else this.gun(g, def, Object.assign({}, this.SPECS[def.cls] || this.SPECS.rifle, def.model || {}));
-    if (rarityIndex >= 3) { // rarity glow: emissive inlay along the weapon
-      const col = (def.look && def.look.glow) || IF.RARITIES[rarityIndex].color, box = new T.Box3().setFromObject(g), L = box.max.x - Math.max(0, box.min.x);
-      const inlay = new T.Mesh(new T.BoxGeometry(L * 0.7, 0.35, 0.2), IF.mat.glow(col, 2.2 + rarityIndex * 0.3)); inlay.position.set(Math.max(0, box.min.x) + L * 0.5, (box.max.y + box.min.y) / 2, (box.max.z) + 0.05); g.add(inlay);
+    if (rarityIndex >= 3) { // rarity: a glowing gem set at the grip (no stray geometry along the blade or barrel)
+      const col = (def.look && def.look.glow) || IF.RARITIES[rarityIndex].color, gem = new T.Mesh(new T.OctahedronGeometry(1.6 + rarityIndex * 0.2, 0), IF.mat.glow(col, 1.6 + rarityIndex * 0.3));
+      gem.position.set(def.slot === 'melee' ? -2 : -1, def.slot === 'melee' ? 0 : -9, 2.6); g.add(gem);
     }
     g.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
     this.cache[key] = g; return g.clone();
@@ -5398,7 +5401,7 @@ IF.Player = class Player {
     this.x += this.vx * dt; this.y += this.vy * dt;
     this.dropThrough = (this.dropThrough || 0) - dt;
     // world bounds: cannot walk back beyond the section start or past the locked gate
-    const minX = this.run.world.leftBound + 30, maxX = this.run.world.rightBound - 30;
+    const minX = this.run.world.leftBound + 30, maxX = (this.run.world.gateOpen ? this.run.world.rightBound : Math.min(this.run.world.rightBound, this.run.world.gateX)) - 30;
     if (this.x < minX) { this.x = minX; this.vx = Math.max(0, this.vx); }
     if (this.x > maxX) { this.x = maxX; this.vx = Math.min(0, this.vx); }
     // ground + one-way platforms
@@ -5776,7 +5779,7 @@ IF.tac = {
     // thrown objects
     for (let i = run.throws.length - 1; i >= 0; i--) {
       const g = run.throws[i]; g.t += dt; g.vy += 1500 * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.rot += g.vx * dt * 0.02;
-      let landed = false;
+      let landed = false; const Wg = run.world; if (!Wg.gateOpen && g.x > Wg.gateX - 10) { g.x = Wg.gateX - 10; g.vx = -Math.abs(g.vx) * 0.4; }
       if (g.y >= IF.GROUND - 6) { g.y = IF.GROUND - 6; landed = true; if (g.type !== 'molotov') { g.vy = -Math.abs(g.vy) * 0.32; g.vx *= 0.55; if (Math.abs(g.vy) < 60) g.vy = 0; if (Math.abs(g.vy) > 80) IF.audio.hit && IF.audio.hit('metal'); } }
       // Molotovs and stuns burst on a zombie; frags just bounce off them
       let hitE = null; if (g.type !== 'frag') for (const e of run.enemies) { if (e.dead) continue; const hb = e.hitbox(); if (g.x > hb.x && g.x < hb.x + hb.w && g.y > hb.y && g.y < hb.y + hb.h) { hitE = e; break; } }
@@ -6048,7 +6051,7 @@ IF.Companion = class Companion {
     const run = this.run, pl = run.player, def = this.def;
     this.t += dt; this.stateT += dt; this.cd -= dt; this.abilT -= dt; this.flashT -= dt;
     this.x += this.vx * dt; this.vx *= Math.pow(0.02, dt);
-    const W = run.world; this.x = IF.util.clamp(this.x, W.leftBound + 10, (W.gateOpen ? W.end + 1200 : W.rightBound) - 10);
+    const W = run.world; this.x = IF.util.clamp(this.x, W.leftBound + 10, (W.gateOpen ? W.end + 1200 : Math.min(W.rightBound, W.gateX) - 30));
     if (this.down) { // knocked out: recover over time, faster if the medic or the knight is near
       const medic = run.allies.some((a) => a.def && a.def.id === 'moreau' && !a.down && Math.abs(a.x - this.x) < 200);
       this.downT -= dt * (medic ? 3 : 1) * (Math.abs(pl.x - this.x) < 90 ? 2 : 1);
@@ -6224,6 +6227,7 @@ IF.Enemy = class Enemy {
     this.facing = -1; this.state = opts.rise ? 'rise' : 'chase'; this.stateT = 0; this.cd = 0.5 + Math.random(); this.t = Math.random() * 10;
     this.hitFlash = 0; this.dead = false; this.deadT = 0; this.staggerT = 0; this.groanT = 2 + Math.random() * 6; this.special = 3 + Math.random() * 4;
     this.seed = Math.floor(Math.random() * 1000); this.phase = Math.random() * 6; this.burn = 0; this.bleed = 0; this.vuln = 0;
+    const ease = Math.max(0, 1 - depth / 14); this.tempo = { wind: 1 + 0.45 * ease, cd: 1 + 0.9 * ease }; // sections 1-14 ramp towards full speed
     this.limp = Math.random() < 0.4 ? 0.5 + Math.random() * 0.5 : 0;
   }
   get isLow() { return this.def.low || this.legless; }
@@ -6266,7 +6270,7 @@ IF.Enemy = class Enemy {
     this.vy += 2400 * dt; this.y += this.vy * dt; if (this.y >= IF.GROUND) { this.y = IF.GROUND; this.vy = 0; }
     this.x += this.vx * dt;
     // stay inside the playable arena so nothing can hide behind the sealed gate
-    const W = this.run.world; if (!this.dead && this.state !== 'rise') { const lo = W.leftBound + 30, hi = (W.gateOpen ? W.end + 300 : W.rightBound) - 30; if (this.x < lo) { this.x = lo; this.vx = Math.max(0, this.vx); } else if (this.x > hi) { this.x = hi; this.vx = Math.min(0, this.vx); } }
+    const W = this.run.world; if (!this.dead && this.state !== 'rise') { const lo = W.leftBound + 30, hi = W.gateOpen ? W.end + 300 : Math.min(W.rightBound, W.gateX) - 30; if (this.x < lo) { this.x = lo; this.vx = Math.max(0, this.vx); } else if (this.x > hi) { this.x = hi; this.vx = Math.min(0, this.vx); } }
     if (this.dead) { this.deadT += dt; this.vx *= Math.pow(0.02, dt); return; }
     const dx = pl.x - this.x, adx = Math.abs(dx);
     // groans
@@ -6298,7 +6302,7 @@ IF.Enemy = class Enemy {
         break;
       }
       case 'windup': {
-        const wu = this.def.windup;
+        const wu = this.def.windup * (this.tempo ? this.tempo.wind : 1);
         if (this.def.explode) { this.swell = this.stateT / wu; if (Math.floor(this.stateT * 10) % 2 === 0) IF.fx.spawn({ x: this.x, y: this.y - 80, life: 0.1, size: 40, color: 'rgba(160,255,60,0.4)', type: 'glow', add: true }); }
         if (this.stateT >= wu) {
           if (this.def.explode) { this.exploded = true; this.die({ dir: this.facing }); this.gibbed = true; IF.combat.explode(this.x, this.y - 50, this.def.explode, this.dmg, 'enemy', { source: this }); return; }
@@ -6316,7 +6320,7 @@ IF.Enemy = class Enemy {
         if (this.stateT >= this.def.active) { this.state = 'recover'; this.stateT = 0; }
         break;
       }
-      case 'recover': if (this.stateT >= this.def.recover) { this.state = 'chase'; this.stateT = 0; this.cd = this.def.cooldown * (0.8 + Math.random() * 0.4); if (this.elite && Math.random() < 0.5) { this.state = 'windup'; } } break;
+      case 'recover': if (this.stateT >= this.def.recover) { this.state = 'chase'; this.stateT = 0; this.cd = this.def.cooldown * (this.tempo ? this.tempo.cd : 1) * (0.8 + Math.random() * 0.4); if (this.elite && Math.random() < 0.5) { this.state = 'windup'; } } break;
       case 'scream': {
         if (this.stateT > 0.3 && !this.screamed) {
           this.screamed = true; IF.fx.ring(this.x, this.y - 110, 380, 'rgba(220,220,255,0.7)', 0.8); IF.fx.addShake(5);
@@ -6953,7 +6957,7 @@ IF.Run = class Run {
     // gate opens once the gate horde (or the boss) is dead
     if (!W.gateOpen) {
       const clear = W.isBoss ? (W.bossSpawned && this.boss && this.boss.dead) : (W.gateWave && this.aliveCount() === 0);
-      if (clear) { W.gateOpen = true; W.rightBound = W.end + 200; IF.audio.ui('upgrade'); IF.audio.gate && IF.audio.gate(); IF.gate3d.openShot(this); if (!W.isBoss) { this.banner = { top: 'SECTION CLEARED', main: 'The gate opens' }; this.bannerT = 1.8; } }
+      if (clear) { W.gateOpen = true; W.rightBound = W.end + 200; IF.audio.ui('upgrade'); IF.audio.gate && IF.audio.gate(); IF.gate3d.openShot(this); this.banner = { top: 'ZONE COMPLETE', main: 'The path is clear. Head to the gate.' }; this.bannerT = 3.2; this.gateHint = 12; }
     }
     if (this.transition) { pl.autoWalk = true; if (IF.gate3d.stepTransition(this, dt)) { pl.autoWalk = false; IF.gate3d.endTransition(this); IF.game.openReward(); return; } }
     else if (W.gateOpen && pl.x > W.gateX - 40 && !pl.dead) { if (IF.r3.ok) { IF.gate3d.startTransition(this); for (const e of this.enemies) if (!e.dead && !e.boss) e.x = Math.min(e.x, pl.x - 700); } else { IF.game.openReward(); return; } }
@@ -7208,6 +7212,7 @@ IF.game = {
   },
   renderHud(ctx, run, t) {
     const pl = run.player, d = IF.save.data, F = (s, w = 700) => w + ' ' + s + 'px Cinzel, Georgia, serif';
+    if (run.gateHint > 0 && run.world.gateOpen && !run.transition) { run.gateHint -= IF.game.lastDt || 0.016; const gx = IF.r3.ok ? IF.r3.project(run.world.gateX, IF.GROUND - 300, 0).x : run.world.gateX - run.camX, on = gx > 40 && gx < IF.W - 40, x = Math.max(40, Math.min(IF.W - 40, gx)), bob = Math.sin(this.t * 5) * 6; ctx.save(); ctx.globalAlpha = Math.min(1, run.gateHint); ctx.fillStyle = '#e8c878'; ctx.shadowColor = '#000'; ctx.shadowBlur = 8; ctx.beginPath(); if (on) { ctx.moveTo(x - 14, 150 + bob); ctx.lineTo(x + 14, 150 + bob); ctx.lineTo(x, 172 + bob); } else { const d = gx > x ? 1 : -1; ctx.moveTo(x - 10 * d, 340); ctx.lineTo(x + 12 * d, 360); ctx.lineTo(x - 10 * d, 380); } ctx.fill(); ctx.font = '700 12px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('GATE', on ? x : x - 30 * (gx > x ? 1 : -1), on ? 140 + bob : 364); ctx.restore(); }
     if (run.flashT > 0) { ctx.fillStyle = 'rgba(255,252,236,' + Math.min(0.8, run.flashT * 2.4) + ')'; ctx.fillRect(0, 0, IF.W, IF.H); }
     ctx.save(); IF.tac.drawHud(ctx, run, F); IF.companions && IF.companions.drawHud(ctx, run, F);
     // --- vitals ---

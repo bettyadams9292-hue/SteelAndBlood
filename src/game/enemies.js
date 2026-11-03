@@ -13,6 +13,7 @@ IF.Enemy = class Enemy {
     this.facing = -1; this.state = opts.rise ? 'rise' : 'chase'; this.stateT = 0; this.cd = 0.5 + Math.random(); this.t = Math.random() * 10;
     this.hitFlash = 0; this.dead = false; this.deadT = 0; this.staggerT = 0; this.groanT = 2 + Math.random() * 6; this.special = 3 + Math.random() * 4;
     this.seed = Math.floor(Math.random() * 1000); this.phase = Math.random() * 6; this.burn = 0; this.bleed = 0; this.vuln = 0;
+    const ease = Math.max(0, 1 - depth / 14); this.tempo = { wind: 1 + 0.45 * ease, cd: 1 + 0.9 * ease }; // sections 1-14 ramp towards full speed
     this.limp = Math.random() < 0.4 ? 0.5 + Math.random() * 0.5 : 0;
   }
   get isLow() { return this.def.low || this.legless; }
@@ -55,7 +56,7 @@ IF.Enemy = class Enemy {
     this.vy += 2400 * dt; this.y += this.vy * dt; if (this.y >= IF.GROUND) { this.y = IF.GROUND; this.vy = 0; }
     this.x += this.vx * dt;
     // stay inside the playable arena so nothing can hide behind the sealed gate
-    const W = this.run.world; if (!this.dead && this.state !== 'rise') { const lo = W.leftBound + 30, hi = (W.gateOpen ? W.end + 300 : W.rightBound) - 30; if (this.x < lo) { this.x = lo; this.vx = Math.max(0, this.vx); } else if (this.x > hi) { this.x = hi; this.vx = Math.min(0, this.vx); } }
+    const W = this.run.world; if (!this.dead && this.state !== 'rise') { const lo = W.leftBound + 30, hi = W.gateOpen ? W.end + 300 : Math.min(W.rightBound, W.gateX) - 30; if (this.x < lo) { this.x = lo; this.vx = Math.max(0, this.vx); } else if (this.x > hi) { this.x = hi; this.vx = Math.min(0, this.vx); } }
     if (this.dead) { this.deadT += dt; this.vx *= Math.pow(0.02, dt); return; }
     const dx = pl.x - this.x, adx = Math.abs(dx);
     // groans
@@ -87,7 +88,7 @@ IF.Enemy = class Enemy {
         break;
       }
       case 'windup': {
-        const wu = this.def.windup;
+        const wu = this.def.windup * (this.tempo ? this.tempo.wind : 1);
         if (this.def.explode) { this.swell = this.stateT / wu; if (Math.floor(this.stateT * 10) % 2 === 0) IF.fx.spawn({ x: this.x, y: this.y - 80, life: 0.1, size: 40, color: 'rgba(160,255,60,0.4)', type: 'glow', add: true }); }
         if (this.stateT >= wu) {
           if (this.def.explode) { this.exploded = true; this.die({ dir: this.facing }); this.gibbed = true; IF.combat.explode(this.x, this.y - 50, this.def.explode, this.dmg, 'enemy', { source: this }); return; }
@@ -105,7 +106,7 @@ IF.Enemy = class Enemy {
         if (this.stateT >= this.def.active) { this.state = 'recover'; this.stateT = 0; }
         break;
       }
-      case 'recover': if (this.stateT >= this.def.recover) { this.state = 'chase'; this.stateT = 0; this.cd = this.def.cooldown * (0.8 + Math.random() * 0.4); if (this.elite && Math.random() < 0.5) { this.state = 'windup'; } } break;
+      case 'recover': if (this.stateT >= this.def.recover) { this.state = 'chase'; this.stateT = 0; this.cd = this.def.cooldown * (this.tempo ? this.tempo.cd : 1) * (0.8 + Math.random() * 0.4); if (this.elite && Math.random() < 0.5) { this.state = 'windup'; } } break;
       case 'scream': {
         if (this.stateT > 0.3 && !this.screamed) {
           this.screamed = true; IF.fx.ring(this.x, this.y - 110, 380, 'rgba(220,220,255,0.7)', 0.8); IF.fx.addShake(5);

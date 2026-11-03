@@ -368,7 +368,7 @@ IF.Player = class Player {
     this.x += this.vx * dt; this.y += this.vy * dt;
     this.dropThrough = (this.dropThrough || 0) - dt;
     // world bounds: cannot walk back beyond the section start or past the locked gate
-    const minX = this.run.world.leftBound + 30, maxX = this.run.world.rightBound - 30;
+    const minX = this.run.world.leftBound + 30, maxX = (this.run.world.gateOpen ? this.run.world.rightBound : Math.min(this.run.world.rightBound, this.run.world.gateX)) - 30;
     if (this.x < minX) { this.x = minX; this.vx = Math.max(0, this.vx); }
     if (this.x > maxX) { this.x = maxX; this.vx = Math.min(0, this.vx); }
     // ground + one-way platforms

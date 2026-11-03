@@ -35,9 +35,9 @@ IF.wep3d = {
     const key = def.id + ':' + rarityIndex; if (this.cache[key]) return this.cache[key].clone();
     const T = IF.r3.T, g = new T.Group();
     if (def.slot === 'melee') this.melee(g, def); else if (def.cls === 'bow') this.bow(g, def); else if (def.cls === 'crossbow') this.crossbow(g, def); else this.gun(g, def, Object.assign({}, this.SPECS[def.cls] || this.SPECS.rifle, def.model || {}));
-    if (rarityIndex >= 3) { // rarity glow: emissive inlay along the weapon
-      const col = (def.look && def.look.glow) || IF.RARITIES[rarityIndex].color, box = new T.Box3().setFromObject(g), L = box.max.x - Math.max(0, box.min.x);
-      const inlay = new T.Mesh(new T.BoxGeometry(L * 0.7, 0.35, 0.2), IF.mat.glow(col, 2.2 + rarityIndex * 0.3)); inlay.position.set(Math.max(0, box.min.x) + L * 0.5, (box.max.y + box.min.y) / 2, (box.max.z) + 0.05); g.add(inlay);
+    if (rarityIndex >= 3) { // rarity: a glowing gem set at the grip (no stray geometry along the blade or barrel)
+      const col = (def.look && def.look.glow) || IF.RARITIES[rarityIndex].color, gem = new T.Mesh(new T.OctahedronGeometry(1.6 + rarityIndex * 0.2, 0), IF.mat.glow(col, 1.6 + rarityIndex * 0.3));
+      gem.position.set(def.slot === 'melee' ? -2 : -1, def.slot === 'melee' ? 0 : -9, 2.6); g.add(gem);
     }
     g.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
     this.cache[key] = g; return g.clone();

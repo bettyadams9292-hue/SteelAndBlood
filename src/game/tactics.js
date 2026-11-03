@@ -61,7 +61,7 @@ IF.tac = {
     // thrown objects
     for (let i = run.throws.length - 1; i >= 0; i--) {
       const g = run.throws[i]; g.t += dt; g.vy += 1500 * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.rot += g.vx * dt * 0.02;
-      let landed = false;
+      let landed = false; const Wg = run.world; if (!Wg.gateOpen && g.x > Wg.gateX - 10) { g.x = Wg.gateX - 10; g.vx = -Math.abs(g.vx) * 0.4; }
       if (g.y >= IF.GROUND - 6) { g.y = IF.GROUND - 6; landed = true; if (g.type !== 'molotov') { g.vy = -Math.abs(g.vy) * 0.32; g.vx *= 0.55; if (Math.abs(g.vy) < 60) g.vy = 0; if (Math.abs(g.vy) > 80) IF.audio.hit && IF.audio.hit('metal'); } }
       // Molotovs and stuns burst on a zombie; frags just bounce off them
       let hitE = null; if (g.type !== 'frag') for (const e of run.enemies) { if (e.dead) continue; const hb = e.hitbox(); if (g.x > hb.x && g.x < hb.x + hb.w && g.y > hb.y && g.y < hb.y + hb.h) { hitE = e; break; } }

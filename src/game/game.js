@@ -84,7 +84,7 @@ IF.Run = class Run {
     // gate opens once the gate horde (or the boss) is dead
     if (!W.gateOpen) {
       const clear = W.isBoss ? (W.bossSpawned && this.boss && this.boss.dead) : (W.gateWave && this.aliveCount() === 0);
-      if (clear) { W.gateOpen = true; W.rightBound = W.end + 200; IF.audio.ui('upgrade'); IF.audio.gate && IF.audio.gate(); IF.gate3d.openShot(this); if (!W.isBoss) { this.banner = { top: 'SECTION CLEARED', main: 'The gate opens' }; this.bannerT = 1.8; } }
+      if (clear) { W.gateOpen = true; W.rightBound = W.end + 200; IF.audio.ui('upgrade'); IF.audio.gate && IF.audio.gate(); IF.gate3d.openShot(this); this.banner = { top: 'ZONE COMPLETE', main: 'The path is clear. Head to the gate.' }; this.bannerT = 3.2; this.gateHint = 12; }
     }
     if (this.transition) { pl.autoWalk = true; if (IF.gate3d.stepTransition(this, dt)) { pl.autoWalk = false; IF.gate3d.endTransition(this); IF.game.openReward(); return; } }
     else if (W.gateOpen && pl.x > W.gateX - 40 && !pl.dead) { if (IF.r3.ok) { IF.gate3d.startTransition(this); for (const e of this.enemies) if (!e.dead && !e.boss) e.x = Math.min(e.x, pl.x - 700); } else { IF.game.openReward(); return; } }
@@ -339,6 +339,7 @@ IF.game = {
   },
   renderHud(ctx, run, t) {
     const pl = run.player, d = IF.save.data, F = (s, w = 700) => w + ' ' + s + 'px Cinzel, Georgia, serif';
+    if (run.gateHint > 0 && run.world.gateOpen && !run.transition) { run.gateHint -= IF.game.lastDt || 0.016; const gx = IF.r3.ok ? IF.r3.project(run.world.gateX, IF.GROUND - 300, 0).x : run.world.gateX - run.camX, on = gx > 40 && gx < IF.W - 40, x = Math.max(40, Math.min(IF.W - 40, gx)), bob = Math.sin(this.t * 5) * 6; ctx.save(); ctx.globalAlpha = Math.min(1, run.gateHint); ctx.fillStyle = '#e8c878'; ctx.shadowColor = '#000'; ctx.shadowBlur = 8; ctx.beginPath(); if (on) { ctx.moveTo(x - 14, 150 + bob); ctx.lineTo(x + 14, 150 + bob); ctx.lineTo(x, 172 + bob); } else { const d = gx > x ? 1 : -1; ctx.moveTo(x - 10 * d, 340); ctx.lineTo(x + 12 * d, 360); ctx.lineTo(x - 10 * d, 380); } ctx.fill(); ctx.font = '700 12px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('GATE', on ? x : x - 30 * (gx > x ? 1 : -1), on ? 140 + bob : 364); ctx.restore(); }
     if (run.flashT > 0) { ctx.fillStyle = 'rgba(255,252,236,' + Math.min(0.8, run.flashT * 2.4) + ')'; ctx.fillRect(0, 0, IF.W, IF.H); }
     ctx.save(); IF.tac.drawHud(ctx, run, F); IF.companions && IF.companions.drawHud(ctx, run, F);
     // --- vitals ---
