@@ -137,6 +137,8 @@ IF.audio = {
   hurt() { if (!this.ready || !this._ok('hurt', 150)) return; const t = this.ctx.currentTime; this._tone(t, 0.3, { type: 'sawtooth', f: 220, f2: 110, vol: 0.14 }); this._noise(t, 0.15, { type: 'lowpass', f: 700, vol: 0.35 }); this._tone(t, 0.25, { type: 'triangle', f: 1500, vol: 0.06 }); },
   pickup() { if (!this.ready || !this._ok('pick', 60)) return; const t = this.ctx.currentTime; this._tone(t, 0.12, { type: 'triangle', f: 880, vol: 0.12 }); this._tone(t + 0.06, 0.15, { type: 'triangle', f: 1320, vol: 0.1 }); },
   coin() { if (!this.ready || !this._ok('coin', 50)) return; const t = this.ctx.currentTime; this._tone(t, 0.1, { type: 'square', f: 1975, vol: 0.04 }); this._tone(t + 0.05, 0.18, { type: 'square', f: 2637, vol: 0.04 }); },
+  ping() { if (!this.ready) return; const t = this.ctx.currentTime; this._tone(t + 0.05, 0.35, { type: 'sine', f: 2650, f2: 2500, vol: 0.12 }); this._tone(t + 0.05, 0.3, { type: 'sine', f: 4100, vol: 0.05 }); },
+  bolt() { if (!this.ready) return; const t = this.ctx.currentTime; this._noise(t, 0.05, { type: 'highpass', f: 2500, vol: 0.15 }); this._noise(t + 0.18, 0.06, { type: 'bandpass', f: 1800, vol: 0.18 }); },
   gate() { // portcullis: deep rumble, ratcheting chain clanks, a final iron thud
     if (!this.ready) return; const t = this.ctx.currentTime;
     this._noise(t, 2.2, { type: 'lowpass', f: 180, vol: 0.35 });

@@ -267,7 +267,7 @@ IF.Player = class Player {
     if (g.def.cls === 'minigun' && g.spin < 1) return;
     if (g.def.cls === 'bow' && !release) return;
     IF.input.consume('shoot');
-    const ws = g.ws; g.cd = 1 / (ws.rate * (this.buff('berserk') ? 1.2 : 1)); g.mag--;
+    const ws = g.ws; g.cd = 1 / (ws.rate * (this.buff('berserk') ? 1.2 : 1)); g.mag--; if (g.mag === 0 && g.def.ping) IF.audio.ping && IF.audio.ping(); if (g.def.bolt) IF.audio.bolt && setTimeout(() => IF.audio.bolt(), 380);
     const pose = this.pose(); const grip = IF.art.GRIP[g.def.cls] || IF.art.GRIP.rifle;
     const ang = pose.wAngle, S = IF.KNIGHT_SCALE;
     const mx = pose.handF.x + Math.cos(ang) * grip.muzzle[0] - Math.sin(ang) * grip.muzzle[1];

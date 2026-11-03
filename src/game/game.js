@@ -16,6 +16,7 @@ IF.Run = class Run {
     this.player = new IF.Player(this);
     for (const k of ['primary', 'secondary']) if (this.player.weapons[k]) this.ensureAmmo(this.player.weapons[k].def.ammo);
     this.camX = 0; this.bannerT = 3.2; this.banner = this.sectionTitle();
+    this.allies = []; IF.tac.newRun(this); IF.companions && IF.companions.newRun(this);
     IF.save.data.stats.runs++;
   }
   sectionTitle() { return { top: this.world.isBoss ? 'GUARDIAN · SECTION ' + this.section : 'SECTION ' + this.section, main: this.world.biome.name }; }
@@ -69,6 +70,7 @@ IF.Run = class Run {
     if (this.refillAmmo) { this.refillAmmo = false; for (const k in this.ammo) this.ammo[k] = this.ammoMax(k); }
     if (this.healFull) { this.healFull = false; pl.refreshStats(); pl.hp = pl.maxHp; }
     pl.update(dt);
+    IF.tac.update(this, dt); this.flashT = Math.max(0, (this.flashT || 0) - dt);
     // encounter triggers
     for (const tr of W.triggers) if (!tr.fired && pl.x > tr.x) { tr.fired = true; this.spawnWave(tr.size); }
     if (W.gateTrigger && !W.gateTrigger.fired && pl.x > W.gateTrigger.x) { W.gateTrigger.fired = true; W.gateWave = true; this.spawnWave(Math.round(this.waveBonus())); this.banner = { top: 'THE GATE IS SEALED', main: 'Hold the line' }; this.bannerT = 2; IF.audio.scream(); }
@@ -146,6 +148,7 @@ IF.Run = class Run {
     this.world = IF.world.generate(this, this.section, start);
     this.enemies = this.enemies.filter((e) => !e.dead); this.hazards.length = 0; this.shockwaves.length = 0; this.boss = null;
     this.player.dist0 = this.player.x;
+    IF.tac.refill(this); this.throws.length = 0; this.traps.length = 0; this.allies = this.allies.filter((a) => a.kind !== 'sentry'); IF.companions && IF.companions.onSection(this);
     this.banner = this.sectionTitle(); this.bannerT = 3;
     IF.audio.setMusic(this.world.biome.music, false);
     // small heal between sections
@@ -215,7 +218,7 @@ IF.game = {
     IF.audio.setMusic(1, false);
     IF.ui.showDeath(run);
   },
-  quitToMenu() { if (this.run && this.state !== 'dead') { const r = this.run; IF.save.data.stats.distance += r.distance; IF.save.data.stats.bestSection = Math.max(IF.save.data.stats.bestSection, r.section); } this.run = null; this.state = 'menu'; IF.save.write(); IF.ui.hud(false); IF.ui.show('menu'); IF.audio.setMusic(0, false); },
+  quitToMenu() { if (this.run && this.state !== 'dead') { const r = this.run; IF.save.data.stats.distance += r.distance; IF.save.data.stats.bestSection = Math.max(IF.save.data.stats.bestSection, r.section); } this.run = null; IF.companions.cleanup(); this.state = 'menu'; IF.save.write(); IF.ui.hud(false); IF.ui.show('menu'); IF.audio.setMusic(0, false); },
 
   loop(now) {
     requestAnimationFrame((t) => this.loop(t));
@@ -263,7 +266,7 @@ IF.game = {
     for (const e of run.enemies) if (!e.dead && e.x > camX - 300 && e.x < camX + IF.VIEW_W + 300) e.draw(ctx);
     for (const s of run.shockwaves) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,170,90,0.6)'; ctx.beginPath(); ctx.moveTo(s.x - 26, IF.GROUND); ctx.quadraticCurveTo(s.x, IF.GROUND - 46, s.x + 26, IF.GROUND); ctx.fill(); ctx.restore(); }
     run.player.draw(ctx); run.player.drawTrail(ctx);
-    IF.combat.draw(ctx);
+    IF.combat.draw(ctx); IF.tac.draw2d(ctx, run);
     IF.fx.drawParts(ctx, true);
     IF.fx.drawTexts(ctx);
     // enemy health bars for damaged non-boss enemies
@@ -322,7 +325,8 @@ IF.game = {
   },
   renderHud(ctx, run, t) {
     const pl = run.player, d = IF.save.data, F = (s, w = 700) => w + ' ' + s + 'px Cinzel, Georgia, serif';
-    ctx.save();
+    if (run.flashT > 0) { ctx.fillStyle = 'rgba(255,252,236,' + Math.min(0.8, run.flashT * 2.4) + ')'; ctx.fillRect(0, 0, IF.W, IF.H); }
+    ctx.save(); IF.tac.drawHud(ctx, run, F); IF.companions && IF.companions.drawHud(ctx, run, F);
     // --- vitals ---
     const bar = (x, y, w, h, k, c1, c2, label) => { ctx.fillStyle = 'rgba(10,6,6,0.75)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 4); ctx.strokeStyle = '#5a4a3a'; ctx.lineWidth = 1; ctx.strokeRect(x - 2.5, y - 2.5, w + 5, h + 5); const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, c1); g.addColorStop(1, c2); ctx.fillStyle = g; ctx.fillRect(x, y, w * IF.util.clamp(k, 0, 1), h); ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(x, y, w * IF.util.clamp(k, 0, 1), h * 0.35); if (label) { ctx.font = F(11); ctx.fillStyle = '#f2e8d8'; ctx.fillText(label, x + 6, y + h - 3); } };
     // crest

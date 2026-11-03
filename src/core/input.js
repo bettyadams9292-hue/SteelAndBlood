@@ -3,16 +3,16 @@
  * Presses are timestamped so the player controller can buffer inputs. */
 'use strict';
 
-IF.ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'attack', 'shoot', 'block', 'dodge', 'special', 'reload', 'switch', 'sprint', 'w1', 'w2', 'w3', 'pause'];
-IF.ACTION_LABELS = { left: 'Move Left', right: 'Move Right', up: 'Aim Up (keyboard)', down: 'Crouch', jump: 'Jump', attack: 'Melee Attack (hold = heavy)', shoot: 'Shoot', block: 'Block', dodge: 'Dodge Roll', special: 'Special Ability', reload: 'Reload', switch: 'Switch Weapon', sprint: 'Sprint', w1: 'Melee Weapon', w2: 'Primary Firearm', w3: 'Secondary Firearm', pause: 'Pause' };
+IF.ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'attack', 'shoot', 'block', 'dodge', 'special', 'reload', 'switch', 'sprint', 'w1', 'w2', 'w3', 'tactical', 'tacnext', 'companion', 'pause'];
+IF.ACTION_LABELS = { left: 'Move Left', right: 'Move Right', up: 'Aim Up (keyboard)', down: 'Crouch', jump: 'Jump', attack: 'Melee Attack (hold = heavy)', shoot: 'Shoot', block: 'Block', dodge: 'Dodge Roll', special: 'Special Ability', reload: 'Reload', switch: 'Switch Weapon', sprint: 'Sprint', w1: 'Melee Weapon', w2: 'Primary Firearm', w3: 'Secondary Firearm', tactical: 'Throw / Deploy Tactical', tacnext: 'Cycle Tactical', companion: 'Companion Command (Hold / Follow)', pause: 'Pause' };
 
 IF.DEFAULT_KEYS = {
   left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'], up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'],
   jump: ['Space', 'KeyW'], attack: ['KeyJ', 'Mouse2'], shoot: ['KeyK', 'Mouse0'], block: ['KeyU'], dodge: ['KeyL', 'ShiftRight'],
-  special: ['KeyE'], reload: ['KeyR'], switch: ['KeyQ', 'Wheel'], sprint: ['ShiftLeft'], w1: ['Digit1'], w2: ['Digit2'], w3: ['Digit3'], pause: ['Escape', 'KeyP'],
+  special: ['KeyE'], reload: ['KeyR'], switch: ['KeyQ', 'Wheel'], sprint: ['ShiftLeft'], w1: ['Digit1'], w2: ['Digit2'], w3: ['Digit3'], tactical: ['KeyG'], tacnext: ['KeyT'], companion: ['KeyC'], pause: ['Escape', 'KeyP'],
 };
 /* Standard gamepad mapping (Xbox layout names). */
-IF.DEFAULT_PAD = { jump: [0], dodge: [1], attack: [2], special: [3], reload: [4], switch: [5], block: [6], shoot: [7], pause: [9], sprint: [10], up: [12], down: [13], left: [14], right: [15] };
+IF.DEFAULT_PAD = { jump: [0], dodge: [1], attack: [2], special: [3], reload: [4], switch: [5], block: [6], shoot: [7], pause: [9], sprint: [10], up: [12], down: [13], left: [14], right: [15], tactical: [11], tacnext: [8] };
 IF.PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'L3', 'R3', 'D-Up', 'D-Down', 'D-Left', 'D-Right', 'Home'];
 
 IF.input = {

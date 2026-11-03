@@ -53,6 +53,7 @@ IF.fx3d = {
     pool('g_rib', () => new T.Mesh(new T.TorusGeometry(10, 1.2, 4, 10, 2.2), IF.mat.bone()));
     pool('g_guts', () => { const pts = []; for (let i = 0; i < 7; i++) pts.push(new T.Vector3(i * 7, Math.sin(i * 1.7) * 6, Math.cos(i * 1.3) * 5)); return new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 20, 3.2, 6), IF.mat.get('guts', () => new T.MeshStandardMaterial({ color: '#b4566a', roughness: 0.25 }))); });
     pool('g_torso', () => { const g = new T.Group(); g.add(new T.Mesh(new T.CapsuleGeometry(14, 16, 4, 10).rotateZ(Math.PI / 2), IF.mat.cloth('#5a5246'))); const r = new T.Mesh(new T.CylinderGeometry(12, 12, 2, 10).rotateZ(Math.PI / 2), IF.mat.blood()); r.position.x = 22; g.add(r); return g; });
+    IF.tac.pools3d(pool, T); IF.companions && IF.companions.pools3d && IF.companions.pools3d(pool, T);
     this.color = new T.Color(); this.v = new T.Vector3(); this.dummy = new T.Object3D();
   },
   take(k) { const p = this.pools[k]; let m = p.list[p.n]; if (!m) { m = p.make(); m.traverse((o) => { if (o.isMesh) { o.castShadow = !/ring|wave|tele|laser|hazard/.test(k); } }); IF.r3.scene.add(m); p.list.push(m); } m.visible = true; p.n++; return m; },
@@ -68,6 +69,7 @@ IF.fx3d = {
     this.projectiles(run);
     this.gibs(run);
     this.misc(run);
+    IF.tac.render3d(this, run);
     this.endPools();
     const fog = R.scene.fog; for (const p of [this.pNorm, this.pAdd]) { p.material.uniforms.fogColor.value.copy(fog.color); p.material.uniforms.fogDensity.value = fog.density; p.material.uniforms.scale.value = R.renderer.domElement.height * 0.9; }
   },
@@ -156,6 +158,7 @@ IF.chars3d = {
     const cx = run.camX + IF.VIEW_W / 2;
     for (const e of run.enemies) { if (e.gibbed || Math.abs(e.x - cx) > IF.VIEW_W * 1.1) continue; if (e.dead && e.deadT > 4.6) continue; IF.crowd.add(e); }
     IF.crowd.end();
+    IF.companions.render3d(run);
     for (const id in this.bossW) if (!this.seenBoss[id]) this.bossW[id].visible = false;
   },
   bossExtras(e, P, J, rootMatrix) {

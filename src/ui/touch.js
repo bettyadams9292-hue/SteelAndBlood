@@ -9,6 +9,7 @@ IF.touch = {
     { a: 'jump', label: '⤒', x: 0.95, y: 0.58, r: 1 }, { a: 'dodge', label: '↻', x: 0.85, y: 0.62, r: 0.9 },
     { a: 'block', label: '⛨', x: 0.685, y: 0.895, r: 0.85 }, { a: 'special', label: '✠', x: 0.73, y: 0.69, r: 0.85 },
     { a: 'reload', label: 'R', x: 0.96, y: 0.38, r: 0.7 }, { a: 'switch', label: '⇄', x: 0.885, y: 0.42, r: 0.7 }, { a: 'pause', label: 'Ⅱ', x: 0.965, y: 0.2, r: 0.6 },
+    { a: 'tactical', label: '⌖', x: 0.81, y: 0.33, r: 0.7 }, { a: 'tacnext', label: '⟳', x: 0.745, y: 0.42, r: 0.6 }, { a: 'companion', label: '⚑', x: 0.885, y: 0.26, r: 0.6 },
   ],
   init() {
     this.el = document.getElementById('touch');
@@ -23,7 +24,7 @@ IF.touch = {
         if (t.identifier === this.stickId) { this.moveStick(t); continue; }
         const b = btnAt(t.clientX, t.clientY); if (b) now[b.dataset.a] = true;
       }
-      for (const a of ['attack', 'shoot', 'jump', 'dodge', 'block', 'special', 'reload', 'switch', 'pause']) IF.input.touch[a] = !!now[a];
+      for (const a of ['attack', 'shoot', 'jump', 'dodge', 'block', 'special', 'reload', 'switch', 'pause', 'tactical', 'tacnext', 'companion']) IF.input.touch[a] = !!now[a];
       this.el.querySelectorAll('.tbtn').forEach((b) => b.classList.toggle('on', !!now[b.dataset.a]));
     };
     this.el.addEventListener('touchstart', (e) => {

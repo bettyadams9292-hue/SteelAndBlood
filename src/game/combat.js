@@ -67,6 +67,7 @@ IF.combat = {
     // ground hazards
     for (let i = run.hazards.length - 1; i >= 0; i--) {
       const h = run.hazards[i]; h.t -= dt; if (h.t <= 0) { run.hazards.splice(i, 1); continue; }
+      if (h.type === 'fire') { IF.tac.updateFire(run, h, dt); continue; }
       if (h.type === 'toxic') { if (Math.random() < 0.3) IF.fx.toxic(h.x + (Math.random() - 0.5) * h.w, IF.GROUND, 1); if (Math.abs(pl.x - h.x) < h.w / 2 && pl.y > IF.GROUND - 20) { h.tick = (h.tick || 0) - dt; if (h.tick <= 0) { h.tick = 0.5; pl.takeDamage({ x: pl.x, dmg: h.dmg, type: 'toxic', unblockable: true }); } } }
     }
   },
@@ -136,6 +137,7 @@ IF.combat = {
       for (const p of run.world.props) if (p.hp > 0 && IF.util.dist(x, y, p.x + p.w / 2, p.y + p.h / 2) < r + 30) IF.world.damageProp(run, p, dmg);
       if (!o.noSelf && IF.util.dist(x, y, run.player.x, run.player.y - 70) < r * 0.6) run.player.takeDamage({ x, dmg: dmg * 0.15, type: 'blast', heavy: true });
     } else {
+      if (run.allies) for (const a of run.allies) if (!a.dead && !a.down && Math.abs(a.x - x) < r + 20) a.takeDamage({ x, dmg: dmg * 0.6, type: 'blast' });
       const pl = run.player; const d = IF.util.dist(x, y, pl.x, pl.y - 70);
       if (d < r + 20) pl.takeDamage({ x, dmg: dmg * (1 - d / (r + 60) * 0.5), type: 'blast', heavy: true });
       for (const e of run.enemies) if (!e.dead && !e.boss && e !== o.source && IF.util.dist(x, y, e.x, e.y - e.h / 2) < r) { e.hp -= dmg * 0.5; this.knockback(e, Math.sign(e.x - x) * 400, 1); if (e.hp <= 0) e.die({ dir: Math.sign(e.x - x), explosive: true }); }

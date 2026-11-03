@@ -28,6 +28,7 @@ IF.wep3d = {
     minigun: { minigun: true },
     gl: { rcv: [-4, 24, 14], drum: true, bar: 34, barR: 4, grip: [-2, -2, 7, 13, 0.3], stock: 'fold', stockL: 18 },
     rl: { tube: 'launcher' },
+    // (WWII and other variants override these through def.model)
   },
 
   build(def, rarityIndex) {
@@ -57,7 +58,7 @@ IF.wep3d = {
     const K = this.mats(), body = def.look && def.look.tan ? K.tan : K.polymer, metal = def.cls === 'pistol' || def.cls === 'smg' ? K.blued : K.gunmetal;
     const furn = s.furn === 'wood' || (def.look && def.look.body && /^#[5-8][0-9a-f]4/.test(def.look.body)) ? K.wood : body;
     if (s.minigun) return this.minigun(g, def);
-    if (s.tube === 'launcher') return this.launcher(g, def);
+    if (s.tube === 'launcher') return s.bazooka ? this.bazooka(g, def) : this.launcher(g, def);
     const [rx0, rx1, rh] = s.rcv, top = -6, bot = top - rh;   // receiver sits above the grip, barrel line at y = -7
     const by = top - 3.2;
     // receiver
@@ -73,7 +74,7 @@ IF.wep3d = {
     // handguard / pump
     if (s.hand) { if (s.pump) { const pm = this.rbox(g, rx1 + 6, rx1 + 6 + s.hand, by - 4.4, by - 0.6, 4.2, 1.4, furn); pm.userData.pump = true; } else this.rbox(g, rx1 - 1, rx1 + s.hand, by - 2.8, by + 2.6, 4.2, 1.4, body); }
     // front sight
-    if (!s.optic || s.optic === 'red') this.box(g, bx1 - 5, bx1 - 4, by + br, by + br + 2.6, 0.8, K.blued);
+    if (!s.optic || s.optic === 'red' || s.optic === 'none') this.box(g, bx1 - 5, bx1 - 4, by + br, by + br + 2.6, 0.8, K.blued);
     // magazine
     if (s.mag === 'curved') { const pts = []; for (let i = 0; i <= 8; i++) { const t = i / 8, a = t * 0.5; pts.push([s.magX + Math.sin(a) * s.magL * 0.6 + t * 1.5, bot - t * s.magL]); } const back = pts.slice().reverse().map(([x, y]) => [x + 4.2, y]); this.shape(g, pts.concat(back), 3.2, K.parkerized, 0.25); }
     else if (s.mag === 'straight' || s.mag === 'box') this.rbox(g, s.magX, s.magX + (s.magW || 4), bot - s.magL, bot + 0.5, 3.0, 0.6, s.mag === 'box' && def.cls === 'lmg' ? K.olive : K.parkerized);
@@ -91,11 +92,36 @@ IF.wep3d = {
     if (s.optic === 'scope') { this.tubeX(g, rx0 + 6, rx0 + 36, top + 4.5, 1.8, K.blued); this.tubeX(g, rx0 + 30, rx0 + 38, top + 4.5, 2.6, K.blued); this.tubeX(g, rx0 + 4, rx0 + 9, top + 4.5, 2.2, K.blued); for (const x of [rx0 + 14, rx0 + 26]) this.box(g, x, x + 2, top, top + 3, 2.4, K.blued); this.M(new IF.r3.T.CircleGeometry(2.4, 14), K.lens, rx0 + 38.05, top + 4.5, 0, g).rotation.y = Math.PI / 2; }
     if (s.carry) { this.box(g, rx0 + 12, rx0 + 30, top + 4, top + 5.2, 1.2, K.blued); for (const x of [rx0 + 12, rx0 + 29]) this.box(g, x, x + 1.2, top, top + 5, 1.2, K.blued); }
     if (s.bipod) for (const z of [-1.4, 1.4]) { const l = this.M(new IF.r3.T.CylinderGeometry(0.4, 0.4, 13, 5), K.blued, bx1 - 14, by - 6.5, z, g); l.rotation.z = 0.35; l.rotation.x = z * 0.08; }
+    // ---- variant parts (period firearms) ----
+    if (s.woodFore) this.rbox(g, rx1 - 4, rx1 + s.woodFore, by - 3.4, by + 1.6, 4.4, 1.2, K.wood); // full-length wooden forend
+    if (s.jacket) { // perforated cooling jacket around the barrel
+      const j0 = rx1 - 2, j1 = rx1 + (s.hand || 0) + s.bar - 4; this.tubeX(g, j0, j1, by, 2.4, K.parkerized, 10);
+      for (let x = j0 + 3; x < j1 - 2; x += 3.2) for (const a of [0.9, -0.9]) { const h = this.M(new IF.r3.T.CylinderGeometry(0.7, 0.7, 0.4, 6), K.polymer, x, by + Math.sin(a) * 2.3, Math.cos(a) * 2.3, g); h.rotation.x = Math.PI / 2 - a; }
+    }
+    if (s.jacketFins) for (let x = rx1 + 1; x < rx1 + 12; x += 1.4) { const f = this.M(new IF.r3.T.CylinderGeometry(1.8, 1.8, 0.5, 10), K.blued, x, by, 0, g); f.rotation.z = Math.PI / 2; }
+    if (s.fgrip) { const pts = [[rx1 + 4, by - 2], [rx1 + 9, by - 2], [rx1 + 8, by - 12], [rx1 + 4, by - 12]]; this.shape(g, pts, 3.6, K.wood, 0.6); }
+    if (s.drumMag) { const d = this.M(new IF.r3.T.CylinderGeometry(6, 6, 4.2, 18), K.blued, (s.magX || 10) + 2, bot - 5.5, 0, g); d.rotation.x = Math.PI / 2; this.M(new IF.r3.T.CylinderGeometry(1.4, 1.4, 4.6, 8), K.gunmetal, (s.magX || 10) + 2, bot - 5.5, 0, g).rotation.x = Math.PI / 2; }
+    if (s.mag === 'side') { const m = this.M(new IF.r3.T.BoxGeometry(4, 2.6, s.magL), K.parkerized, s.magX + 2, by, -s.magL / 2 - 2, g); }
+    if (s.mag === 'drumSide') { const d = this.M(new IF.r3.T.CylinderGeometry(4.5, 4.5, 3.5, 14), K.olive, rx0 + 22, by - 1, -5.5, g); d.rotation.x = Math.PI / 2; this.box(g, rx0 + 18, rx0 + 30, top - 1, top + 1.6, 5, K.blued); /* feed cover */ }
+    if (s.bolt) { const b = this.M(new IF.r3.T.CylinderGeometry(0.6, 0.6, 5, 6), K.blued, rx0 + 14, top - 2, 3.6, g); b.rotation.x = Math.PI / 2 - 0.5; this.M(new IF.r3.T.SphereGeometry(1.1, 8, 6), K.blued, rx0 + 14, top - 3.2, 6, g); }
+    if (s.toggle) { this.box(g, rx0 + 2, rx0 + 10, top, top + 2.2, 2.6, K.blued); this.M(new IF.r3.T.SphereGeometry(1.3, 8, 6), K.blued, rx0 + 2, top + 1.6, 1.5, g); }
+    if (s.stock === 'frame') { const L = s.stockL; this.tubeX(g, rx0 - L, rx0, top - 2, 0.6, K.blued, 6); this.box(g, rx0 - L - 1, rx0 - L + 1, bot - 6, top - 1, 1.2, K.blued); this.tubeX(g, rx0 - L, rx0 - 4, bot - 4, 0.5, K.blued, 6); }
+    if (s.bayonet) { const bx = rx1 + (s.hand || 0) + s.bar; this.shape(g, [[bx - 6, by - 3.5], [bx + 22, by - 3.2], [bx + 26, by - 2.6], [bx + 22, by - 2], [bx - 6, by - 2.2]], 0.8, K.steelBlade || IF.mat.metal('#c8cfd6', 0.22, 1), 0.1); }
+    if (s.furnGrip === 'wood' && s.grip) { const [gx, gy, gw, gl, ang] = s.grip; const pts = [[gx - gw / 2 + 0.8, gy - 1], [gx + gw / 2 - 0.8, gy - 1], [gx + gw / 2 - 0.8 - Math.sin(ang) * gl, gy - gl + 1], [gx - gw / 2 - Math.sin(ang) * gl, gy - gl + 2]]; this.shape(g, pts.map(([x, y]) => [x, y - 4]), 4.2, K.wood, 0.3); }
     if (def.look && def.look.glow && def.rarity !== 'x') { /* glow accents added by rarity */ }
     return g;
   },
   minigun(g, def) { const K = this.mats(); this.rbox(g, -14, 20, -20, 4, 13, 2, K.gunmetal); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const b = this.tubeX(g, 20, 80, -6 + Math.cos(a) * 3.2, 0.9, K.blued, 8); b.position.z = Math.sin(a) * 3.2; b.userData.spinIdx = i; } for (const x of [22, 50, 76]) { const r = this.M(new IF.r3.T.CylinderGeometry(4.6, 4.6, 1.6, 14), K.gunmetal, x, -6, 0, g); r.rotation.z = Math.PI / 2; } this.box(g, -6, 4, -32, -20, 8, K.olive); this.rbox(g, -4, 4, 2, 12, 2, 1, K.polymer); g.userData.spinner = true; return g; },
   launcher(g, def) { const K = this.mats(), mat = IF.mat.metal('#4b5a3f', 0.7, 0.3); this.tubeX(g, -44, 82, -8, 7.5, mat, 16); for (const x of [-46, 80]) this.tubeX(g, x, x + 6, -8, 8.6, K.polymer, 16); this.rbox(g, -4, 4, -18, -14, 4, 1, K.polymer); this.rbox(g, 16, 24, -18, -14, 4, 1, K.polymer); this.rbox(g, 6, 26, 0, 6, 4, 1, K.blued); this.M(new IF.r3.T.ConeGeometry(5, 12, 12), IF.mat.metal('#7a2a1a', 0.5, 0.4), 90, -8, 0, g).rotation.z = -Math.PI / 2; return g; },
+  bazooka(g, def) { // M1-style: long open tube, wooden shoulder rest, twin grips, wire frame sight
+    const K = this.mats(), tube = IF.mat.metal('#4a5236', 0.75, 0.3);
+    this.tubeX(g, -50, 92, -8, 4.2, tube, 14); this.tubeX(g, 86, 94, -8, 5.2, K.gunmetal, 14); this.tubeX(g, -54, -46, -8, 4.8, K.gunmetal, 14);
+    this.rbox(g, -30, -6, -16, -9, 4, 1.5, K.wood); // shoulder rest
+    this.rbox(g, -4, 4, -20, -10, 3.5, 1, K.wood); this.rbox(g, 22, 30, -20, -10, 3.5, 1, K.wood);
+    this.box(g, 40, 41, -4, 2, 3, K.blued); this.box(g, 40, 41, 2, 2.6, 6, K.blued); // frame sight
+    this.M(new IF.r3.T.TorusGeometry(4.2, 0.5, 6, 16), K.gunmetal, 60, -8, 0, g).rotation.y = Math.PI / 2;
+    return g;
+  },
   bow(g, def) { const T = IF.r3.T, K = this.mats(), pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12 * 2 - 1; pts.push(new T.Vector3(4 + (1 - t * t) * 16, t * 46, 0)); } this.M(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 20, 1.4, 6), K.woodDark, 0, 0, 0, g); const str = this.M(new T.CylinderGeometry(0.25, 0.25, 92, 4), IF.mat.basic('#ddd5c0', 0.8), 4, 0, 0, g); str.userData.string = true; this.box(g, -1, 5, -6, 6, 3, K.leather); return g; },
   crossbow(g, def) { const T = IF.r3.T, K = this.mats(); this.rbox(g, -14, 52, -6, 0, 5, 1.5, K.wood); const pts = []; for (let i = 0; i <= 10; i++) { const t = i / 10 * 2 - 1; pts.push(new T.Vector3(44 + (1 - t * t) * 6, -3, t * 24)); } this.M(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 16, 1.2, 6), K.gunmetal, 0, 0, 0, g); this.box(g, 18, 50, -2, -1, 0.6, IF.mat.basic('#ddd', 0.8)); this.box(g, -4, 2, -16, -6, 3, K.wood); return g; },
 

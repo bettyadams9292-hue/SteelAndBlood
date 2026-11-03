@@ -16,6 +16,17 @@ IF.Enemy = class Enemy {
     this.limp = Math.random() < 0.4 ? 0.5 + Math.random() * 0.5 : 0;
   }
   get isLow() { return this.def.low || this.legless; }
+  stun(t) { if (this.dead || this.state === 'rise') return; if (this.def.explode && this.state === 'windup') return; this.state = 'stagger'; this.stateT = 0; this.staggerT = t * (this.elite ? 0.5 : 1); this.stunned = this.staggerT; this.walkV = 0; }
+  /* who to chase: the knight, or a nearer ally (sentry gun, hound, companion) — re-evaluated a few times a second */
+  target() {
+    const run = this.run, pl = run.player;
+    this.tgtT = (this.tgtT || 0) - (run.lastDt || 0.016);
+    if (this.tgtT > 0 && this._tgt && !this._tgt.dead) return this._tgt;
+    this.tgtT = 0.35 + Math.random() * 0.2;
+    let best = pl, bd = pl.dead ? 1e9 : Math.abs(pl.x - this.x);
+    if (run.allies) for (const a of run.allies) { if (a.dead || a.down) continue; const d = Math.abs(a.x - this.x) / (a.aggro || 1); if (d < bd * 0.8 && d < 520) { best = a; bd = d; } }
+    return (this._tgt = best);
+  }
   hitbox() { return { x: this.x - this.w / 2, y: this.y - this.h, w: this.w, h: this.h }; }
   stagger(power, dir) {
     if (this.dead || this.state === 'rise') return;
@@ -38,7 +49,8 @@ IF.Enemy = class Enemy {
   }
 
   update(dt) {
-    const pl = this.run.player; this.t += dt; this.stateT += dt; this.hitFlash -= dt; this.cd -= dt; this.vuln -= dt;
+    const pl = this.boss || this.dead ? this.run.player : this.target(); this.t += dt;
+    if (this.stunned > 0) { this.stunned -= dt; if (Math.random() < 0.2) IF.fx.spawn({ x: this.x + Math.cos(this.t * 8) * 16, y: this.y - this.h - 8, life: 0.3, size: 3, color: '#fff6c0', type: 'glow', add: true }); } this.stateT += dt; this.hitFlash -= dt; this.cd -= dt; this.vuln -= dt;
     // physics
     this.vy += 2400 * dt; this.y += this.vy * dt; if (this.y >= IF.GROUND) { this.y = IF.GROUND; this.vy = 0; }
     this.x += this.vx * dt;
@@ -67,6 +79,7 @@ IF.Enemy = class Enemy {
         // gentle separation so the horde doesn't stack into one sprite
         for (const o of this.run.enemies) if (o !== this && !o.dead && !o.boss && Math.abs(o.x - this.x) < 26 && o.isLow === this.isLow) target += (this.x < o.x ? -1 : 1) * 40;
         if (adx < this.def.reach * 0.85 && !pl.dead) target = 0;
+        if (this.trapped > 0) { this.trapped -= dt; target = 0; this.walkV = 0; if (Math.random() < 0.05) IF.fx.blood(this.x, IF.GROUND - 20, 0, 1); }
         this.walkV = IF.util.approach(this.walkV || 0, target, 900 * dt);
         this.x += this.walkV * dt; this.phase += Math.abs(this.walkV) * dt * 0.05;
         const vertical = this.isLow ? pl.y > IF.GROUND - 70 : pl.y > this.y - this.h - 70;

@@ -74,7 +74,7 @@ IF.ui = {
       btn('play', played ? 'Continue the Crusade' : 'Begin the Crusade', 'Endless Survival · Best: Section ' + d.stats.bestSection) +
       btn('modes', 'Game Modes', 'Boss Rush · Horde · Hardcore · Daily') +
       btn('armoury', 'Armoury', d.weapons.length + ' weapons') + '<div class="mrow">' + btn('equipment', 'Equipment', 'Armour & loadout') + btn('customise', 'Customise Knight', this.esc(d.appearance.name)) + '</div>' +
-      btn('skills', 'Skill Tree' + pts) + btn('forge', 'Blacksmith & Forge') +
+      '<div class="mrow">' + btn('skills', 'Skill Tree' + pts) + btn('companions', 'Companions', d.companions.active.length + ' / ' + d.companions.slots + ' marching') + '</div>' + btn('forge', 'Blacksmith & Forge') +
       '<div class="mrow">' + btn('stats', 'Statistics') + btn('achievements', 'Achievements') + '</div>' +
       '<div class="mrow">' + btn('settings', 'Settings') + btn('howto', 'How to Play') + '</div>' +
       btn('newgame', 'New Game', 'Erase all progress') +
@@ -278,6 +278,23 @@ IF.ui = {
     const list = IF.ACHIEVEMENTS.map((a) => { const got = d.achievements[a.id]; if (got) n++; const v = Math.min(a.target, d.stats[a.stat] || 0); const rw = a.reward; return '<div class="ach ' + (got ? 'got' : '') + '"><div class="ai">' + (got ? '✠' : '✧') + '</div><div><b>' + a.name + '</b><p>' + a.desc + '</p><div class="pb"><i style="width:' + (v / a.target * 100) + '%"></i></div><small>' + IF.util.fmt(v) + ' / ' + IF.util.fmt(a.target) + ' · Reward: ' + this.costHtml(rw) + '</small></div></div>'; }).join('');
     return this.header('Achievements', n + ' / ' + IF.ACHIEVEMENTS.length + ' unlocked') + '<div class="scroll achs">' + list + '</div>';
   },
+  /* ---------- COMPANIONS ---------- */
+  r_companions() {
+    const d = IF.save.data, C = d.companions;
+    const card = (c) => {
+      const own = C.owned[c.id], on = C.active.includes(c.id), lvl = own ? own.lvl : 1, m = IF.companions.levelMult(lvl);
+      const icon = c.kind === 'dog' ? '🐕' : { Crusader: '✠', 'Heavy Knight': '⛨', Marksman: '⌖', Scout: '➶', Medic: '✚', Engineer: '⚙' }[c.role] || '✠';
+      const w = c.weapon ? IF.WEAPON[c.weapon].name : 'Teeth & claws';
+      const actions = !own ? '<button class="btn pri" data-act="chire" data-id="' + c.id + '" data-nav ' + (d.gold < c.cost ? 'disabled' : '') + '>Hire · ' + c.cost + ' gold</button>'
+        : '<button class="btn ' + (on ? 'pri' : '') + '" data-act="ctog" data-id="' + c.id + '" data-nav>' + (on ? 'Marching ✓' : 'Bring along') + '</button>' +
+          (lvl < 10 ? '<button class="btn" data-act="cup" data-id="' + c.id + '" data-nav ' + (d.gold < IF.companions.upgradeCost(lvl) ? 'disabled' : '') + '>Train → L' + (lvl + 1) + ' · ' + IF.companions.upgradeCost(lvl) + 'g</button>' : '<span class="dim">Max level</span>');
+      return '<div class="comp ' + (on ? 'on' : '') + (own ? '' : ' locked') + '"><div class="cicon">' + icon + '</div><div class="cbody"><b>' + c.name + '</b> <small>' + c.role + (own ? ' · Level ' + lvl : '') + '</small><p>' + c.desc + '</p>' +
+        '<div class="cstats"><span>❤ ' + Math.round(c.hp * m.hp) + '</span><span>⚔ ' + Math.round(c.dmg * m.dmg) + '</span><span>' + this.esc(w) + '</span></div>' +
+        '<p class="cab"><em>' + c.ability + ':</em> ' + c.abilityDesc + '</p><div class="acts">' + actions + '</div></div></div>';
+    };
+    const slot = C.slots < 3 ? '<button class="btn" data-act="cslot" data-nav ' + (d.gold < IF.companions.slotCost ? 'disabled' : '') + '>Unlock 3rd slot · ' + IF.companions.slotCost + ' gold</button>' : '';
+    return this.header('Companions', C.active.length + ' of ' + C.slots + ' slots marching · press C in battle to order Hold / Follow') + '<div class="scroll comps">' + IF.COMPANIONS.map(card).join('') + '</div><div class="acts center">' + slot + '</div>';
+  },
   /* ---------- SETTINGS ---------- */
   r_settings() {
     const s = IF.save.data.settings, b = IF.input.bindings();
@@ -357,7 +374,11 @@ IF.ui = {
       case 'start': IF.audio.unlock(); IF.audio.setMusic(0, false); this.show('menu'); break;
       case 'back': this.back(); break;
       case 'play': IF.game.newRun('endless'); break;
-      case 'modes': case 'armoury': case 'equipment': case 'skills': case 'forge': case 'stats': case 'achievements': case 'settings': case 'howto': this.show(a, true); break;
+      case 'modes': case 'armoury': case 'equipment': case 'skills': case 'forge': case 'stats': case 'achievements': case 'settings': case 'howto': case 'companions': this.show(a, true); break;
+      case 'chire': if (IF.companions.hire(ds.id)) { this.toast(IF.COMPANION[ds.id].name + ' joins the crusade.'); IF.audio.ui('upgrade'); } else IF.audio.ui('error'); this.render(); break;
+      case 'cup': if (IF.companions.upgrade(ds.id)) { this.toast(IF.COMPANION[ds.id].name + ' grows stronger.'); IF.audio.ui('upgrade'); } else IF.audio.ui('error'); this.render(); break;
+      case 'ctog': if (!IF.companions.toggle(ds.id)) { IF.audio.ui('error'); this.toast('All companion slots are full — stand one down first.', 'bad'); } this.render(); break;
+      case 'cslot': if (IF.companions.buySlot()) { this.toast('A third companion may now march with you.'); IF.audio.ui('upgrade'); } else IF.audio.ui('error'); this.render(); break;
       case 'startmode': IF.game.newRun(ds.id); break;
       case 'newgame': this.dialog('New Game', 'Erase ALL progress and start a new knight? This cannot be undone.', 'Erase & begin anew', () => { IF.save.reset(); this.toast('A new knight takes up the sword.'); this.render(); }); break;
       case 'selw': this.sel.weapon = ds.uid; this.render(); break;

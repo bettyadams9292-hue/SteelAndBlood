@@ -111,6 +111,29 @@ IF.Knight3D = class Knight3D {
       case 'crowned': { M(new T.CylinderGeometry(14, 14.5, 30, 20), H, 0, 0, 0); slit(4, 16); const gold = IF.mat.metal('#e2b23c', 0.25, 1); M(new T.CylinderGeometry(15, 15, 4, 20, 1, true), gold, 0, 15, 0); for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; M(new T.ConeGeometry(2.2, 8, 4), gold, Math.cos(a) * 15, 21, Math.sin(a) * 15); } M(new T.SphereGeometry(2.2, 8, 6), IF.mat.glow('#c0141c', 1.2), 15.6, 15, 0); break; }
       case 'horned': { M(new T.SphereGeometry(14.5, 18, 14), H, 0, 1, 0); M(new T.BoxGeometry(16, 3, 17), mt.glow || IF.mat.glow('#a36bff', 2.2), 6, 0, 0); for (const s of [-1, 1]) { const pts = [new T.Vector3(0, 6, s * 10), new T.Vector3(-6, 16, s * 18), new T.Vector3(-14, 30, s * 16), new T.Vector3(-12, 42, s * 10)]; M(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 12, 2.6, 8), H, 0, 0, 0); } break; }
       case 'halo': { M(new T.SphereGeometry(14.5, 18, 14), H, 0, 1, 0); M(new T.BoxGeometry(16, 3, 17), IF.mat.glow('#ffe9a8', 2.5), 6, 0, 0); M(new T.TorusGeometry(14.7, 1, 5, 24), mt.trim, 0, 1, 0).rotation.x = Math.PI / 2; break; }
+      // ---- companion head styles: faces visible ----
+      case 'open': case 'combat': case 'hood': case 'medic': case 'hardhat': {
+        const skinC = look.skin || '#c9a07a', skin = IF.mat.skin(skinC), hairM = IF.mat.cloth(look.hair || '#3a2416', 'hair' + (look.hair || ''));
+        const face = M(new T.SphereGeometry(11, 16, 12), skin, 2, -1, 0); face.scale.set(1, 1.18, 0.92);
+        for (const z of [-4, 4]) M(new T.SphereGeometry(1.3, 6, 5), IF.mat.basic('#1a1410', 0.4), 11.5, 1, z);
+        M(new T.BoxGeometry(3, 1.2, 7), IF.mat.basic('#5a2a24', 0.7), 11, -7, 0); // mouth line
+        M(new T.ConeGeometry(1.8, 4, 6), skin, 12.5, -2, 0).rotation.z = -Math.PI / 2; // nose
+        if (style === 'open') { // long hair under a gilt circlet, braid down the back
+          const hair = M(new T.SphereGeometry(12, 16, 12, Math.PI * 0.55, Math.PI * 1.1), hairM, 0, 2, 0); hair.scale.set(1.05, 1.15, 1.02);
+          M(new T.TorusGeometry(11.6, 1.1, 5, 24), IF.mat.metal('#d8b25a', 0.3, 1), 1, 6, 0).rotation.x = Math.PI / 2;
+          const pts = []; for (let i = 0; i < 6; i++) pts.push(new T.Vector3(-10 - i * 1.2, 0 - i * 7, Math.sin(i) * 1.5));
+          M(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 12, 3, 6), hairM, 0, 0, 0);
+        } else if (style === 'hood') { const hd = M(new T.SphereGeometry(14, 16, 12, Math.PI * 0.6, Math.PI * 1.25), IF.mat.cloth(look.hoodC || '#3e4430'), -1, 2, 0); hd.scale.set(1.05, 1.2, 1.05); M(new T.BoxGeometry(6, 3, 16), IF.mat.cloth(look.hoodC || '#3e4430'), 8, -10, 0); }
+        else { // brimmed steel helmets
+          const col = style === 'medic' ? '#c8c2b4' : style === 'hardhat' ? '#b8862a' : '#4a5236', hm = IF.mat.metal(col, 0.7, 0.3, 'hh' + col);
+          const dome = M(new T.SphereGeometry(14, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), hm, 0, 2, 0); dome.scale.set(1.08, 0.95, 1.05);
+          M(new T.CylinderGeometry(17, 17, 1.2, 20), hm, 0, 2, 0);
+          if (style === 'medic') for (const z of [-15.1, 15.1]) { M(new T.BoxGeometry(6, 1.8, 0.4), IF.mat.basic('#b0141a'), 0, 8, z); M(new T.BoxGeometry(1.8, 6, 0.4), IF.mat.basic('#b0141a'), 0, 8, z); }
+          if (style === 'hardhat') { const gg = M(new T.TorusGeometry(3, 1, 5, 12), IF.mat.basic('#2a2a2a'), 10, 5, -4); gg.rotation.y = Math.PI / 2; const g2 = M(new T.TorusGeometry(3, 1, 5, 12), IF.mat.basic('#2a2a2a'), 10, 5, 4); g2.rotation.y = Math.PI / 2; }
+          M(new T.TorusGeometry(11, 0.4, 4, 16, Math.PI), IF.mat.leather('#3a2a1a'), 1, -4, 0).rotation.y = Math.PI / 2; // chin strap
+        }
+        break;
+      }
       default: M(new T.SphereGeometry(14, 16, 12), H, 0, 0, 0);
     }
     if (mt.plume) { const pts = [new T.Vector3(-2, 15, 0), new T.Vector3(-8, 30, 0), new T.Vector3(-24, 30, 0), new T.Vector3(-36, 14, 0)]; const pl = this.M(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 16, 4, 8), mt.plume, head); pl.scale.z = 0.7; this.parts.plume = pl; }
