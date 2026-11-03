@@ -3,7 +3,9 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: #050303; overflow: hidden; color: var(--bone); font-family: var(--serif); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 #wrap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
-#game { display: block; width: 100%; height: 100%; background: #000; image-rendering: auto; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; }
+#game { position: absolute; inset: 0; display: block; width: 100%; height: 100%; background: transparent; image-rendering: auto; }
+#game.solo { background: #000; }
 #ui { position: absolute; inset: 0; overflow: hidden; }
 #ui > .scr { position: absolute; inset: 0; font-size: calc(16px * var(--ui-scale, 1)); }
 #ui:empty { pointer-events: none; }

@@ -15,7 +15,7 @@ IF.fx = {
     if (this.parts.aliveCount > 850) return null;
     const p = this.parts.get();
     p.x = o.x; p.y = o.y; p.vx = o.vx || 0; p.vy = o.vy || 0; p.life = p.max = o.life || 0.6; p.size = o.size || 3; p.color = o.color || '#fff';
-    p.type = o.type || 'dot'; p.grav = o.grav ?? 0; p.drag = o.drag ?? 0.98; p.rot = o.rot || 0; p.vr = o.vr || 0; p.add = !!o.add; p.grow = o.grow || 0; p.front = o.front ?? true; p.bounce = o.bounce || 0;
+    p.type = o.type || 'dot'; p.grav = o.grav ?? 0; p.drag = o.drag ?? 0.98; p.rot = o.rot || 0; p.vr = o.vr || 0; p.add = !!o.add; p.grow = o.grow || 0; p.front = o.front ?? true; p.bounce = o.bounce || 0; p.z = o.z;
     return p;
   },
   blood(x, y, dir, amount, color) {

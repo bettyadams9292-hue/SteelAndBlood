@@ -157,9 +157,11 @@ IF.game = {
 
   init() {
     this.canvas = document.getElementById('game'); this.ctx = this.canvas.getContext('2d');
+    IF.save.load(); // settings are needed by the renderer
+    this.gl = document.getElementById('gl');
+    if (IF.r3.init(this.gl)) { IF.kit.init(); IF.crowd.init(); IF.fx3d.init(); IF.VIEW_W = 1260; } else { this.gl.style.display = 'none'; this.canvas.classList.add('solo'); }
     this.resize(); window.addEventListener('resize', () => this.resize());
     IF.fx.init(); IF.combat.init(); IF.input.init(this.canvas);
-    IF.save.load();
     IF.ui.init();
     for (let i = 0; i < 90; i++) this.weather.push({ x: Math.random() * IF.W, y: Math.random() * IF.H, s: Math.random() });
     IF.events.on('levelup', (lv) => { IF.audio.levelUp(); IF.ui.toast('LEVEL ' + lv + ' — skill point earned', 'level'); if (this.run) { this.run.player.refreshStats(); IF.fx.ring(this.run.player.x, this.run.player.y - 80, 160, '#ffd36b'); } });
@@ -174,6 +176,7 @@ IF.game = {
     const q = Math.min(2, r * scale); this.canvas.width = Math.round(IF.W * q); this.canvas.height = Math.round(IF.H * q); this.pxScale = q;
     document.documentElement.style.setProperty('--ui-scale', scale);
     const wrap = document.getElementById('wrap'); if (wrap) { wrap.style.width = this.canvas.style.width; wrap.style.height = this.canvas.style.height; }
+    if (IF.r3.ok) IF.r3.resize();
   },
 
   newRun(modeId) {
@@ -220,7 +223,7 @@ IF.game = {
     const t0 = performance.now();
     IF.input.update(now);
     this.step(dt);
-    this.render();
+    this.lastDt = dt; this.render();
     IF.save.tick();
     const ft = performance.now() - t0; this.perf.frame = ft; this.perf.worst = Math.max(this.perf.worst * 0.995, ft);
   },
@@ -240,6 +243,7 @@ IF.game = {
   render() {
     const ctx = this.ctx, q = this.pxScale; ctx.setTransform(q, 0, 0, q, 0, 0);
     if (!this.run) { this.canvas.style.cursor = 'default'; this.renderMenuBackdrop(ctx); return; }
+    if (IF.r3.ok) return this.render3D(ctx);
     const run = this.run, camX = Math.round(run.camX + IF.fx.shakeX), shY = IF.fx.shakeY, t = this.t;
     IF.world.drawBackground(ctx, run, camX, t);
     const Z = IF.ZOOM; ctx.save(); ctx.translate(0, IF.GROUND * (1 - Z) + shY); ctx.scale(Z, Z); ctx.translate(-camX, 0);
@@ -267,6 +271,25 @@ IF.game = {
     this.renderLighting(ctx, run);
     this.renderHud(ctx, run, t);
   },
+  /* 3D path: WebGL scene underneath, 2D canvas becomes a transparent HUD overlay. */
+  render3D(ctx) {
+    const run = this.run, t = this.t;
+    IF.r3.render(run, this.state === 'paused' ? 0 : (this.lastDt || 0.016));
+    ctx.clearRect(0, 0, IF.W, IF.H);
+    // projected world-space overlays: damage numbers, enemy bars, attack markers
+    ctx.save(); ctx.textAlign = 'center';
+    IF.fx.texts.forEachAlive((tx) => { const p = IF.r3.project(tx.x, tx.y, 0.6); if (!p.vis) return; const k = tx.life / tx.max, pop = tx.crit ? 1 + Math.max(0, (k - 0.75) * 3) : 1; ctx.globalAlpha = Math.min(1, k * 2.5); ctx.font = (tx.crit ? '900 ' : '700 ') + Math.round(tx.size * pop) + 'px Cinzel, Georgia, serif'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.strokeText(tx.str, p.x, p.y); ctx.fillStyle = tx.color; ctx.fillText(tx.str, p.x, p.y); });
+    ctx.globalAlpha = 1;
+    for (const e of run.enemies) {
+      if (e.dead || e.state === 'rise') continue; const top = IF.r3.project(e.x, e.y - e.h * (e.scale && !e.boss ? 1 : 1) - 18, e.z3 || 0); if (!top.vis || top.x < -50 || top.x > IF.W + 50) continue;
+      if (!e.boss && e.hp < e.maxHp) { const w = 46 * (e.scale || 1); ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(top.x - w / 2 - 1, top.y - 1, w + 2, 6); ctx.fillStyle = e.elite ? '#ff3d4a' : '#c0302a'; ctx.fillRect(top.x - w / 2, top.y, w * Math.max(0, e.hp / e.maxHp), 4); if (e.armor > 0.3) { ctx.fillStyle = '#9aa4ad'; ctx.fillRect(top.x - w / 2, top.y - 3, w, 2); } }
+      if (e.state === 'windup' || (e.state === 'battack' && e.atk && e.stateT < e.atk.wind)) { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(e.t * 30); ctx.fillStyle = e.boss ? '#ff3a2a' : '#ffb03a'; ctx.font = '900 ' + (e.boss ? 36 : 24) + 'px Cinzel, Georgia, serif'; ctx.fillText('!', top.x, top.y - 10); ctx.globalAlpha = 1; }
+    }
+    ctx.restore();
+    this.renderWeather(ctx, run, t);
+    this.renderLighting(ctx, run, true);
+    this.renderHud(ctx, run, t);
+  },
   renderWeather(ctx, run, t) {
     const w = run.world.biome.weather, q = IF.fx.quality(); if (w === 'none') return;
     const n = Math.floor(this.weather.length * q); ctx.save();
@@ -280,13 +303,13 @@ IF.game = {
     }
     ctx.restore();
   },
-  renderLighting(ctx, run) {
-    const pl = run.player, b = run.world.biome, sx = (pl.x - run.camX) * IF.ZOOM, sy = IF.GROUND - (IF.GROUND - pl.y + 80) * IF.ZOOM;
-    // vignette + coloured key light
-    const g = ctx.createRadialGradient(sx, sy, 120, IF.W / 2, IF.H / 2, IF.W * 0.75);
-    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,' + (b.indoor ? 0.72 : 0.55) * (run.mods.fog ? 1.2 : 1) + ')');
+  renderLighting(ctx, run, is3d) {
+    const pl = run.player, b = run.world.biome, sp = is3d ? IF.r3.project(pl.x, pl.y - 80, 0.35) : null, sx = is3d ? sp.x : (pl.x - run.camX) * IF.ZOOM, sy = is3d ? sp.y : IF.GROUND - (IF.GROUND - pl.y + 80) * IF.ZOOM;
+    // vignette (+ coloured grade in 2D; the 3D scene is lit for real)
+    const g = ctx.createRadialGradient(sx, sy, 160, IF.W / 2, IF.H / 2, IF.W * 0.75);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,' + (is3d ? 0.42 : (b.indoor ? 0.72 : 0.55)) * (run.mods.fog ? 1.2 : 1) + ')');
     ctx.fillStyle = g; ctx.fillRect(0, 0, IF.W, IF.H);
-    ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = b.light; ctx.globalAlpha = 0.22; ctx.fillRect(0, 0, IF.W, IF.H); ctx.restore();
+    if (!is3d) { ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = b.light; ctx.globalAlpha = 0.22; ctx.fillRect(0, 0, IF.W, IF.H); ctx.restore(); }
     // low health pulse
     const hpk = pl.hp / pl.maxHp; IF.fx.vignettePulse *= 0.93;
     const danger = Math.max(IF.fx.vignettePulse * 0.6, hpk < 0.3 ? (0.3 - hpk) * 2 * (0.6 + 0.4 * Math.sin(this.t * 6)) : 0);

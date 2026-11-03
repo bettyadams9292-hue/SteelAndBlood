@@ -83,6 +83,7 @@ IF.Player = class Player {
   aimTarget() {
     const I = IF.input, S = IF.KNIGHT_SCALE, sx = this.x, sy = this.y - (this.crouch ? 62 : 96) * S;
     if (I.mouseAim) {
+      if (IF.r3.ok) { const w = IF.r3.screenToLane(I.mouse.x, I.mouse.y, 0.35); return { dx: w.x - sx, dy: w.y - sy, src: 'mouse' }; }
       const Z = IF.ZOOM, wx = I.mouse.x / Z + this.run.camX, wy = (I.mouse.y - IF.GROUND * (1 - Z)) / Z;
       return { dx: wx - sx, dy: wy - sy, src: 'mouse' };
     }
@@ -429,6 +430,7 @@ IF.Player = class Player {
       const ri = IF.RARITY[wi.item.rarity].index, def = wi.def;
       const extra = { draw: wi.draw, loaded: wi.mag > 0 && wi.reload <= 0, spin: wi.spin ? this.t * wi.spin * 3 : 0 };
       P.weaponBehind = !showGun && this.state !== 'attack' && !two;
+      P._weapon = wi;
       P.drawWeapon = (ctx) => { ctx.save(); ctx.translate(P.handF.x, P.handF.y); ctx.rotate(P.wAngle); IF.art.drawWeapon(ctx, def, ri, S.t, extra); ctx.restore(); };
     }
     return P;
