@@ -23,6 +23,11 @@ IF.kit = {
     bark: m.wood('#3e2e22'), leaves: m.basic('#1e2a1c', 1), leavesDead: m.basic('#3a3424', 1), rock: m.basic('#5c5852', 0.95),
   }; },
   mats() { return this._m || (this._m = this.M()); },
+  /* World-scale standards (metres) checked by audit(): the knight is 1.8 m tall; everything is sized against him. */
+  STANDARDS: { crate: [0.5, 0.75], barrel: [0.8, 1.0], fence: [0.95, 1.15], well: [2.0, 2.6], brazier: [1.0, 1.5], banner: [1.6, 2.2], cart: [0.9, 1.6], car: [1.2, 1.7], cone: [0.3, 0.8], tyres: [0.3, 0.8], hydrant: [0.35, 0.8], locker: [0.8, 2.0], sandbags: [0.3, 0.9], log: [0.25, 0.7], stump: [0.2, 0.7] },
+  audit() { // returns [prop, height, [min,max]] for every builder whose real height breaks its standard
+    const T = this.T, out = []; for (const k in this.STANDARDS) { const g = this.prop(k); if (!g) continue; const b = new T.Box3().setFromObject(g), h = b.max.y - b.min.y, [lo, hi] = this.STANDARDS[k]; if (h < lo || h > hi) out.push([k, +h.toFixed(2), [lo, hi]]); if (b.min.y < -0.05) out.push([k + ' (below ground)', +b.min.y.toFixed(2)]); }
+    return out; },
 
   /* ---------- props (gameplay lane objects) ---------- */
   crate(w = 0.62, h = 0.58) { const M = this.mats(), g = this.g(); this.box(w, h, w, M.timber, 0, h / 2, 0, g); for (const s of [-1, 1]) { this.box(w + 0.02, 0.06, 0.06, M.timberDark, 0, h / 2, s * w / 2, g).rotation.z = Math.atan2(h, w); this.box(0.06, h, 0.04, M.timberDark, s * w / 2, h / 2, w / 2 + 0.01, g); } this.box(w + 0.02, 0.05, w + 0.02, M.timberDark, 0, h - 0.025, 0, g); return g; },
@@ -37,8 +42,26 @@ IF.kit = {
   container(color) { const M = this.mats(), g = this.g(), p = IF.mat.metal(color || '#6a2a1e', 0.75, 0.5); this.box(2.4, 1.2, 1.2, p, 0, 0.6, 0, g); for (let i = 0; i < 12; i++) this.box(0.03, 1.1, 1.22, p, -1.1 + i * 0.2, 0.6, 0, g); return g; },
   barricade() { const M = this.mats(), g = this.g(); for (let i = 0; i < 5; i++) { const b = this.box(1.3, 0.14, 0.06, M.timber, 0, 0.18 + i * 0.13, (i % 2) * 0.05, g); b.rotation.z = (i - 2) * 0.12; } this.crate(0.5, 0.45).children.forEach(() => {}); const c = this.crate(0.5, 0.45); c.position.set(0.2, 0, -0.35); g.add(c); return g; },
   rubble(n = 9) { const M = this.mats(), g = this.g(); for (let i = 0; i < n; i++) { const r = 0.12 + Math.random() * 0.25; const m = this.mesh(new this.T.DodecahedronGeometry(r, 0), Math.random() < 0.5 ? M.stone : M.concrete, (Math.random() - 0.5) * 1.1, r * 0.6, (Math.random() - 0.5) * 0.6, g); m.rotation.set(Math.random() * 3, Math.random() * 3, 0); } if (Math.random() < 0.6) { const rb = this.cyl(0.015, 0.015, 0.9, M.rust, 0.2, 0.4, 0, g, 5); rb.rotation.z = 0.7; } return g; },
-  fence(len = 1.4) { const M = this.mats(), g = this.g(); for (let i = 0; i <= 5; i++) { const h = 0.35 + Math.random() * 0.15; this.box(0.06, h, 0.06, M.timberDark, -len / 2 + i * len / 5, h / 2, 0, g).rotation.z = (Math.random() - 0.5) * 0.15; } this.box(len, 0.05, 0.03, M.timber, 0, 0.3, 0.03, g); const br = this.box(len * 0.5, 0.05, 0.03, M.timber, len * 0.2, 0.15, 0.05, g); br.rotation.z = 0.3; return g; },
-  well() { const M = this.mats(), g = this.g(); const r = this.cyl(0.42, 0.45, 0.62, M.stone, 0, 0.31, 0, g, 16); for (const s of [-1, 1]) this.box(0.08, 1.0, 0.08, M.timberDark, s * 0.38, 1.0, 0, g); const roof = this.mesh(new this.T.ConeGeometry(0.6, 0.4, 4), M.roofTile, 0, 1.6, 0, g); roof.rotation.y = Math.PI / 4; this.cyl(0.05, 0.05, 0.8, M.timber, 0, 1.25, 0, g).rotation.z = Math.PI / 2; return g; },
+  fence(len = 1.4) { // split-rail fence at a real 1.05 m: posts with a little weathered lean, two rails, a bracing slat
+    const M = this.mats(), g = this.g(), n = Math.max(2, Math.round(len / 0.9));
+    for (let i = 0; i <= n; i++) { const p = this.box(0.08, 1.05, 0.08, M.timberDark, -len / 2 + i * len / n, 0.5, 0, g); p.rotation.z = (Math.random() - 0.5) * 0.08; this.box(0.1, 0.05, 0.1, M.timberDark, p.position.x, 1.03, 0, g); }
+    for (const y of [0.45, 0.88]) this.box(len + 0.08, 0.07, 0.05, M.timber, 0, y, 0.06, g);
+    const br = this.box(Math.hypot(len / n, 0.43), 0.05, 0.04, M.timber, -len / 2 + len / n / 2, 0.665, 0.09, g); br.rotation.z = Math.atan2(0.43, len / n);
+    return g; },
+  well() { // stone well: 1.3 m ring at waist height, timber posts, windlass with rope and bucket, shingled hood at ~2.3 m
+    const M = this.mats(), g = this.g(), T = this.T;
+    const ring = this.mesh(new T.CylinderGeometry(0.65, 0.7, 0.78, 20, 1, true), M.stone, 0, 0.39, 0, g); ring.material = M.stone;
+    this.mesh(new T.CylinderGeometry(0.52, 0.52, 0.76, 20, 1, true), M.stoneDark, 0, 0.4, 0, g).material.side = T.DoubleSide;
+    this.mesh(new T.TorusGeometry(0.6, 0.09, 6, 20), M.stoneDark, 0, 0.8, 0, g).rotation.x = Math.PI / 2; // capstones
+    this.mesh(new T.CircleGeometry(0.52, 18), IF.mat.basic('#050607', 0.2, 0.3), 0, 0.15, 0, g).rotation.x = -Math.PI / 2; // dark water far below
+    for (const s of [-1, 1]) this.box(0.12, 1.75, 0.12, M.timberDark, s * 0.62, 1.2, 0, g);
+    const axle = this.cyl(0.06, 0.06, 1.3, M.timber, 0, 1.55, 0, g, 8); axle.rotation.z = Math.PI / 2;
+    const crank = this.box(0.04, 0.3, 0.04, M.iron, 0.72, 1.45, 0.08, g);
+    this.cyl(0.008, 0.008, 0.55, IF.mat.basic('#8a7a5a', 0.9), 0, 1.25, 0, g, 4);
+    const bucket = this.cyl(0.13, 0.11, 0.2, IF.mat.wood('#6a4a2a'), 0, 0.92, 0, g, 10); this.mesh(new T.TorusGeometry(0.13, 0.012, 4, 12), M.iron, 0, 0.98, 0, g).rotation.x = Math.PI / 2;
+    for (const s of [-1, 1]) { const r = this.box(1.55, 0.06, 0.95, this.roofMat(), 0, 2.08, s * 0.4, g); r.rotation.x = s * 0.62; }
+    this.box(1.6, 0.1, 0.1, M.timberDark, 0, 2.38, 0, g);
+    return g; },
   log() { const M = this.mats(), g = this.g(); const l = this.cyl(0.16, 0.18, 1.3, M.bark, 0, 0.16, 0, g); l.rotation.z = Math.PI / 2; return g; },
   stump() { const M = this.mats(), g = this.g(); this.cyl(0.2, 0.26, 0.32, M.bark, 0, 0.16, 0, g); return g; },
   rockProp(w = 0.7) { const M = this.mats(), g = this.g(); const m = this.mesh(new this.T.DodecahedronGeometry(w / 2, 1), M.rock, 0, w * 0.22, 0, g); m.scale.set(1, 0.6, 0.8); this.jitter(m.geometry, 0.08); return g; },
@@ -73,15 +96,11 @@ IF.kit = {
     this.box(w, 0.12, 0.05, M.timberDark, 0, h * 0.55, d / 2 + 0.02, g);
     // windows (dark or lit)
     for (const wx of [-w * 0.28, w * 0.28]) { const lit = rng.chance(0.25); this.box(0.45, 0.55, 0.06, lit ? IF.mat.glow('#ff9a40', 1.4) : M.dark, wx, h * 0.62, d / 2 + 0.03, g); this.box(0.55, 0.06, 0.08, M.timberDark, wx, h * 0.62 - 0.32, d / 2 + 0.05, g); if (lit) g.userData.lit = (g.userData.lit || 0) + 1; }
-    this.box(0.7, 1.3, 0.06, M.timberDark, 0, 0.65, d / 2 + 0.03, g);
-    // roof: two slabs; ruined roofs lose a slab and show rafters
-    const rh = 1.2 + rng.next() * 0.5, slope = Math.atan2(rh, d / 2), rl = Math.hypot(rh, d / 2) + 0.2;
-    for (const s of [-1, 1]) {
-      if (ruined && s > 0 && rng.chance(0.7)) { for (let i = 0; i < 6; i++) { const r = this.box(0.07, 0.07, rl, M.timberDark, -w / 2 + 0.3 + i * (w - 0.6) / 5, h + rh / 2, s * d / 4, g); r.rotation.x = s * slope; } continue; }
-      const slab = this.box(w + 0.3, 0.12, rl, rng.chance(0.5) ? M.thatch : M.roofTile, 0, h + rh / 2, s * d / 4, g); slab.rotation.x = s * slope;
-    }
-    for (const s of [-1, 1]) { const gable = new this.T.Shape(); gable.moveTo(-d / 2, 0); gable.lineTo(d / 2, 0); gable.lineTo(0, rh); gable.closePath(); const m = this.mesh(new this.T.ShapeGeometry(gable), wall, s * w / 2, h, 0, g); m.rotation.y = s * Math.PI / 2; }
-    if (rng.chance(0.6)) this.cyl(0.22, 0.25, 1.3, M.stoneDark, w * 0.3, h + rh * 0.7, -d * 0.2, g, 8);
+    this.door(g, 0, d, rng, wall === M.stone);
+    const rh = 1.2 + rng.next() * 0.5;
+    this.gabledRoof(g, w, d, h, rh, rng.chance(0.5) ? M.thatch : this.roofMat(), wall, ruined, rng);
+    this.foundation(g, w, d); if (wall !== M.stone) this.corners(g, w, d, h);
+    if (rng.chance(0.6)) { const cx = w * 0.3, cz = -d * 0.22, ch = h + rh * (1 - Math.abs(cz) / (d / 2)) + 0.7; this.box(0.5, ch, 0.5, M.stoneDark, cx, ch / 2, cz, g); this.box(0.62, 0.1, 0.62, M.stone, cx, ch + 0.05, cz, g); } // chimney rises from the ground through the roof, with a cap
     return g;
   },
   /* Settlement architecture: picks a distinct building type so streets never repeat one model. */
@@ -90,15 +109,23 @@ IF.kit = {
     return k < 0.3 ? this.cottage(rng, ruined) : k < 0.55 ? this.townhouse(rng, ruined) : k < 0.8 ? this.longhouse(rng, ruined) : this.forge(rng, ruined);
   },
   roofMat() { return IF.mat.get('shingle', () => { const T = this.T, tex = IF.mat.canvasTex(256, (c, n) => { c.fillStyle = '#3a221a'; c.fillRect(0, 0, n, n); for (let r = 0; r < 8; r++) for (let i = 0; i < 9; i++) { const x = i * 32 + (r % 2) * 16 - 16, y = r * 32; c.fillStyle = 'hsl(' + (8 + Math.random() * 12) + ',' + (25 + Math.random() * 15) + '%,' + (20 + Math.random() * 12) + '%)'; c.beginPath(); c.moveTo(x + 1, y); c.lineTo(x + 31, y); c.lineTo(x + 31, y + 24); c.quadraticCurveTo(x + 16, y + 32, x + 1, y + 24); c.closePath(); c.fill(); c.strokeStyle = 'rgba(0,0,0,0.5)'; c.stroke(); } }); tex.repeat.set(1, 1); const m = new T.MeshStandardMaterial({ map: tex, roughness: 0.9 }); m.userData.worldUV = 1.6; return m; }); },
+  /* Roof that actually sits on its walls: each pitch is a slab whose underside runs from the ridge to past the
+   * wall-plate (0.35 m eave overhang), wall plates and a ridge beam close every joint, gables are solid. */
   gabledRoof(g, w, d, h, rh, mat, wallMat, ruined, rng) {
-    const slope = Math.atan2(rh, d / 2), rl = Math.hypot(rh, d / 2) + 0.25;
+    const M = this.mats(), a = Math.atan2(rh, d / 2), Lr = Math.hypot(rh, d / 2), ov = 0.35, th = 0.14, L = Lr + ov + 0.06;
     for (const s of [-1, 1]) {
-      if (ruined && s > 0 && rng.chance(0.6)) { for (let i = 0; i < 7; i++) { const r = this.box(0.08, 0.08, rl, this.mats().timberDark, -w / 2 + 0.3 + i * (w - 0.6) / 6, h + rh / 2, s * d / 4, g); r.rotation.x = s * slope; } continue; }
-      const slab = this.box(w + 0.4, 0.14, rl, mat, 0, h + rh / 2, s * d / 4, g); slab.rotation.x = s * slope;
+      const dz = s * Math.cos(a), dy = -Math.sin(a), cz = dz * (L / 2 - 0.06), cy = h + rh + dy * (L / 2 - 0.06), nz = s * Math.sin(a) * th / 2, ny = Math.cos(a) * th / 2;
+      if (ruined && s > 0 && rng.chance(0.6)) { for (let i = 0; i < 7; i++) { const r = this.box(0.09, 0.09, L, M.timberDark, -w / 2 + 0.3 + i * (w - 0.6) / 6, cy, cz, g); r.rotation.x = s * a; } continue; }
+      const slab = this.box(w + 0.5, th, L, mat, 0, cy + ny, cz + nz, g); slab.rotation.x = s * a;
+      const fascia = this.box(w + 0.52, 0.18, 0.05, M.timberDark, 0, h + rh + dy * (L - 0.06) - 0.02, dz * (L - 0.06), g); // eave board
     }
-    this.box(w + 0.5, 0.16, 0.16, this.mats().timberDark, 0, h + rh + 0.02, 0, g); // ridge beam
-    for (const s of [-1, 1]) { const gable = new this.T.Shape(); gable.moveTo(-d / 2, 0); gable.lineTo(d / 2, 0); gable.lineTo(0, rh); gable.closePath(); const m = this.mesh(new this.T.ExtrudeGeometry(gable, { depth: 0.15, bevelEnabled: false }), wallMat, s * w / 2 - (s > 0 ? 0.15 : 0), h, 0, g); m.rotation.y = Math.PI / 2; m.position.x = s * w / 2 + (s < 0 ? 0 : -0.15); }
+    for (const s of [-1, 1]) this.box(w + 0.1, 0.16, 0.2, M.timberDark, 0, h + 0.08, s * (d / 2 - 0.08), g); // wall plates
+    const ridge = this.box(w + 0.55, 0.14, 0.14, M.timberDark, 0, h + rh + 0.09, 0, g); ridge.rotation.x = Math.PI / 4;
+    for (const s of [-1, 1]) { const gable = new this.T.Shape(); gable.moveTo(-d / 2, 0); gable.lineTo(d / 2, 0); gable.lineTo(0, rh); gable.closePath(); const m = this.mesh(new this.T.ExtrudeGeometry(gable, { depth: 0.2, bevelEnabled: false }), wallMat, 0, h, 0, g); m.rotation.y = Math.PI / 2; m.position.x = s * w / 2 + (s < 0 ? 0.0 : -0.2); }
+    for (const s of [-1, 1]) { const barge = this.box(0.06, 0.16, Lr + 0.1, M.timberDark, s * (w / 2 + 0.22), h + rh / 2 + 0.06, 0.0, g); barge.visible = false; }
   },
+  foundation(g, w, d) { const M = this.mats(); this.box(w + 0.16, 0.32, d + 0.16, M.stoneDark, 0, 0.12, 0, g); }, // stone plinth: buildings sit on the ground, never float
+  corners(g, w, d, h) { const M = this.mats(); for (const sx of [-1, 1]) for (const sz of [-1, 1]) this.box(0.16, h, 0.16, M.timberDark, sx * (w / 2 - 0.02), h / 2, sz * (d / 2 - 0.02), g); },
   frontWindows(g, w, h, d, y, n, rng, shutters) {
     const M = this.mats();
     for (let i = 0; i < n; i++) { const x = -w / 2 + (i + 0.5) * w / n; if (Math.abs(x) < 0.5 && y < 1.5) continue; const lit = rng.chance(0.2), broken = rng.chance(0.3);
@@ -106,14 +133,14 @@ IF.kit = {
       if (shutters) for (const s of [-1, 1]) { if (broken && s > 0) continue; const sh = this.box(0.26, 0.66, 0.04, IF.mat.wood('#4a3a2a'), x + s * 0.4, y, d / 2 + 0.06, g); if (broken) sh.rotation.z = 0.4; }
       if (lit) g.userData.lit = (g.userData.lit || 0) + 1; }
   },
-  door(g, x, d, rng, arch) { const M = this.mats(); this.box(0.9, 1.7, 0.1, IF.mat.wood('#4a2e18'), x, 0.85, d / 2 + 0.04, g); for (const y of [0.4, 1.3]) this.box(0.9, 0.07, 0.13, M.iron, x, y, d / 2 + 0.06, g); this.box(1.15, 0.14, 0.18, arch ? M.stone : M.timberDark, x, 1.78, d / 2 + 0.06, g); if (rng.chance(0.3)) { const plank = this.box(1.1, 0.12, 0.08, M.timber, x, 1.0, d / 2 + 0.14, g); plank.rotation.z = 0.5; } },
+  door(g, x, d, rng, arch) { const M = this.mats(); this.box(0.95, 1.95, 0.1, IF.mat.wood('#4a2e18'), x, 0.975 + 0.2, d / 2 + 0.04, g); for (const y of [0.6, 1.7]) this.box(0.95, 0.07, 0.13, M.iron, x, y, d / 2 + 0.06, g); this.box(1.2, 0.16, 0.2, arch ? M.stone : M.timberDark, x, 2.25, d / 2 + 0.06, g); this.box(1.2, 0.18, 0.4, M.stoneDark, x, 0.09, d / 2 + 0.2, g); /* threshold step */ if (rng.chance(0.3)) { const plank = this.box(1.1, 0.12, 0.08, M.timber, x, 1.0, d / 2 + 0.14, g); plank.rotation.z = 0.5; } },
   damage(g, w, h, d, rng) { // blackened scorch, a broken corner and fallen stones
     const M = this.mats(); this.box(w * (0.3 + rng.next() * 0.3), h * 0.5, 0.02, IF.mat.basic('#0e0a08', 1), (rng.next() - 0.5) * w * 0.5, h * 0.7, d / 2 + 0.08, g);
     for (let i = 0; i < 6; i++) { const r = this.box(0.25 + rng.next() * 0.3, 0.2, 0.3, M.stone, w / 2 + rng.next() * 1.2, 0.1, d / 2 + rng.next() * 0.8, g); r.rotation.y = rng.next() * 3; }
   },
   townhouse(rng, ruined) { // two storeys: stone ground floor, jettied timber-framed upper floor, steep tiled roof
     const M = this.mats(), g = this.g(), w = 3.2 + rng.next() * 1.4, d = 3, h1 = 2.4, h2 = 2.2;
-    this.box(w, h1, d, M.stone, 0, h1 / 2, 0, g);
+    this.box(w, h1, d, M.stone, 0, h1 / 2, 0, g); this.foundation(g, w, d);
     this.box(w + 0.3, h2, d + 0.5, M.plaster, 0, h1 + h2 / 2, 0.15, g); // jetty overhang
     this.box(w + 0.4, 0.16, d + 0.6, M.timberDark, 0, h1, 0.15, g);
     for (let i = 0; i <= 4; i++) this.box(0.13, h2, 0.06, M.timberDark, -w / 2 - 0.15 + i * (w + 0.3) / 4, h1 + h2 / 2, d / 2 + 0.42, g);
@@ -121,13 +148,13 @@ IF.kit = {
     this.door(g, -w * 0.25, d, rng, true); this.frontWindows(g, w, h1, d, 1.5, 2, rng, true);
     const up = this.g(); up.position.z = 0.4; g.add(up); this.frontWindows(up, w, h2, d, h1 + h2 * 0.55, 3, rng, true);
     this.gabledRoof(g, w + 0.3, d + 0.6, h1 + h2, 1.8 + rng.next() * 0.6, this.roofMat(), M.plaster, ruined, rng);
-    this.cyl(0.25, 0.28, 1.6, M.stoneDark, w * 0.32, h1 + h2 + 1.4, -0.4, g, 8);
+    { const ch = h1 + h2 + 2.2; this.box(0.55, ch, 0.55, M.stoneDark, w * 0.32, ch / 2, -0.7, g); this.box(0.68, 0.1, 0.68, M.stone, w * 0.32, ch + 0.05, -0.7, g); }
     if (ruined) this.damage(g, w, h1, d, rng);
     return g;
   },
   longhouse(rng, ruined) { // long, low, thick thatch hipped almost to the ground, wattle walls and a smoke hole
-    const M = this.mats(), g = this.g(), w = 6 + rng.next() * 2, d = 3.2, h = 1.6;
-    this.box(w, h, d, IF.mat.basic('#7a6a50', 0.95), 0, h / 2, 0, g);
+    const M = this.mats(), g = this.g(), w = 6 + rng.next() * 2, d = 3.2, h = 2.3;
+    this.box(w, h, d, IF.mat.basic('#7a6a50', 0.95), 0, h / 2, 0, g); this.foundation(g, w, d);
     for (let x = -w / 2; x <= w / 2; x += 0.8) this.box(0.14, h, 0.1, M.timberDark, x, h / 2, d / 2 + 0.03, g);
     this.door(g, w * 0.15, d, rng, false); this.frontWindows(g, w, h, d, 1.0, 3, rng, false);
     const rh = 2.2, thatch = IF.mat.basic('#6a5636', 1);

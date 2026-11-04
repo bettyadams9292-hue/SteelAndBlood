@@ -55,7 +55,7 @@ IF.world = {
   makeProp(type, x, rng) {
     const G = IF.GROUND, d = { type, x, seed: rng.int(0, 9999), hp: 0 };
     const S = { // w, h, platform?, hp (destructible)
-      cart: [120, 58, true], barrel: [34, 46, false, 30], crate: [62, 58, true, 60], fence: [140, 40], well: [70, 64, true], log: [130, 30, true],
+      cart: [120, 58, true], barrel: [34, 46, false, 30], crate: [62, 58, true, 60], fence: [140, 105], well: [130, 80, true], log: [130, 30, true],
       stump: [40, 30], rock: [70, 34, true], rubble: [110, 40, true], banner: [30, 160], brazier: [30, 70], car: [170, 62, true], barrier: [110, 44, true],
       tyres: [50, 34, true], cone: [20, 30], sandbags: [120, 42, true], jeep: [180, 74, true], wire: [130, 32], bus: [300, 110, true], hydrant: [20, 30],
       tank: [260, 96, true], crater: [140, 10], container: [240, 120, true], pallet: [80, 22, true], locker: [40, 90], gurney: [90, 44, true], barricade: [120, 70, true],

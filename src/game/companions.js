@@ -214,34 +214,59 @@ IF.Companion = class Companion {
 /* ===================================================================== */
 /* Procedural quadruped: torso, deep chest, head with muzzle and ears, tail, four two-segment legs. Metres. */
 IF.Dog3D = class Dog3D {
+  /* Fur: fine directional strands over a mottled base, matte (roughness 1) with a soft sheen normal — never the
+   * polished look of the skin material. One texture set is shared; the coat colour tints it. */
+  static fur(col) {
+    return IF.mat.get('fur' + col, () => {
+      const T = IF.r3.T, set = IF.Dog3D._furSet || (IF.Dog3D._furSet = (() => {
+        const N = 256, base = IF.mat.noiseField(N, 8, 4, 311), h = new Float32Array(N * N);
+        for (let i = 0; i < 9000; i++) { const x = Math.random() * N, y = Math.random() * N, len = 5 + Math.random() * 7; for (let k = 0; k < len; k++) { const xx = ((x + k * 0.25) | 0) % N, yy = ((y + k) | 0) % N; h[yy * N + xx] = Math.min(1, h[yy * N + xx] + 0.22); } }
+        const map = IF.mat.fieldToTex(N, base, (v, i) => { const c = 130 + v * 55 + h[i] * 28; return [c, c, c]; }), normal = IF.mat.normalFromHeight(N, h, 2.2);
+        map.repeat.set(3, 3); normal.repeat.set(3, 3); return { map, normal };
+      })());
+      return new T.MeshStandardMaterial({ color: col, map: set.map, normalMap: set.normal, normalScale: new T.Vector2(0.7, 0.7), roughness: 1, metalness: 0 });
+    });
+  }
+  /* Anatomy (metres, German Shepherd reference: 0.62 m at the withers, 1.0 m nose to rump):
+   * one lofted torso with a deep chest and tucked waist, a forward-angled neck, wedge skull with a long muzzle,
+   * erect ears, front legs (humerus + forearm + pastern) and hind legs with a real hock angle, a low bushy tail.
+   * Parts overlap at joints by design (no gaps) and are tinted with the shared fur material. */
   constructor(def) {
     const T = IF.r3.T, s = def.size || 1, [c1, c2, c3] = def.coat;
-    const coat = IF.mat.skin(c1), saddle = IF.mat.skin(c2), belly = IF.mat.skin(c3), nose = IF.mat.basic('#0a0a0a', 0.3), eye = IF.mat.glow('#2a1a08', 0.4);
+    const tan = IF.Dog3D.fur(c1), black = IF.Dog3D.fur(c2), cream = IF.Dog3D.fur(c3), nose = IF.mat.basic('#0a0a0a', 0.35), eye = IF.mat.get('dogeye', () => new T.MeshStandardMaterial({ color: '#2a1606', roughness: 0.1, metalness: 0.2 }));
     const M = (geo, mat, p, x = 0, y = 0, z = 0) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; p.add(m); return m; };
+    const seg = (p, mat, a, b, r0, r1) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy), m = M(new T.CylinderGeometry(r1, r0, L, 10), mat, p, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, a[2] || 0); m.rotation.z = Math.atan2(dx, dy) * -1; M(new T.SphereGeometry(r1, 8, 6), mat, p, b[0], b[1], a[2] || 0); return m; };
     this.root = new T.Group(); this.body = new T.Group(); this.root.add(this.body); this.root.scale.setScalar(s);
-    const B = this.body; B.position.y = 0.5;
-    // one continuous body: a lathe profile from rump to deep chest (no separate balls), with a tapered neck into the skull
-    const prof = [[0, -0.36], [0.09, -0.34], [0.13, -0.26], [0.135, -0.1], [0.13, 0.05], [0.15, 0.18], [0.155, 0.27], [0.12, 0.34], [0.07, 0.38], [0, 0.39]].map(([r, y]) => new T.Vector2(r, y));
-    const torso = M(new T.LatheGeometry(prof, 16).rotateZ(-Math.PI / 2), coat, B, 0, 0, 0); torso.scale.set(1, 1, 0.82);
-    M(new T.CapsuleGeometry(0.1, 0.36, 4, 10).rotateZ(Math.PI / 2), saddle, B, -0.05, 0.075, 0).scale.set(1, 0.55, 0.9); // dark saddle across the back
-    M(new T.CapsuleGeometry(0.08, 0.28, 4, 10).rotateZ(Math.PI / 2), belly, B, 0.08, -0.07, 0).scale.set(1, 0.6, 0.8); // pale underside
+    const B = this.body; B.position.y = 0.44;
+    // torso: lathe along x, then deepen the chest / tuck the waist on the underside
+    const prof = [[0.0, -0.40], [0.07, -0.385], [0.11, -0.33], [0.125, -0.22], [0.118, -0.08], [0.135, 0.06], [0.155, 0.18], [0.158, 0.27], [0.135, 0.34], [0.09, 0.38], [0.0, 0.395]];
+    const tg = new T.LatheGeometry(prof.map(([r, y]) => new T.Vector2(r, y)), 18).rotateZ(-Math.PI / 2), tp = tg.attributes.position;
+    for (let i = 0; i < tp.count; i++) { const x = tp.getX(i), y = tp.getY(i); if (y < 0) { const chest = Math.max(0, 1 - Math.abs(x - 0.2) / 0.22), waist = Math.max(0, 1 - Math.abs(x + 0.08) / 0.16); tp.setY(i, y * (1 + 0.38 * chest - 0.22 * waist)); } else tp.setY(i, y * 0.92); }
+    tg.computeVertexNormals(); M(tg, tan, B).scale.z = 0.74;
+    const saddle = M(new T.SphereGeometry(0.15, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), black, B, -0.04, 0.02, 0); saddle.scale.set(2.3, 0.75, 0.78); // black saddle over the back
+    // neck and head
     const neck = new T.Group(); neck.position.set(0.3, 0.06, 0); B.add(neck); this.neck = neck;
-    const nk = M(new T.CylinderGeometry(0.07, 0.115, 0.26, 12), coat, neck, 0.06, 0.1, 0); nk.rotation.z = -0.75; nk.scale.z = 0.85; // thick at the shoulders, narrowing to the head
-    const ruff = M(new T.CylinderGeometry(0.1, 0.125, 0.12, 12), belly, neck, 0.03, 0.03, 0); ruff.rotation.z = -0.75; ruff.scale.z = 0.8;
-    const head = new T.Group(); head.position.set(0.15, 0.2, 0); neck.add(head); this.head = head;
-    const skull = M(new T.SphereGeometry(0.085, 14, 10), coat, head, 0, 0, 0); skull.scale.set(1.25, 0.95, 0.9);
-    const snout = M(new T.CylinderGeometry(0.04, 0.06, 0.15, 10).rotateZ(-Math.PI / 2), saddle, head, 0.13, -0.025, 0); snout.scale.z = 0.85;
-    M(new T.SphereGeometry(0.024, 6, 5), nose, head, 0.21, -0.015, 0);
-    const jaw = new T.Group(); jaw.position.set(0.06, -0.06, 0); head.add(jaw); this.jaw = jaw; M(new T.BoxGeometry(0.14, 0.025, 0.07), saddle, jaw, 0.07, 0, 0);
-    for (const z of [-0.05, 0.05]) { M(new T.SphereGeometry(0.014, 6, 5), eye, head, 0.08, 0.035, z); const ear = M(new T.ConeGeometry(0.04, 0.11, 4), saddle, head, -0.02, 0.11, z * 1.1); ear.rotation.x = z > 0 ? 0.25 : -0.25; }
-    const tail = new T.Group(); tail.position.set(-0.32, 0.06, 0); B.add(tail); this.tail = tail; M(new T.CapsuleGeometry(0.035, 0.28, 4, 6).rotateZ(Math.PI / 2 + 0.7), saddle, tail, -0.12, -0.08, 0);
+    seg(neck, tan, [0, 0], [0.15, 0.12], 0.11, 0.08); // neck carried forward at ~40°, not upright M(new T.SphereGeometry(0.1, 10, 8), cream, neck, 0.04, -0.03, 0).scale.set(1, 1.1, 0.8); // throat ruff
+    const head = new T.Group(); head.position.set(0.18, 0.15, 0); neck.add(head); this.head = head;
+    const skull = M(new T.SphereGeometry(0.088, 14, 10), tan, head, 0, 0, 0); skull.scale.set(1.2, 0.92, 0.9);
+    const muzzle = M(new T.CylinderGeometry(0.036, 0.062, 0.17, 10).rotateZ(-Math.PI / 2 - 0.1), black, head, 0.135, -0.03, 0); muzzle.scale.z = 0.88; // long wedge muzzle
+    M(new T.SphereGeometry(0.025, 8, 6), nose, head, 0.222, -0.017, 0);
+    for (const z of [-0.042, 0.042]) { M(new T.SphereGeometry(0.012, 8, 6), eye, head, 0.075, 0.025, z); const ear = M(new T.ConeGeometry(0.05, 0.13, 6), black, head, -0.02, 0.1, z * 1.2); ear.rotation.set(z > 0 ? 0.22 : -0.22, 0, -0.1); ear.scale.z = 0.42; /* big erect shepherd ears */ }
+    const jaw = new T.Group(); jaw.position.set(0.07, -0.06, 0); head.add(jaw); this.jaw = jaw; M(new T.BoxGeometry(0.13, 0.022, 0.06), black, jaw, 0.065, 0, 0);
+    // tail: low-set, bushy, hanging in a gentle curve
+    const tail = new T.Group(); tail.position.set(-0.37, 0.03, 0); B.add(tail); this.tail = tail;
+    const tc = new T.CatmullRomCurve3([new T.Vector3(0, 0, 0), new T.Vector3(-0.1, -0.1, 0), new T.Vector3(-0.15, -0.24, 0), new T.Vector3(-0.12, -0.34, 0)]);
+    const tgeo = new T.TubeGeometry(tc, 12, 0.05, 8), tpos = tgeo.attributes.position; for (let i = 0; i < tpos.count; i++) { /* taper not needed for silhouette */ } M(tgeo, black, tail, 0, 0, 0).scale.z = 1.2;
+    // legs: hip/shoulder group swings, knee group bends; lower legs carry pastern + paw
     this.legs = [];
-    for (const [lx, lz] of [[0.25, 0.08], [0.25, -0.08], [-0.24, 0.08], [-0.24, -0.08]]) {
-      const hip = new T.Group(); hip.position.set(lx, -0.05, lz); B.add(hip);
-      M(new T.CapsuleGeometry(0.05, 0.14, 4, 8), coat, hip, 0, -0.09, 0).scale.z = 0.8;
-      const knee = new T.Group(); knee.position.set(0, -0.22, 0); hip.add(knee);
-      M(new T.CapsuleGeometry(0.03, 0.17, 4, 6), lx > 0 ? belly : coat, knee, 0, -0.1, 0); M(new T.SphereGeometry(0.04, 6, 5), belly, knee, 0.02, -0.21, 0).scale.set(1.3, 0.6, 1);
-      this.legs.push({ hip, knee, front: lx > 0, off: lz > 0 ? 0 : Math.PI });
+    for (const [lx, lz] of [[0.25, 0.075], [0.25, -0.075], [-0.25, 0.07], [-0.25, -0.07]]) {
+      const front = lx > 0, hip = new T.Group(); hip.position.set(lx, -0.04, lz); B.add(hip);
+      if (front) seg(hip, tan, [0.02, 0.02], [-0.02, -0.17], 0.06, 0.042); else { const th = M(new T.SphereGeometry(0.075, 10, 8), tan, hip, 0.01, -0.03, 0); th.scale.set(1.15, 1.25, 0.62); /* haunch blends into the rump */ seg(hip, tan, [0.02, -0.04], [0.05, -0.17], 0.06, 0.04); }
+      const knee = new T.Group(); knee.position.set(front ? -0.02 : 0.05, -0.17, 0); hip.add(knee);
+      if (front) { seg(knee, cream, [0, 0], [0, -0.17], 0.036, 0.03); seg(knee, cream, [0, -0.17], [0.015, -0.205], 0.028, 0.025); }
+      else { seg(knee, cream, [0, 0], [-0.06, -0.12], 0.036, 0.03); seg(knee, cream, [-0.06, -0.12], [-0.045, -0.2], 0.03, 0.026); } // hock angle
+      const paw = M(new T.SphereGeometry(0.036, 10, 6), cream, knee, front ? 0.035 : -0.022, -0.212, 0); paw.scale.set(1.45, 0.55, 1.05);
+      this.legs.push({ hip, knee, front, off: lz > 0 ? 0 : Math.PI });
     }
     IF.r3.world.add(this.root);
   }
@@ -249,9 +274,9 @@ IF.Dog3D = class Dog3D {
     const R = IF.r3, t = c.t, sp = c.speedNow, k = Math.min(1, sp / 300);
     this.root.position.set(c.x * R.S, R.wy(c.x, IF.GROUND), c.z); this.root.rotation.y = c.facing > 0 ? 0 : Math.PI;
     c.gaitPh = (c.gaitPh || 0) + (sp > 15 ? sp * (IF.game.lastDt || 0.016) * 0.078 : 0) + (IF.game.lastDt || 0.016) * 0.4; const gait = c.gaitPh;
-    this.legs.forEach((L) => { const ph = gait + L.off + (L.front ? 0 : Math.PI * 0.5); L.hip.rotation.z = Math.sin(ph) * 0.65 * k; L.knee.rotation.z = (L.front ? -1 : 1) * Math.max(0, Math.cos(ph)) * 0.7 * k; });
-    this.body.position.y = 0.5 + Math.abs(Math.sin(gait)) * 0.03 * k; this.body.rotation.z = Math.sin(gait * 2) * 0.03 * k;
-    this.tail.rotation.z = 0.5 + Math.sin(t * (c.state === 'follow' ? 9 : 4)) * 0.35; this.tail.rotation.y = Math.sin(t * 9) * 0.4;
+    this.legs.forEach((L) => { const ph = gait + L.off + (L.front ? 0 : Math.PI * 0.5); L.hip.rotation.z = Math.sin(ph) * 0.65 * k; L.knee.rotation.z = (L.front ? 1 : -1) * Math.max(0, Math.cos(ph)) * 0.6 * k; });
+    this.body.position.y = 0.44 + Math.abs(Math.sin(gait)) * 0.025 * k; this.body.rotation.z = Math.sin(gait * 2) * 0.03 * k;
+    this.tail.rotation.z = 0.15 + Math.sin(t * (c.state === 'follow' ? 7 : 3)) * 0.12 + Math.min(0.5, sp / 600); this.tail.rotation.y = Math.sin(t * 9) * 0.4;
     // attack: lunge forward, jaws open; idle: head looks around
     const atk = c.state === 'attack' ? Math.sin(Math.min(1, c.stateT / 0.42) * Math.PI) : 0;
     this.body.rotation.z += atk * -0.25; this.neck.rotation.z = -atk * 0.4 + (sp < 20 ? Math.sin(t * 0.7) * 0.1 : 0); this.jaw.rotation.z = -0.1 - atk * 0.55;

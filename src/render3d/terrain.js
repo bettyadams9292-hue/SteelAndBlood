@@ -90,7 +90,7 @@ IF.terrain = {
   },
   fitToWidth(g, p) { // scale lane props to the gameplay footprint so platforms line up with physics
     const box = new IF.r3.T.Box3().setFromObject(g), w = (box.max.x - box.min.x) / this.S;
-    if (w > 0.3 && p.platform) { const k = Math.max(0.75, Math.min(1.35, p.w / w)); g.scale.set(k, Math.max(0.6, Math.min(1.6, p.h / ((box.max.y - box.min.y) / this.S))), Math.min(1.4, Math.max(0.8, k))); }
+    if (w > 0.3 && p.platform) { const k = Math.max(0.75, Math.min(1.35, p.w / w)), tall = { well: 1, cart: 1, car: 1, jeep: 1, bus: 1, tank: 1 }[p.type]; /* structures with a roof/cab keep their proportions; flat-topped platforms match the physics height (within ±20%) */ g.scale.set(k, tall ? k : Math.max(0.8, Math.min(1.2, p.h / ((box.max.y - box.min.y) / this.S))), Math.min(1.4, Math.max(0.8, k))); }
   },
   wreckMesh(group, cx, p) { const g = IF.kit.rubble(6); g.position.set(cx * this.S, this.laneHeight(cx), 0.1); g.visible = false; group.add(g); return g; },
   harvest(g, chunk, lx, ly) { // collect animated parts and light emitters from a built kit object

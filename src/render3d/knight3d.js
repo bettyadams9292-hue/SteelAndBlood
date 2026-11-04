@@ -80,7 +80,7 @@ IF.Knight3D = class Knight3D {
     const plackart = this.M(this.lathe([[16.2, 2], [18.3, 9], [19.2, 16], [17.4, 21], [14, 23]], 24, 0), mt.chest, torso); plackart.scale.set(1.035, 1, 0.77); // lower lame over the belly
     this.M(new T.TorusGeometry(11.5, 1.2, 6, 20), mt.chest, torso, 0, 46.6, 0).rotation.x = Math.PI / 2; // rolled neck edge
     for (const z of [-8, 8]) for (const y of [11, 20]) this.M(new T.SphereGeometry(0.9, 6, 4), mt.trim, torso, 18.4, y, z); // rivets
-    for (let i = 0; i < 3; i++) { const f = this.M(this.lathe([[16.3 + i * 0.9, 1], [17.6 + i * 1.3, -4.2]], 22), mt.chest, torso, 0, -1 - i * 3.8, 0); f.scale.z = 0.78; if (i === 2) { const tr = this.M(new T.TorusGeometry(20.2, 0.4, 4, 22), mt.trim, torso, 0, -12.8, 0); tr.rotation.x = Math.PI / 2; tr.scale.y = 0.78; } } // faulds with gilt edges
+    for (let i = 0; i < 3; i++) { const f = this.M(this.lathe([[16.3 + i * 0.9, 1], [17.6 + i * 1.3, -4.2]], 22), mt.chest, torso, 0, -1 - i * 3.8, 0); f.scale.z = 0.78; } // faulds with gilt edges
     this.M(new T.CylinderGeometry(9, 12, 7, 14), mt.helm, torso, 0, 47, 0); // gorget
     // tabard: separate front and back panels of heavy cloth hanging from the shoulders (open at the sides, like the real thing),
     // folds baked into the geometry, a gilt hem, belted at the waist; the skirt panels sway with the stride
@@ -92,9 +92,9 @@ IF.Knight3D = class Knight3D {
     };
     panel(21.2, 19, 37, 26, true, 9, 0.35); panel(21.2, 19, 37, 26, false, 9, 0.35);
     const skirt = (P.skirt = new T.Group()); torso.add(skirt); skirt.position.y = 6;
-    for (const front of [true, false]) { const sp = panel(19.5, 24, 32, 0, front, 7, 1.3); torso.remove(sp); sp.position.y = -15; skirt.add(sp); }
+    for (const front of [true, false]) { const hinge = new T.Group(); skirt.add(hinge); const sp = panel(19.5, 24, 32, 0, front, 7, 1.3); torso.remove(sp); sp.position.y = -15; hinge.add(sp); P[front ? 'skirtF' : 'skirtB'] = hinge; } // each skirt panel hangs from its own hinge at the belt
     if (look.cape) { const capeM = IF.mat.cloth(look.cape.cloth || '#8e1218', 'mantle' + look.cape.cloth); const mantle = this.M(new T.TorusGeometry(13.5, 3.2, 8, 22), capeM, torso, -1, 44.5, 0); mantle.rotation.x = Math.PI / 2; mantle.scale.set(1, 0.82, 1); for (const z of [-10.5, 10.5]) { const c = this.M(new T.CylinderGeometry(2.4, 2.4, 1.2, 12), mt.trim, torso, 11.5, 43, z); c.rotation.z = Math.PI / 2; } } // cloak collar and clasps the cape hangs from
-    this.M(new T.TorusGeometry(18.6, 1.6, 6, 24), mt.leather, torso, 0, 6, 0).rotation.x = Math.PI / 2; // belt
+    { const belt = this.M(new T.TorusGeometry(20.3, 1.5, 6, 28), mt.leather, torso, 0, 7, 0); belt.rotation.x = Math.PI / 2; belt.scale.y = 0.8; } // belt: oval like the tabard it cinches, so it never floats off the body
     this.M(new T.BoxGeometry(2.5, 6, 6), mt.trim, torso, 19, 6, 0);
     // pauldrons
     for (const s of ['F', 'B']) { const pd = (P['paul' + s] = new T.Group()); B.add(pd); for (let i = 0; i < 3; i++) { const l = this.M(new T.SphereGeometry(13 - i * 1.6, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), i ? mt.chest : mt.chest, pd, 0, -i * 4.2, 0); l.scale.set(1.05, 0.8, 0.95); } this.M(new T.TorusGeometry(12.6, 0.9, 5, 20, Math.PI), mt.trim, pd, 0, 4.5, 0).rotation.x = -Math.PI / 2;
@@ -114,7 +114,7 @@ IF.Knight3D = class Knight3D {
   }
   helmet(head, style, mt, look) {
     const T = this.T, M = (g, m, x, y, z) => this.M(g, m, head, x, y, z), dark = mt.dark, H = mt.helm;
-    const slit = (y, len) => M(new T.BoxGeometry(len, 2.6, 16.2), dark, 6, y, 0);
+    const slit = (y, len, r = 14.6) => { const b = M(new T.CylinderGeometry(r, r, 2.6, 16, 1, true, Math.PI / 2 - len / 28, len / 14), dark, 0, y, 0); b.material = dark; return b; }; // eye-slit band hugging the helm surface
     switch (style) {
       case 'mailcoif': M(new T.SphereGeometry(13.5, 16, 12), mt.mail, 0, 0, 0); M(new T.SphereGeometry(8, 12, 10), IF.mat.skin('#c9a07a'), 7, 0, 0).scale.set(0.6, 1, 0.9); break;
       case 'greathelm': { M(new T.CylinderGeometry(14, 14.5, 30, 20), H, 0, 0, 0); M(new T.CylinderGeometry(14.2, 14.2, 1, 20), H, 0, 15, 0); slit(4, 16); for (let i = 0; i < 6; i++) M(new T.CylinderGeometry(0.7, 0.7, 2, 6), dark, 13.5, -6 - (i % 3) * 2.4, -3 + Math.floor(i / 3) * 6).rotation.z = Math.PI / 2; M(new T.BoxGeometry(3.4, 30, 3.4), mt.trim, 13.8, 0, 0); M(new T.BoxGeometry(3, 2.6, 29), mt.trim, 13.6, 6, 0); break; }
@@ -179,7 +179,12 @@ IF.Knight3D = class Knight3D {
     Pt.handF.position.set(J.hF.x, -J.hF.y, zF + 6); Pt.handB.position.set(J.hB.x, -J.hB.y, zB - 6);
     Pt.handF.rotation.z = -(P.wAngle || 0); Pt.handB.rotation.z = -(P.wAngle || 0) * (P.twoHand ? 1 : 0.3);
     Pt.torso.position.set(J.hip.x, -J.hip.y, 0); Pt.torso.rotation.set(0, 0, -J.lean);
-    if (Pt.skirt) Pt.skirt.rotation.z = -(P.tabardSway || 0) * 0.15;
+    if (Pt.skirt) { // the legs push the cloth: whichever knee is ahead lifts the front panel, the trailing one the back panel (no thigh ever passes through the tabard)
+      Pt.skirt.rotation.z = -(P.tabardSway || 0) * 0.08;
+      const lead = Math.max(J.kF.x - J.hip.x, J.kB.x - J.hip.x), trail = Math.min(J.kF.x - J.hip.x, J.kB.x - J.hip.x), dtk = Math.min(1, (IF.game.lastDt || 0.016) * 14);
+      const tf = IF.util.clamp((lead - 4) / 30, 0, 0.85) + Math.max(0, -J.lean) * 0.3, tb = -IF.util.clamp((-trail - 4) / 30, 0, 0.85);
+      Pt.skirtF.rotation.z += (tf - Pt.skirtF.rotation.z) * dtk; Pt.skirtB.rotation.z += (tb - Pt.skirtB.rotation.z) * dtk;
+    }
     Pt.paulF.position.set(J.shF.x, -J.shF.y + 2, zF + 4); Pt.paulF.rotation.z = -J.lean - 0.2; Pt.paulB.position.set(J.shB.x, -J.shB.y + 2, zB - 4); Pt.paulB.rotation.z = -J.lean + 0.2;
     Pt.head.position.set(J.head.x, -J.head.y, 0); Pt.head.rotation.set(0, 0, -(P.headTilt || 0) - J.lean * 0.3);
     if (Pt.halo) Pt.halo.position.y = 30 + Math.sin(R.clock * 2) * 1.5;
@@ -197,7 +202,8 @@ IF.Knight3D = class Knight3D {
       const ax = (J.shB.x + J.shF.x) / 2 - 6, ay = -(J.shB.y + J.shF.y) / 2 + 4;
       cape.position.set(ax * S / 1, 0, 0); // placed in root space below
       cape.position.set(0, 0, 0); cape.scale.setScalar(1); cape.rotation.set(0, 0, 0); this.root.add(cape);
-      for (let i = 0; i < pos.count; i++) { const bx = base[i * 3], by = base[i * 3 + 1], k = -by / 104; const wrap = (1 - k) * (1 - k); pos.setXYZ(i, ax - 13 - k * k * (16 + w * 30) - k * 5 + Math.abs(bx) * 0.32 * wrap + Math.sin(t * 4 + k * 5 + bx * 0.12) * 3.2 * k, ay + by * (1 - Math.abs(w) * 0.12), bx * (0.62 + 0.38 * k)); }
+      const hipY3 = -J.hip.y, legBack = Math.min(J.kF.x, J.kB.x, J.aF.x, J.aB.x, J.hip.x - 10) - 9; // the cloth is kept behind the rearmost leg (knee/ankle) so a stride never cuts through it
+      for (let i = 0; i < pos.count; i++) { const bx = base[i * 3], by = base[i * 3 + 1], k = -by / 104; const wrap = (1 - k) * (1 - k); let X = ax - 13 - k * k * (16 + w * 30) - k * 5 + Math.abs(bx) * 0.32 * wrap + Math.sin(t * 4 + k * 5 + bx * 0.12) * 3.2 * k; const Y = ay + by * (1 - Math.abs(w) * 0.12); if (Y < hipY3 + 6) X = Math.min(X, legBack - (hipY3 - Y) * 0.05); pos.setXYZ(i, X, Y, bx * (0.62 + 0.38 * k)); }
       pos.needsUpdate = true; cape.geometry.computeVertexNormals(); }
     if (Pt.aura) Pt.aura.material.opacity = 0.05 + Math.sin(R.clock * 3) * 0.02;
     // hit flash / iframe flicker via material swap

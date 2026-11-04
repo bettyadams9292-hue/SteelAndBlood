@@ -10,7 +10,10 @@ const MODULES = [
   'game/player.js', 'game/combat.js', 'game/tactics.js', 'game/companions.js', 'game/home.js', 'game/eggs.js', 'game/enemies.js', 'game/world.js', 'game/game.js',
   'ui/ui.js', 'ui/touch.js', 'main.js',
 ];
-const src = (p) => fs.readFileSync(path.join(__dirname, 'src', p), 'utf8');
+const vm = require('vm');
+/* Every module is compiled on its own before bundling, so a syntax slip fails the build with its file and line
+ * instead of shipping a game that never boots. */
+const src = (p) => { const code = fs.readFileSync(path.join(__dirname, 'src', p), 'utf8'); if (p.endsWith('.js')) { try { new vm.Script(code, { filename: 'src/' + p }); } catch (e) { console.error('BUILD FAILED — syntax error in src/' + p + ':\n' + e.stack.split('\n').slice(0, 4).join('\n')); process.exit(1); } } return code; };
 const VENDOR = ['vendor/three.classic.js', 'vendor/bgu.classic.js'];
 const vend = () => VENDOR.map((v) => fs.readFileSync(path.join(__dirname, v), 'utf8')).join('\n');
 const b64 = (p, mime) => 'data:' + mime + ';base64,' + fs.readFileSync(path.join(__dirname, p)).toString('base64');

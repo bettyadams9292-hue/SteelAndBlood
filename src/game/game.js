@@ -17,7 +17,7 @@ IF.Run = class Run {
     for (const k of ['primary', 'secondary']) if (this.player.weapons[k]) this.ensureAmmo(this.player.weapons[k].def.ammo);
     this.camX = 0; this.bannerT = 3.2; this.banner = this.sectionTitle();
     this.allies = []; IF.tac.newRun(this); IF.companions && IF.companions.newRun(this);
-    if (mode.home) { this.player.x = 200; this.banner = { top: 'WELCOME HOME', main: IF.save.data.appearance.name }; this.bannerT = 2.5; } else IF.save.data.stats.runs++;
+    if (mode.home) { this.player.x = IF.HOME_FLOORS.ground.door; this.banner = { top: 'WELCOME HOME', main: IF.save.data.appearance.name }; this.bannerT = 2.5; } else IF.save.data.stats.runs++;
   }
   sectionTitle() { return { top: this.world.isBoss ? 'GUARDIAN · SECTION ' + this.section : 'SECTION ' + this.section, main: this.world.biome.name }; }
   ammoMax(type) { return Math.round(IF.AMMO[type].base * (1 + this.player.st.ammoCap) * (this.mods.ammoMult || 1)); }
