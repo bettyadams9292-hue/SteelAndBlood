@@ -41,10 +41,10 @@ IF.HOME_STARTER = ['oak_table', 'oak_chair', 'bookshelf', 'iron_chest', 'candela
 IF.HOME_FLOORS = {
   // walkable span [lb, rb]; each staircase's footprint lies outside it except at its two ends, so nobody walks through steps or over an opening
   ground: { name: 'Ground Floor', start: 0, end: 3720, lb: 950, rb: 3365, door: 1150, rooms: [
-    { id: 'hall', name: 'Entrance Hall', x0: 0, x1: 1300, wall: '#5e5446', fixed: ['door'], slots: [{ id: 'h1', k: 'wall', x: 1010 }, { id: 'h2', k: 'floor', x: 1010 }, { id: 'h3', k: 'wall', x: 1240 }] },
+    { id: 'hall', name: 'Entrance Hall', x0: 0, x1: 1300, wall: '#5e5446', fixed: ['door'], slots: [{ id: 'h1', k: 'wall', x: 1000 }, { id: 'h2', k: 'floor', x: 1010 }, { id: 'h3', k: 'wall', x: 780 }] },
     { id: 'sitting', name: 'Sitting Room', x0: 1300, x1: 2300, wall: '#6a4a3a', win: 1570, fixed: ['fireplace'], slots: [{ id: 's1', k: 'wall', x: 1400 }, { id: 's2', k: 'floor', x: 1560 }, { id: 's3', k: 'floor', x: 2000 }, { id: 's4', k: 'wall', x: 2100 }, { id: 's5', k: 'floor', x: 2210 }] },
     { id: 'kitchen', name: 'Kitchen', x0: 2300, x1: 3100, wall: '#5a5242', win: 2790, fixed: ['hearth'], slots: [{ id: 'k1', k: 'floor', x: 2780 }, { id: 'k2', k: 'wall', x: 2960 }, { id: 'k3', k: 'floor', x: 3030 }] },
-    { id: 'bath', name: 'Bathroom', x0: 3100, x1: 3720, wall: '#4e5a58', win: 3500, fixed: ['tub'], slots: [{ id: 'b1', k: 'wall', x: 3330 }, { id: 'b2', k: 'floor', x: 3330 }] },
+    { id: 'bath', name: 'Bathroom', x0: 3100, x1: 3720, wall: '#4e5a58', win: 3500, fixed: ['tub'], slots: [{ id: 'b1', k: 'wall', x: 3190 }] },
   ] },
   basement: { name: 'Basement', start: 3340, end: 6220, lb: 3690, rb: 6190, rooms: [
     { id: 'cellar', name: 'Wine Cellar', x0: 3340, x1: 4800, wall: '#3e3a34', fixed: ['casks'], slots: [{ id: 'c1', k: 'floor', x: 4150 }, { id: 'c2', k: 'wall', x: 4350 }, { id: 'c3', k: 'floor', x: 4600 }] },
@@ -167,6 +167,21 @@ IF.home = {
 
 /* ---------- 3D: rooms, fixed furnishings and display items ---------- */
 IF.home3d = {
+  /* ---------- placement validation ----------
+   * Wall displays hang 2.0 m up, proud of the studs; floor displays stand 1.4 m out from the back wall. An item may only
+   * go where its real bounding box clears the room's structure (partitions, fireplace, hearth, tub, stairs, windows,
+   * rafters, lanterns) and every other display. Boxes are measured from the built meshes, so new items are checked automatically. */
+  WALL_Z: -2.6 + 0.3, FLOOR_Z: -1.4, obstacles: [], placed: [], _boxes: {},
+  collect(group, from) { const T = IF.r3.T; for (let i = from; i < group.children.length; i++) { const b = new T.Box3().setFromObject(group.children[i]); if (!b.isEmpty()) this.obstacles.push(b.expandByScalar(-0.015)); } },
+  itemBox(id) { if (this._boxes[id]) return this._boxes[id]; const o = this.item(id); const b = o ? new IF.r3.T.Box3().setFromObject(o) : null; o && o.traverse((m) => m.geometry && m.geometry.dispose()); return (this._boxes[id] = b); },
+  slotPos(sl) { const T = IF.r3.T; return sl.k === 'wall' ? new T.Vector3(sl.x * IF.r3.S, 2.0, this.WALL_Z) : new T.Vector3(sl.x * IF.r3.S, 0, this.FLOOR_Z); },
+  slotBox(sl, id) { const b = this.itemBox(id); return b ? b.clone().translate(this.slotPos(sl)).expandByScalar(-0.01) : null; },
+  conflict(sl, id) {
+    const b = this.slotBox(sl, id); if (!b) return 'unknown item';
+    if (this.obstacles.some((o) => o.intersectsBox(b))) return 'blocked by the room';
+    const h = IF.home.data(); for (const p of this.placed) { if (p.slot === sl.id || h.slots[p.slot] === id) continue; if (p.box.intersectsBox(b)) return 'overlaps another display'; }
+    return null;
+  },
   /* ---------- materials (procedural, world-scaled) ---------- */
   plankMat() { return IF.mat.get('home_plank', () => { const T = IF.r3.T, tex = IF.mat.canvasTex(512, (c, n) => {
     const rows = 8, h = n / rows; for (let r = 0; r < rows; r++) { let x = -((r * 97) % 180); while (x < n) { const len = 180 + ((r * 31 + x) % 140); const l = 28 + ((r * 13 + x * 7) % 14); c.fillStyle = 'hsl(' + (24 + (r % 3)) + ',' + (38 + (x % 9)) + '%,' + l + '%)'; c.fillRect(x, r * h, len, h); for (let gl = 0; gl < 6; gl++) { c.strokeStyle = 'rgba(30,16,8,' + (0.08 + gl * 0.02) + ')'; c.beginPath(); const yy = r * h + 6 + gl * h / 7; c.moveTo(x, yy); c.bezierCurveTo(x + len / 3, yy + 3, x + len * 0.6, yy - 3, x + len, yy + 1); c.stroke(); } c.fillStyle = 'rgba(10,6,4,0.85)'; c.fillRect(x, r * h, 2, h); c.fillStyle = 'rgba(20,20,22,0.8)'; for (const ny of [8, h - 8]) { c.beginPath(); c.arc(x + 8, r * h + ny, 2, 0, 7); c.fill(); } x += len; } c.fillStyle = 'rgba(8,4,2,0.9)'; c.fillRect(0, r * h, n, 2); }
@@ -177,6 +192,7 @@ IF.home3d = {
   build(run, W) {
     const T = IF.r3.T, K = IF.kit, M = K.mats(), S = IF.r3.S, group = new T.Group(), F = IF.HOME_FLOORS[W.floor];
     const chunk = { world: W, group, props: [], wavers: [], flames: [], lights: [], smokers: [], homeKey: JSON.stringify(IF.home.data().slots) };
+    this.obstacles = [];
     const X0 = W.start * S, X1 = W.end * S, L = X1 - X0, H = IF.HOME_STAIR_RISE / 100, back = -2.6, beam = M.timberDark, base = W.floor === 'basement';
     const floorMat = base ? M.stoneDark : this.plankMat();
     // stairwell openings: a descending flight cuts the floor, a rising one cuts the ceiling
@@ -199,20 +215,24 @@ IF.home3d = {
         for (let x = a + 0.6; x < b - 0.2; x += 1.6) K.box(0.18, H, 0.12, beam, x, H / 2, back + 0.2, group); // studs
         K.box(w, 0.18, 0.12, beam, cx, H - 0.5, back + 0.2, group); // wall plate
       } else for (let x = a + 1.2; x < b; x += 2.4) { const arch = K.box(0.5, H, 0.4, M.stoneDark, x, H / 2, back + 0.2, group); }
+      const obs0 = group.children.length;
       if (r.x0 > 0) { // partition with a proper doorway: posts, lintel and a threshold
         const pm = base ? M.stone : this.plasterMat(r.wall);
         // only the back half of the partition is built: the house is shown as a cut-away, so nothing stands between the camera and the knight
         K.box(0.3, H, 0.9, pm, a, H / 2, back + 0.6, group); K.box(0.3, 0.8, 1.3, pm, a, H - 0.4, back + 1.7, group);
         K.box(0.36, H - 0.8, 0.18, beam, a, (H - 0.8) / 2, back + 1.05, group);
-        K.box(0.4, 0.22, 1.5, beam, a, H - 0.9, back + 1.7, group); K.box(0.5, 0.04, 2.6, M.stoneDark, a, 0.02, back + 2.35, group);
+        K.box(0.4, 0.22, 1.5, beam, a, H - 0.9, back + 1.7, group);
       }
       if (r.win) this.window(r.win * S, H, back, group, chunk, W.floor === 'attic');
       this.fixed(r, a, b, H, back, group, chunk, W);
+      this.collect(group, obs0);
     }
     // ceiling: joists and boards with the opening for a rising flight
     slab(H + 0.12, 0.24, W.floor === 'attic' ? M.roofTile : M.timberDark, holesC, 0.4, 6.5);
     for (let x = X0 + 0.5; x < X1; x += 1.3) { if (holesC.some(([a, b]) => x > a - 0.1 && x < b + 0.1)) continue; K.box(0.2, 0.28, 6, beam, x, H - 0.14, 0.4, group).castShadow = false; }
-    if (W.floor === 'attic') for (let x = X0 + 0.9; x < X1; x += 1.8) { const r1 = K.box(0.2, 0.2, 4.2, beam, x, H - 0.9, -0.9, group); r1.rotation.x = -0.55; r1.castShadow = false; }
+    const obsR = group.children.length;
+    if (W.floor === 'attic') for (let x = X0 + 0.9; x < X1; x += 1.8) { /* rafters spring from a 2.6 m knee wall at the back and rise towards the ridge, clear of anything displayed below */ const zb = back + 0.2, yb = 2.62, zt = 0.4, yt = H - 0.05, r1 = K.box(0.18, 0.18, Math.hypot(zt - zb, yt - yb), beam, x, (yb + yt) / 2, (zb + zt) / 2, group); r1.rotation.x = -Math.atan2(yt - yb, zt - zb); r1.castShadow = false; }
+    this.collect(group, obsR);
     // facade above the cut-away, foundation below, and a dark void behind the back wall
     const fac = K.box(L + 4, 7, 0.3, M.timberDark, (X0 + X1) / 2, H + 3.6, 3.75, group); fac.castShadow = false;
     K.box(L + 4, 3.2, 0.3, M.stoneDark, (X0 + X1) / 2, -1.7, 3.75, group).castShadow = false;
@@ -220,12 +240,17 @@ IF.home3d = {
     K.box(L + 4, 0.3, 6.5, IF.mat.basic('#050302', 1), (X0 + X1) / 2, -3.7, 0.4, group).castShadow = false; // floor of the stairwell shaft
     K.box(0.4, H, 6.5, M.stone, X0 - 0.2, H / 2, 0.4, group); K.box(0.4, H, 6.5, M.stone, X1 + 0.2, H / 2, 0.4, group);
     // staircases (both halves of every flight that touches this floor)
+    const obsF = group.children.length;
     for (const k in fl) this.flight(fl[k].at * S, fl[k].to * S, k === 'up' ? H : -H, group);
-    // display spots
+    this.collect(group, obsF);
+    // display spots: every placement is validated against the room's structure and the other displays (no clipping, nothing floating)
+    const bad = []; this.placed = [];
+    for (const r of F.rooms) for (const sl of r.slots) { const id = IF.home.data().slots[sl.id]; if (!id) continue; const why = this.conflict(sl, id); if (why) bad.push([sl, id]); else this.placed.push({ slot: sl.id, box: this.slotBox(sl, id) }); }
+    if (bad.length) { for (const [sl] of bad) delete IF.home.data().slots[sl.id]; IF.save.write(); setTimeout(() => IF.ui.toast(bad.length + ' display item' + (bad.length > 1 ? 's' : '') + ' moved to storage — no longer fit their spot'), 600); }
     for (const r of F.rooms) for (const sl of r.slots) {
       const id = IF.home.data().slots[sl.id], x = sl.x * S;
-      if (!id) { if (sl.k === 'wall') { const hook = K.box(0.06, 0.12, 0.06, M.iron, x, 2.45, back + 0.2, group); K.box(0.4, 0.05, 0.03, IF.mat.wood('#4a3020'), x, 2.0, back + 0.17, group); } else { const rug = K.box(1.2, 0.015, 1.0, this.rugMat(), x, 0.01, -1.4, group); rug.castShadow = false; rug.material.transparent = false; } }
-      else { const o = this.item(id); if (o) { if (sl.k === 'wall') o.position.set(x, 2.0, back + 0.22); else { o.position.set(x, 0, -1.4); const rug = K.box(1.4, 0.012, 1.15, this.rugMat(), x, 0.008, -1.4, group); rug.castShadow = false; } group.add(o); o.traverse((m) => { if (m.userData.flame) { m.userData.fid = Math.random() * 10; chunk.flames.push(m); } }); if (o.userData.light) chunk.lights.push({ x: sl.x, y: IF.GROUND - o.userData.light, z: -1, i: 3, c: '#ffb060', r: 7 }); } }
+      if (!id) { if (sl.k === 'wall') { const hook = K.box(0.06, 0.12, 0.06, M.iron, x, 2.45, this.WALL_Z - 0.03, group); K.box(0.4, 0.05, 0.03, IF.mat.wood('#4a3020'), x, 2.0, this.WALL_Z - 0.02, group); } else { const rug = K.box(1.2, 0.015, 1.0, this.rugMat(), x, 0.01, -1.4, group); rug.castShadow = false; rug.material.transparent = false; } }
+      else { const o = this.item(id); if (o) { const pp = this.slotPos(sl); o.position.copy(pp); if (sl.k !== 'wall') { const rug = K.box(1.4, 0.012, 1.15, this.rugMat(), x, 0.008, -1.4, group); rug.castShadow = false; } group.add(o); o.traverse((m) => { if (m.userData.flame) { m.userData.fid = Math.random() * 10; chunk.flames.push(m); } }); if (o.userData.light) chunk.lights.push({ x: sl.x, y: IF.GROUND - o.userData.light, z: -1, i: 3, c: '#ffb060', r: 7 }); } }
     }
     // hanging iron lanterns
     for (let x = W.start + 260; x < W.end; x += 520) this.lantern(x * S, H, group, chunk, x);
@@ -318,7 +343,7 @@ IF.home3d = {
       case 'cabinet': box(0.9, 1.6, 0.45, dark, 0, 0.8, 0); for (let i = 0; i < 12; i++) box(0.18, 0.14, 0.02, wood, -0.3 + (i % 4) * 0.2, 0.3 + Math.floor(i / 4) * 0.4, 0.23); for (let i = 0; i < 4; i++) cyl(0.05, 0.05, 0.14, IF.mat.get('glassg', () => new T.MeshStandardMaterial({ color: ['#4a8a5a'][0], roughness: 0.1, transparent: true, opacity: 0.7 })), -0.3 + i * 0.2, 1.68, 0, 8); break;
       case 'four_poster': box(2.0, 0.4, 1.4, wood, 0, 0.35, 0); box(1.9, 0.18, 1.3, IF.mat.cloth('#6a1a20'), 0, 0.62, 0); for (const sx of [-0.95, 0.95]) for (const sz of [-0.65, 0.65]) cyl(0.05, 0.05, 2.2, dark, sx, 1.1, sz, 8); box(2.0, 0.08, 1.4, dark, 0, 2.2, 0); box(2.0, 0.6, 0.02, IF.mat.cloth('#8e1218'), 0, 1.9, -0.7); box(0.5, 0.12, 1.0, IF.mat.cloth('#e6e0d2'), -0.7, 0.76, 0); break;
       case 'throne': box(0.8, 0.5, 0.7, M.stone, 0, 0.25, 0); box(0.7, 0.1, 0.6, red, 0, 0.55, 0); box(0.8, 1.6, 0.14, wood, 0, 1.2, -0.3); for (const sx of [-0.38, 0.38]) box(0.1, 0.3, 0.6, wood, sx, 0.75, 0); for (const sx of [-0.38, 0, 0.38]) K.mesh(new T.ConeGeometry(0.06, 0.2, 6), gold, sx, 2.1, -0.3, g); K.emblemMesh && K.emblemMesh(g, 0, 1.5, -0.22, 0.4, '#c9a24a'); break;
-      case 'weapon_rack': box(1.4, 0.1, 0.4, dark, 0, 0.05, 0); box(1.4, 0.08, 0.1, dark, 0, 1.4, -0.12); for (const sx of [-0.68, 0.68]) box(0.08, 1.5, 0.1, dark, sx, 0.75, -0.12); ['war_hammer', 'halberd', 'claymore', 'spear'].forEach((w, i) => { const m = IF.wep3d.build(IF.WEAPON[w], 2); m.scale.setScalar(0.0105); m.rotation.z = Math.PI / 2; m.position.set(-0.45 + i * 0.3, 0.1, -0.02); g.add(m); }); break;
+      case 'weapon_rack': box(1.4, 0.1, 0.4, dark, 0, 0.05, 0); box(1.4, 0.08, 0.1, dark, 0, 1.4, -0.12); for (const sx of [-0.68, 0.68]) box(0.08, 1.5, 0.1, dark, sx, 0.75, -0.12); ['war_hammer', 'halberd', 'claymore', 'spear'].forEach((w, i) => { const m = IF.wep3d.build(IF.WEAPON[w], 2); m.scale.setScalar(0.0105); m.rotation.z = Math.PI / 2; m.position.set(-0.45 + i * 0.3, 0.1, -0.02); g.add(m); const bb = new T.Box3().setFromObject(m); if (bb.min.y < 0.1) m.position.y += 0.1 - bb.min.y; /* pommel rests on the rack base */ }); break;
       case 'armour_stand': { cyl(0.25, 0.3, 0.08, wood, 0, 0.04, 0, 12); cyl(0.03, 0.03, 1.4, dark, 0, 0.75, 0, 6); const k = new IF.Knight3D(); IF.r3.world.remove(k.root); const look = IF.art.knightLook(IF.prog.equippedItems()); const P = { hipX: 0, hipY: -70, lean: 0, footF: { x: 6, y: 0 }, footB: { x: -6, y: 0 }, handF: { x: 8, y: -40 }, handB: { x: -8, y: -40 }, shieldMode: 'back', capeWave: 0, tabardSway: 0, headTilt: 0, wAngle: 1.4, elbowF: 1, elbowB: 1 }; k.update(P, 0, IF.GROUND, 1, look, { z: 0, visible: true }); k.root.position.set(0, 0, 0); g.add(k.root); break; }
       case 'knight_statue': box(0.8, 0.5, 0.8, M.stone, 0, 0.25, 0); const st = IF.mat.metal('#8a8478', 0.6, 0.2, 'statue'); cyl(0.2, 0.24, 0.9, st, 0, 0.95, 0, 10); K.mesh(new T.SphereGeometry(0.16, 12, 10), st, 0, 1.55, 0, g); box(0.06, 1.2, 0.06, st, 0.25, 1.1, 0.1); box(0.3, 0.05, 0.05, st, 0.25, 1.4, 0.1); K.mesh(new T.CylinderGeometry(0.28, 0.28, 0.05, 3), st, -0.28, 1.05, 0.1, g).rotation.x = Math.PI / 2; break;
       case 'tapestry': { const c = K.mesh(new T.PlaneGeometry(0.8, 1.3, 2, 6), K.heraldryMat(), 0, -0.05, 0.02, g); box(0.95, 0.05, 0.05, gold, 0, 0.63, 0.04); break; }

@@ -3,7 +3,7 @@
  * concatenates modules in dependency order (see build.js MODULES list). */
 'use strict';
 const IF = (window.IF = window.IF || {});
-IF.VERSION = '2.5.0';
+IF.VERSION = '2.6.0';
 IF.TITLE = 'Steel & Blood: Knights of the Apocalypse';
 IF.W = 1280; // logical render width
 IF.H = 720;  // logical render height

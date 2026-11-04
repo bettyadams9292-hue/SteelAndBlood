@@ -16,9 +16,9 @@ IF.kit = {
   },
   cyl(rt, rb, h, mat, x, y, z, p, seg = 12) { return this.mesh(new this.T.CylinderGeometry(rt, rb, h, seg), mat, x, y, z, p); },
   M() { const m = IF.mat; return {
-    stone: m.stone('#8a847c'), stoneDark: m.stone('#5e5952', 'stDark'), plaster: m.basic('#8a7d6a', 0.95), timber: m.wood('#7a6048'), timberDark: m.wood('#4a3a2c'),
-    thatch: m.basic('#5a4a30', 1), roofTile: m.basic('#5a3028', 0.9), iron: m.metal('#4a4c50', 0.55, 0.85), rust: m.metal('#6a3a22', 0.85, 0.5), steel: m.metal('#8a9096', 0.4, 0.9),
-    olive: m.metal('#4a5233', 0.7, 0.35), concrete: m.basic('#7a7872', 0.95), concreteDark: m.basic('#55534e', 0.95), sand: m.cloth('#9a8a62'), tyre: m.basic('#151515', 0.9),
+    stone: m.stone('#8a847c'), stoneDark: m.stone('#5e5952', 'stDark'), plaster: m.plaster('#a89a84'), timber: m.wood('#7a6048'), timberDark: m.wood('#4a3a2c'),
+    thatch: m.thatch('#8a7448'), roofTile: m.basic('#5a3028', 0.9), iron: m.metal('#4a4c50', 0.55, 0.85), rust: m.metal('#6a3a22', 0.85, 0.5), steel: m.metal('#8a9096', 0.4, 0.9),
+    olive: m.metal('#4a5233', 0.7, 0.35), concrete: m.concrete('#8a8680'), concreteDark: m.concrete('#5e5c58'), sand: m.cloth('#9a8a62'), tyre: m.basic('#151515', 0.9),
     glass: m.basic('#1c2630', 0.15, 0.5), red: m.metal('#8a1e14', 0.55, 0.4), canvas: m.cloth('#6a6448'), white: m.cloth('#e6e0d2'), crimson: m.cloth('#8e1218'), dark: m.basic('#121212', 0.9),
     bark: m.wood('#3e2e22'), leaves: m.basic('#1e2a1c', 1), leavesDead: m.basic('#3a3424', 1), rock: m.basic('#5c5852', 0.95),
   }; },
@@ -154,10 +154,10 @@ IF.kit = {
   },
   longhouse(rng, ruined) { // long, low, thick thatch hipped almost to the ground, wattle walls and a smoke hole
     const M = this.mats(), g = this.g(), w = 6 + rng.next() * 2, d = 3.2, h = 2.3;
-    this.box(w, h, d, IF.mat.basic('#7a6a50', 0.95), 0, h / 2, 0, g); this.foundation(g, w, d);
+    this.box(w, h, d, IF.mat.plaster('#8a7a5c'), 0, h / 2, 0, g); this.foundation(g, w, d);
     for (let x = -w / 2; x <= w / 2; x += 0.8) this.box(0.14, h, 0.1, M.timberDark, x, h / 2, d / 2 + 0.03, g);
     this.door(g, w * 0.15, d, rng, false); this.frontWindows(g, w, h, d, 1.0, 3, rng, false);
-    const rh = 2.2, thatch = IF.mat.basic('#6a5636', 1);
+    const rh = 2.2, thatch = M.thatch;
     const roof = this.mesh(new this.T.CylinderGeometry(0.4, 1, rh, 4, 1), thatch, 0, h + rh / 2 - 0.1, 0, g); roof.rotation.y = Math.PI / 4; roof.scale.set((w + 0.9) / 1.41, 1, (d + 1.2) / 1.41);
     if (ruined) { const hole = this.box(1.4, 0.3, 1, M.dark, -w * 0.2, h + rh * 0.55, d * 0.25, g); hole.rotation.x = 0.7; this.damage(g, w, h, d, rng); }
     return g;

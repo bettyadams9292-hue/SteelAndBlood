@@ -182,7 +182,7 @@ IF.Knight3D = class Knight3D {
     if (Pt.skirt) { // the legs push the cloth: whichever knee is ahead lifts the front panel, the trailing one the back panel (no thigh ever passes through the tabard)
       Pt.skirt.rotation.z = -(P.tabardSway || 0) * 0.08;
       const lead = Math.max(J.kF.x - J.hip.x, J.kB.x - J.hip.x), trail = Math.min(J.kF.x - J.hip.x, J.kB.x - J.hip.x), dtk = Math.min(1, (IF.game.lastDt || 0.016) * 14);
-      const tf = IF.util.clamp((lead - 4) / 30, 0, 0.85) + Math.max(0, -J.lean) * 0.3, tb = -IF.util.clamp((-trail - 4) / 30, 0, 0.85);
+      const tf = IF.util.clamp((lead - 6) / 42, 0, 0.5) + Math.max(0, -J.lean) * 0.2, tb = -IF.util.clamp((-trail - 6) / 42, 0, 0.45); // heavy cloth: lifts just enough to clear the thigh
       Pt.skirtF.rotation.z += (tf - Pt.skirtF.rotation.z) * dtk; Pt.skirtB.rotation.z += (tb - Pt.skirtB.rotation.z) * dtk;
     }
     Pt.paulF.position.set(J.shF.x, -J.shF.y + 2, zF + 4); Pt.paulF.rotation.z = -J.lean - 0.2; Pt.paulB.position.set(J.shB.x, -J.shB.y + 2, zB - 4); Pt.paulB.rotation.z = -J.lean + 0.2;
