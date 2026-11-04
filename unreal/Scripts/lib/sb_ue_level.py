@@ -43,7 +43,7 @@ def ensure_weapon_socket():
     return sk
 
 def knight(loc, yaw=-90.0, anim='A_Knight_Idle', t=0.0, weapon='SM_Wpn_Longsword', label='HeroKnight'):
-    sk = ensure_weapon_socket()
+    sk = unreal.load_asset(KN + 'SK_HeroKnight')
     a = spawn(unreal.SkeletalMeshActor, loc, (0, yaw, 0), label, 'Characters')
     c = a.skeletal_mesh_component
     c.set_skeletal_mesh_asset(sk)
@@ -55,7 +55,11 @@ def knight(loc, yaw=-90.0, anim='A_Knight_Idle', t=0.0, weapon='SM_Wpn_Longsword
     if weapon:
         w = ES.spawn_actor_from_object(sm(weapon, WPN), unreal.Vector(*loc))
         w.set_actor_label(label + '_' + weapon); w.set_folder_path('Characters')
-        w.attach_to_component(c, 'weapon_r', unreal.AttachmentRule.SNAP_TO_TARGET, unreal.AttachmentRule.SNAP_TO_TARGET, unreal.AttachmentRule.KEEP_RELATIVE, False)
+        sock = 'weapon_r' if sk.find_socket('weapon_r') else 'hand_r'
+        w.attach_to_component(c, sock, unreal.AttachmentRule.SNAP_TO_TARGET, unreal.AttachmentRule.SNAP_TO_TARGET, unreal.AttachmentRule.KEEP_RELATIVE, False)
+        if sock == 'hand_r':
+            w.set_actor_relative_location(unreal.Vector(-0.5, 1.5, -6.5), False, False)
+            w.set_actor_relative_rotation(unreal.Rotator(roll=-90.0, pitch=0.0, yaw=0.0), False, False)
     return a
 
 def lighting():
