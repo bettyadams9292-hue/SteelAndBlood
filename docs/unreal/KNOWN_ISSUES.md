@@ -9,5 +9,6 @@ Resolved: editor-world animation now evaluated through Sequencer (LS_Showcase_Po
 3. Tick-driven editor jobs run slowly when the Unreal window is unfocused (renders take minutes).
 4. Blender window screenshots return black while Blender is minimised; renders are used for review instead.
 5. Blender-refined knight not yet exported back to Unreal (FBX round-trip pending).
+6. Play-mode test (2026-11-04): BP_SBGameMode loads, BP_HeroKnight spawns at PlayerStart_Hero and rests on the ground collision (z=96, no fall-through), no Blueprint runtime errors. NOT yet verified: movement/attack/animation switching - the automated injector failed (SubsystemBlueprintLibrary not exposed to Python) and the PIE world appeared not to tick actors while the editor window is hidden/minimised (camera manager reported 0,0,0; CurAnim never left -1). Needs a run with the Unreal window visible, or the injector rewritten to call InjectInputForAction from a Blueprint test actor.
 6. No C++: the Unreal project is Blueprint-only and the available tools cannot write to Source/ or compile. Gameplay must be built in Blueprints (fully possible via the BlueprintTools DSL) unless a C++ module is added and compiled on the machine.
 7. Editor window capture (Slate) returns no windows; viewport captures are size-limited - review images come from SceneCapture exports instead.

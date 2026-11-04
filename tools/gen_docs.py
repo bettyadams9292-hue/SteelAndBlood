@@ -43,7 +43,7 @@ w('ANIMATION_TRACKER.md', '| Clip | Length | Source | Imported | In AnimBP | Not
 w('BIOME_ASSET_TRACKER.md', 'Verified: %d biomes.\n\n| Biome | Kit | Level | Lighting | Status |\n|---|---|---|---|---|\n' % len(inv['biomes']) + ''.join(
   '| %s | %s | %s | %s | %s |\n' % ((b['name'], 'Ruined Castle kit (15 meshes)', 'L_RuinedCastle_Showcase', 'Dusk sun + moon rim, SkyAtmosphere, volumetric clouds, volumetric height fog, brazier lights, graded PPV', 'In progress') if b['name'] == 'Ruined Castle' else (b['name'], NS, NS, NS, NS)) for b in inv['biomes']))
 w('GAMEPLAY_FEATURE_TRACKER.md', '| Feature | Browser build | Unreal status |\n|---|---|---|\n' + ''.join('| %s | Implemented | %s |\n' % (f, s) for f, s in [
-  ('Movement / 2.5D camera', 'Camera framing defined in level; no player controller yet'), ('Melee combat (light/heavy/block/dodge)', NS), ('Firearms & reloads', NS), ('Throwables, traps, sentry', NS),
+  ('Movement / 2.5D camera', 'In progress: BP_HeroKnight (Character) constrained to X/Z plane, absolute-rotation side camera boom with lag, PlayerStart, BP_SBGameMode'), ('Enhanced Input', 'In progress: IA_Move/IA_MoveLeft/IA_Jump/IA_Attack/IA_Block + IMC_SteelAndBlood (keyboard, mouse, gamepad), added at BeginPlay'), ('Melee combat (light/heavy/block/dodge)', 'In progress: overhead attack (timed, roots movement) and hold-to-block with animation switching; no hit detection/damage yet'), ('Firearms & reloads', NS), ('Throwables, traps, sentry', NS),
   ('Enemy AI (%d types)' % len(inv['enemies']), NS), ('Bosses (%d)' % len(inv['bosses']), NS), ('Companions', NS), ('Inventory & equipment', NS), ('Loot, rarities (%d), affixes (%d), perks (%d)' % (len(inv['rarities']), len(inv['affixes']), len(inv['perks'])), NS),
   ('Skill trees (4 trees / %d nodes)' % sum(len(t['nodes']) for t in inv['skillTrees']), NS), ('Abilities (%s)' % ', '.join(a['name'] for a in inv['abilities']), NS), ('Achievements (%d)' % len(inv['achievements']), NS),
   ('Game modes (%s)' % ', '.join(m['name'] for m in inv['modes']), NS), ('Daily modifiers (%d)' % len(inv['dailyModifiers']), NS), ('Crusader Home (walkable, trophies, customisation)', NS), ('Save system', NS), ('Easter eggs', NS)]))
@@ -66,6 +66,7 @@ w('KNOWN_ISSUES.md', '''Resolved: editor-world animation now evaluated through S
 3. Tick-driven editor jobs run slowly when the Unreal window is unfocused (renders take minutes).
 4. Blender window screenshots return black while Blender is minimised; renders are used for review instead.
 5. Blender-refined knight not yet exported back to Unreal (FBX round-trip pending).
+6. Play-mode test (2026-11-04): BP_SBGameMode loads, BP_HeroKnight spawns at PlayerStart_Hero and rests on the ground collision (z=96, no fall-through), no Blueprint runtime errors. NOT yet verified: movement/attack/animation switching - the automated injector failed (SubsystemBlueprintLibrary not exposed to Python) and the PIE world appeared not to tick actors while the editor window is hidden/minimised (camera manager reported 0,0,0; CurAnim never left -1). Needs a run with the Unreal window visible, or the injector rewritten to call InjectInputForAction from a Blueprint test actor.
 6. No C++: the Unreal project is Blueprint-only and the available tools cannot write to Source/ or compile. Gameplay must be built in Blueprints (fully possible via the BlueprintTools DSL) unless a C++ module is added and compiled on the machine.
 7. Editor window capture (Slate) returns no windows; viewport captures are size-limited - review images come from SceneCapture exports instead.
 ''')
@@ -131,6 +132,6 @@ w('PROJECT_STATUS.md', '''**Current phase:** 3-4 (Unreal foundation, hero charac
 - Blender (not running / not installed on PATH). C++ (Blueprint-only project, no compile tool).
 
 ## Exact next action
-Add `weapon_r` socket via SkeletalMeshTools, fix editor pose evaluation for captures, tune exposure, then build BP_HeroKnight + AnimBP and make the showcase level playable.
+Replace single-node animation switching with an Animation Blueprint (locomotion blend space + attack montages with hit-window notifies), add hit detection/damage, then the first zombie (Walker).
 ''')
 print(sorted(os.listdir(D)))
