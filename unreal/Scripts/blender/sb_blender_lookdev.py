@@ -150,7 +150,11 @@ def upgrade_materials():
     for m in bpy.data.materials:
         key = m.name.split('.')[0]
         if key in PALETTE and not m.get('sb_upgraded'):
-            PALETTE[key](m); m['sb_upgraded'] = 1; done.append(m.name)
+            if key.startswith('M_Cloth') and '.' in m.name:   # cloth on props (shield heraldry): no hem mud
+                cloth(m, (0.36, 0.02, 0.015) if 'Red' in key else (0.7, 0.66, 0.56), hem_dirt=False, sheen=0.3)
+            else:
+                PALETTE[key](m)
+            m['sb_upgraded'] = 1; done.append(m.name)
     return done
 
 # ------------------------------------------------------------------ scene building
@@ -238,7 +242,7 @@ def build_hero(pose_action='A_Knight_Idle', frame=12):
     # glTF importer converts Y-up to Z-up; weapon grip at origin, blade along +Z after import.
     # glTF (x,y,z) -> Blender (x,-z,y). Hand_r head (-0.26,0.93,0.03) gltf; grip sits in the fist.
     bind_to_bone(sword, arm, 'hand_r', (-0.265, -0.045, 0.865), (math.radians(90), 0, 0))
-    bind_to_bone(shield, arm, 'lowerarm_l', (0.34, 0.0, 1.10), (0, 0, math.radians(-90)))
+    bind_to_bone(shield, arm, 'lowerarm_l', (0.34, 0.0, 1.10), (0, 0, math.radians(90)))
     for o in sword + shield:
         if o.type == 'MESH': o.name = 'SM_' + ('Sword' if o in sword else 'Shield')
     # choose pose
