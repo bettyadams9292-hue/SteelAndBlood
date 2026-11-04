@@ -208,21 +208,58 @@ IF.kit = {
     const ban = this.mesh(new this.T.PlaneGeometry(1, 2.4, 2, 6), this.heraldryMat(), 0, H * 0.6, R + 0.05, g); ban.userData.wave = true;
     return g;
   },
-  cityBlock(rng) {
-    const M = this.mats(), g = this.g(), w = 4 + rng.next() * 4, d = 4, h = 6 + rng.next() * 14;
+  cityBlock(rng) { // ruined tenement: concrete frame with floor cornices, framed windows (some lit, some blown out), shopfront, parapet and exposed rebar
+    const M = this.mats(), g = this.g(), w = 4 + rng.next() * 4, d = 4, floors = 2 + Math.floor(rng.next() * 6), fh = 3, h = floors * fh;
     const mat = rng.chance(0.5) ? M.concrete : M.concreteDark;
     this.box(w, h, d, mat, 0, h / 2, 0, g);
-    // broken top
-    for (let i = 0; i < 4; i++) { const p = this.box(w / 4, 0.5 + rng.next() * 2.5, d, mat, -w / 2 + w / 8 + i * w / 4, h + 0.5, 0, g); if (rng.chance(0.4)) p.visible = false; }
-    // window grid: dark recesses, a few burning
-    const cols = Math.floor(w / 1.1), rows = Math.floor(h / 1.6);
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const lit = rng.chance(0.06); if (rng.chance(0.85)) this.box(0.6, 0.8, 0.05, lit ? IF.mat.glow('#ff7a2a', 1.6) : M.dark, -w / 2 + 0.55 + c * 1.1, 1.2 + r * 1.6, d / 2 + 0.02, g); }
-    for (let i = 0; i < 6; i++) { const rb = this.cyl(0.02, 0.02, 1 + rng.next(), M.rust, -w / 2 + rng.next() * w, h + 0.4, 0, g, 4); rb.rotation.z = rng.next() - 0.5; }
+    for (let f = 1; f <= floors; f++) this.box(w + 0.16, 0.18, d + 0.16, M.concreteDark, 0, f * fh, 0, g); // floor cornices
+    const cols = Math.max(2, Math.floor(w / 1.25));
+    for (let f = 1; f < floors; f++) for (let c = 0; c < cols; c++) { const x = -w / 2 + (c + 0.5) * w / cols, y = f * fh + 1.5; if (rng.chance(0.08)) continue; const lit = rng.chance(0.07), blown = rng.chance(0.25);
+      this.box(0.8, 1.2, 0.06, lit ? IF.mat.glow('#ff8a3a', 1.4) : M.dark, x, y, d / 2 + 0.02, g); this.box(0.95, 0.1, 0.16, M.concrete, x, y - 0.65, d / 2 + 0.06, g); this.box(0.92, 0.08, 0.1, M.concreteDark, x, y + 0.64, d / 2 + 0.04, g);
+      if (blown) { const s2 = this.box(1.0, 0.6, 0.02, IF.mat.basic('#0a0806', 1), x, y + 0.9, d / 2 + 0.03, g); s2.castShadow = false; } } // soot above blown-out windows
+    this.box(w * 0.6, 2.2, 0.06, M.dark, -w * 0.15, 1.2, d / 2 + 0.03, g); this.box(w * 0.66, 0.5, 0.2, IF.mat.metal('#5a2a24', 0.7, 0.4), -w * 0.15, 2.55, d / 2 + 0.1, g); // shopfront & fascia
+    this.box(1.0, 2.2, 0.08, M.rust, w * 0.32, 1.1, d / 2 + 0.04, g);
+    for (let i = 0; i < 4; i++) { const seg = this.box(w / 4, 0.6 + rng.next() * 0.9, 0.25, mat, -w / 2 + w / 8 + i * w / 4, h + 0.35, d / 2 - 0.12, g); if (rng.chance(0.35)) seg.visible = false; } // broken parapet
+    for (let i = 0; i < 7; i++) { const rb = this.cyl(0.02, 0.02, 0.6 + rng.next() * 1.2, M.rust, -w / 2 + rng.next() * w, h + 0.5, (rng.next() - 0.5) * d, g, 4); rb.rotation.z = (rng.next() - 0.5) * 0.8; }
     return g;
   },
-  shack(rng) { const M = this.mats(), g = this.g(), w = 2.4 + rng.next(), h = 1.9; this.box(w, h, 2, rng.chance(0.5) ? M.timber : M.rust, 0, h / 2, 0, g); const roof = this.box(w + 0.4, 0.06, 2.4, M.rust, 0, h + 0.2, 0, g); roof.rotation.z = 0.12; this.box(0.6, 0.5, 0.05, rng.chance(0.3) ? IF.mat.glow('#ff9a40', 1.2) : M.dark, w * 0.2, 1.1, 1.02, g); return g; },
-  watchtower() { const M = this.mats(), g = this.g(); for (const x of [-0.8, 0.8]) for (const z of [-0.8, 0.8]) { const l = this.box(0.15, 5, 0.15, M.timberDark, x, 2.5, z, g); } this.box(2.2, 0.15, 2.2, M.timber, 0, 5, 0, g); for (const s of [-1, 1]) this.box(2.2, 0.8, 0.08, M.timber, 0, 5.45, s * 1.05, g); const roof = this.mesh(new this.T.ConeGeometry(1.8, 1, 4), M.rust, 0, 6.6, 0, g); roof.rotation.y = Math.PI / 4; for (let i = 0; i < 4; i++) this.box(1.8, 0.08, 0.08, M.timberDark, 0, 1.2 + i * 1.1, 0.82, g).rotation.z = i % 2 ? 0.5 : -0.5; g.userData.light = { y: -520, i: 3, c: '#e0e8ff', r: 14 }; return g; },
-  hangar(rng) { const M = this.mats(), g = this.g(), L = 10, R = 4; const geo = new this.T.CylinderGeometry(R, R, L, 18, 1, true, 0, Math.PI); const m = this.mesh(geo, IF.mat.metal('#4a5050', 0.7, 0.6), 0, 0, 0, g); m.rotation.z = Math.PI / 2; m.rotation.y = Math.PI / 2; m.material.side = this.T.DoubleSide; this.box(L * 0.05, R, 0.1, M.dark, 0, R / 2, 0, g); return g; },
+  /* Corrugated sheet: ribbed normal map + rust streaks running down from the fixings. */
+  corrugated(tint = '#8a8478') { return IF.mat.get('corr' + tint, () => { const T = this.T, N = 256, h = new Float32Array(N * N); for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) h[y * N + x] = 0.5 + 0.5 * Math.sin(x / N * Math.PI * 2 * 16);
+    const map = IF.mat.canvasTex(N, (c, n) => { c.fillStyle = '#9a948a'; c.fillRect(0, 0, n, n); for (let i = 0; i < 40; i++) { const x = Math.random() * n, w = 2 + Math.random() * 6, l = 30 + Math.random() * 200; const gr = c.createLinearGradient(0, 0, 0, l); gr.addColorStop(0, 'rgba(110,50,20,0.55)'); gr.addColorStop(1, 'rgba(110,50,20,0)'); c.fillStyle = gr; c.fillRect(x, Math.random() * 40, w, l); } for (let i = 0; i < 16; i++) for (const y of [8, n - 8]) { c.fillStyle = '#3a2a20'; c.fillRect(i * n / 16 + 6, y, 3, 3); } });
+    const m = new T.MeshStandardMaterial({ color: tint, map, normalMap: IF.mat.normalFromHeight(N, h, 4), roughness: 0.7, metalness: 0.55, side: T.DoubleSide }); m.userData.worldUV = 2; return m; }); },
+  shack(rng) { // survivor shack: timber frame skinned in corrugated sheet, raised on blocks, lean-to roof with overhang, boarded window, plank door
+    const M = this.mats(), g = this.g(), w = 2.6 + rng.next(), h = 2.3, d = 2.2, sheet = this.corrugated(rng.chance(0.5) ? '#8a8478' : '#7a6a5a');
+    for (const x of [-w / 2 + 0.2, 0, w / 2 - 0.2]) for (const z of [-d / 2 + 0.2, d / 2 - 0.2]) this.box(0.3, 0.22, 0.3, M.concreteDark, x, 0.11, z, g); // footing blocks
+    this.box(w, 0.1, d, M.timber, 0, 0.27, 0, g); // floor deck
+    this.box(w, h, d, sheet, 0, 0.32 + h / 2, 0, g);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) this.box(0.1, h + 0.1, 0.1, M.timberDark, sx * (w / 2 + 0.02), 0.32 + h / 2, sz * (d / 2 + 0.02), g);
+    const pitch = 0.18, rl = d + 0.7, roof = this.box(w + 0.6, 0.06, rl, sheet, 0, 0.32 + h + 0.12, 0.1, g); roof.rotation.x = pitch; // single slope, overhang front and sides
+    this.box(w + 0.6, 0.12, 0.1, M.timberDark, 0, 0.32 + h + 0.12 - Math.sin(pitch) * rl / 2, 0.1 + Math.cos(pitch) * rl / 2, g);
+    this.box(0.85, 1.9, 0.06, IF.mat.wood('#5a4a38'), -w * 0.22, 0.32 + 0.95, d / 2 + 0.03, g); for (const y of [0.7, 1.7]) this.box(0.85, 0.08, 0.08, M.timberDark, -w * 0.22, 0.32 + y, d / 2 + 0.06, g);
+    this.box(0.7, 0.55, 0.05, rng.chance(0.3) ? IF.mat.glow('#ff9a40', 1.2) : M.dark, w * 0.22, 0.32 + 1.4, d / 2 + 0.03, g);
+    for (let i = 0; i < 3; i++) { const b = this.box(0.82, 0.1, 0.04, M.timber, w * 0.22, 0.32 + 1.25 + i * 0.15, d / 2 + 0.07, g); b.rotation.z = (rng.next() - 0.5) * 0.3; } // boards over the window
+    this.box(0.3, 0.3, 0.3, M.rust, w / 2 - 0.2, 0.32 + h + 0.35, -0.3, g); this.cyl(0.08, 0.08, 0.9, M.iron, w / 2 - 0.2, 0.32 + h + 0.8, -0.3, g, 8); // stove pipe
+    return g; },
+  watchtower() { // 5 m timber tower: splayed legs with X-bracing on all faces, ladder, planked cabin with railings, hipped roof with overhang, floodlight
+    const M = this.mats(), g = this.g(), H = 5, top = 1.0, bot = 1.35;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const l = this.box(0.18, H + 0.15, 0.18, M.timberDark, sx * (top + bot) / 2, H / 2, sz * (top + bot) / 2, g); l.rotation.z = -sx * Math.atan2(bot - top, H); l.rotation.x = sz * Math.atan2(bot - top, H); this.box(0.4, 0.25, 0.4, M.concreteDark, sx * bot, 0.12, sz * bot, g); }
+    for (let j = 0; j < 2; j++) { const y0 = j * 2.4 + 0.5, y1 = y0 + 2.2, wb = bot - (bot - top) * (y0 + y1) / 2 / H; for (const face of [0, 1]) for (const s of [-1, 1]) for (const k of [-1, 1]) { const len = Math.hypot(2 * wb, 2.2), br = this.box(0.08, len, 0.08, M.timber, face ? s * wb : 0, (y0 + y1) / 2, face ? 0 : s * wb, g); if (face) br.rotation.x = k * Math.atan2(2 * wb, 2.2); else br.rotation.z = k * Math.atan2(2 * wb, 2.2); } }
+    for (let i = 0; i < 12; i++) this.box(0.5, 0.05, 0.05, M.timber, 0, 0.4 + i * 0.4, bot + 0.05 - i * 0.012, g); for (const s of [-1, 1]) this.box(0.06, H, 0.06, M.timberDark, s * 0.25, H / 2, bot - 0.08, g); // ladder
+    this.box(2.4, 0.15, 2.4, M.timber, 0, H, 0, g);
+    for (const [x, z, w, d] of [[0, -1.15, 2.4, 0.08], [0, 1.15, 2.4, 0.08], [-1.15, 0, 0.08, 2.4], [1.15, 0, 0.08, 2.4]]) { this.box(w, 1.0, d, M.timber, x, H + 0.55, z, g); this.box(w + 0.05, 0.08, d + 0.05, M.timberDark, x, H + 1.08, z, g); }
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) this.box(0.12, 1.9, 0.12, M.timberDark, sx * 1.1, H + 1.0, sz * 1.1, g);
+    const roof = this.mesh(new this.T.ConeGeometry(2.05, 0.9, 4), this.corrugated('#6a5a48'), 0, H + 2.4, 0, g); roof.rotation.y = Math.PI / 4;
+    const lamp = this.box(0.35, 0.3, 0.35, M.iron, 0.9, H + 1.75, 0.9, g); this.box(0.28, 0.22, 0.02, IF.mat.glow('#e0e8ff', 2.2), 0.9, H + 1.75, 1.08, g).castShadow = false;
+    g.userData.light = { y: -(H + 1.7) * 100, i: 3, c: '#e0e8ff', r: 14 }; return g; },
+  hangar(rng) { // Quonset hangar: corrugated half-barrel on a concrete apron, ribbed, closed end wall with sliding doors and a lit side door
+    const M = this.mats(), g = this.g(), L = 10, R = 4, sheet = this.corrugated('#6a7068');
+    const shell = this.mesh(new this.T.CylinderGeometry(R, R, L, 24, 1, true, 0, Math.PI), sheet, 0, 0, 0, g); shell.rotation.set(0, 0, Math.PI / 2); /* arch spans along x */
+    for (let i = 0; i <= 5; i++) { const rib = this.mesh(new this.T.TorusGeometry(R + 0.03, 0.06, 4, 24, Math.PI), M.iron, -L / 2 + i * L / 5, 0, 0, g); rib.rotation.y = Math.PI / 2; }
+    this.box(L + 1.5, 0.2, 2 * R + 1.5, M.concrete, 0, 0.1, 0, g); // apron
+    for (const ex of [-L / 2, L / 2]) { const sh = new this.T.Shape(); sh.absarc(0, 0, R, 0, Math.PI, false); sh.closePath(); const wall = this.mesh(new this.T.ShapeGeometry(sh, 24), sheet, ex, 0.2, 0, g); wall.rotation.y = Math.PI / 2; }
+    for (const s of [-1, 1]) this.box(0.08, 3.2, 2.3, M.olive, L / 2 + 0.05, 1.8, s * 1.15, g); this.box(0.1, 0.12, 5, M.iron, L / 2 + 0.06, 3.45, 0, g); // sliding doors on their rail
+    this.box(0.06, 2, 0.9, M.dark, -L / 2 - 0.03, 1.2, 2.4, g); this.box(0.04, 0.2, 0.3, IF.mat.glow('#ffd080', 1.4), -L / 2 - 0.06, 2.4, 2.4, g);
+    return g; },
   chimney(rng) { const M = this.mats(), g = this.g(), H = 14 + rng.next() * 8; this.cyl(0.9, 1.3, H, IF.mat.basic('#5a3a2c', 0.9), 0, H / 2, 0, g, 12); for (let i = 0; i < 3; i++) this.mesh(new this.T.TorusGeometry(1.0 - i * 0.05, 0.06, 6, 16), M.iron, 0, H * (0.4 + i * 0.2), 0, g).rotation.x = Math.PI / 2; this.box(6, 5, 5, M.concreteDark, 3, 2.5, 0, g); g.userData.smoke = { y: -H * 100 - 50 }; return g; },
   pipes(len) { const M = this.mats(), g = this.g(); for (let i = 0; i < 3; i++) { const p = this.cyl(0.25 - i * 0.05, 0.25 - i * 0.05, len, i ? M.rust : M.iron, 0, 2 + i * 0.7, 0, g, 10); p.rotation.z = Math.PI / 2; } for (let x = -len / 2; x < len / 2; x += 3) this.box(0.2, 3.5, 0.2, M.iron, x, 1.75, 0, g); return g; },
   labTank() { const M = this.mats(), g = this.g(); this.cyl(0.7, 0.7, 0.3, M.steel, 0, 0.15, 0, g, 16); const glass = this.cyl(0.6, 0.6, 2.2, IF.mat.get('labglass', () => new this.T.MeshStandardMaterial({ color: '#4affc8', emissive: '#0a6a50', emissiveIntensity: 0.9, transparent: true, opacity: 0.45, roughness: 0.1 })), 0, 1.4, 0, g, 16); glass.castShadow = false; this.cyl(0.7, 0.7, 0.3, M.steel, 0, 2.6, 0, g, 16); const body = this.mesh(new this.T.CapsuleGeometry(0.2, 0.7, 4, 8), IF.mat.skin('#4a5a50'), 0, 1.4, 0, g); g.userData.light = { y: -140, i: 2, c: '#4affc8', r: 6 }; return g; },
