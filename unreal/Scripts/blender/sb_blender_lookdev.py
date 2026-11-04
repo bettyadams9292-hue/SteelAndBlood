@@ -35,11 +35,11 @@ def metal(mat, base, rough=0.3, wear=True, scratches=0.5):
     tc = node(t, 'ShaderNodeTexCoord', -1400, 0)
     # cavity dirt + edge polish from ambient occlusion
     ao = node(t, 'ShaderNodeAmbientOcclusion', -1000, 300, samples=16, inside=False); ao.inputs['Distance'].default_value = 0.04
-    dirt = ramp(t, -750, 300, [(0.35, (0.0, 0.0, 0.0, 1)), (0.85, (1, 1, 1, 1))])
+    dirt = ramp(t, -750, 300, [(0.3, (0.25, 0.25, 0.25, 1)), (0.8, (1, 1, 1, 1))])
     L(t, ao, 'AO', dirt, 'Fac')
     # large-scale tarnish
     n1 = node(t, 'ShaderNodeTexNoise', -1000, 0, Scale=6.0, Detail=8.0, Roughness=0.6); L(t, tc, 'Object', n1, 'Vector')
-    tarn = ramp(t, -750, 0, [(0.35, (base[0]*0.55, base[1]*0.5, base[2]*0.45, 1)), (0.7, (*base, 1))])
+    tarn = ramp(t, -750, 0, [(0.35, (base[0]*0.7, base[1]*0.66, base[2]*0.6, 1)), (0.7, (*base, 1))])
     L(t, n1, 'Fac', tarn, 'Fac')
     mixc = node(t, 'ShaderNodeMix', -450, 150, data_type='RGBA', blend_type='MULTIPLY'); mixc.inputs['Factor'].default_value = 1.0
     L(t, tarn, 'Color', mixc, 'A'); L(t, dirt, 'Color', mixc, 'B')
@@ -106,7 +106,9 @@ def cloth(mat, col, hem_dirt=True, sheen=0.4):
     else:
         L(t, c, 'Color', b, 'Base Color')
     b.inputs['Roughness'].default_value = 0.85
-    if 'Sheen Weight' in b.inputs: b.inputs['Sheen Weight'].default_value = sheen
+    if 'Sheen Weight' in b.inputs:
+        b.inputs['Sheen Weight'].default_value = sheen*0.5
+        if 'Sheen Tint' in b.inputs: b.inputs['Sheen Tint'].default_value = (*[min(1.0, c*2.2) for c in col], 1)
     return t, b
 
 def leather(mat, col):
@@ -189,11 +191,18 @@ def bind_to_bone(objs, arm, bone, world_loc, world_rot):
 def stage():
     sc = bpy.context.scene
     w = bpy.data.worlds.new('W_Dusk'); sc.world = w; w.use_nodes = True
-    bg = w.node_tree.nodes['Background']; bg.inputs[0].default_value = (0.012, 0.014, 0.02, 1); bg.inputs[1].default_value = 1.0
+    bg = w.node_tree.nodes['Background']; bg.inputs[1].default_value = 0.35
+    try:
+        sky = w.node_tree.nodes.new('ShaderNodeTexSky'); sky.location = (-300, 0)
+        for k, v in (('sun_elevation', math.radians(4)), ('sun_rotation', math.radians(200)), ('air_density', 2.0), ('dust_density', 4.0)):
+            if hasattr(sky, k): setattr(sky, k, v)
+        w.node_tree.links.new(sky.outputs[0], bg.inputs[0])
+    except Exception:
+        bg.inputs[0].default_value = (0.05, 0.055, 0.07, 1)
     import bmesh
     me = bpy.data.meshes.new('Stage_Ground'); bm = bmesh.new(); bmesh.ops.create_circle(bm, cap_ends=True, segments=96, radius=4.0); bm.to_mesh(me); bm.free()
     g = bpy.data.objects.new('Stage_Ground', me); sc.collection.objects.link(g)
-    gm = bpy.data.materials.new('M_StageStone'); stone(gm, (0.2, 0.19, 0.17)); g.data.materials.append(gm)
+    gm = bpy.data.materials.new('M_StageStone'); stone(gm, (0.075, 0.07, 0.062)); g.data.materials.append(gm)
     def area(name, loc, rot, energy, col, size):
         ld = bpy.data.lights.new(name, 'AREA'); l = bpy.data.objects.new(name, ld); l.location = loc; sc.collection.objects.link(l)
         l.rotation_euler = rot; l.data.energy = energy; l.data.color = col; l.data.size = size; return l
@@ -201,7 +210,7 @@ def stage():
     area('Rim_Cool', (-2.0, 2.6, 2.6), (math.radians(-55), 0, math.radians(-145)), 1100, (0.55, 0.68, 1.0), 1.0)
     area('Fill', (-3.0, -2.0, 1.2), (math.radians(80), 0, math.radians(-55)), 120, (0.8, 0.85, 1.0), 3.0)
     cam = bpy.data.objects.new('Cam_Hero', bpy.data.cameras.new('Cam_Hero')); cam.location = (2.2, -4.6, 1.25); sc.collection.objects.link(cam)
-    cam.data.lens = 70
+    cam.data.lens = 50
     tgt = bpy.data.objects.new('CamTarget', None); tgt.location = (0, 0, 0.98); sc.collection.objects.link(tgt)
     c = cam.constraints.new('TRACK_TO'); c.target = tgt; c.track_axis = 'TRACK_NEGATIVE_Z'; c.up_axis = 'UP_Y'
     sc.camera = cam
@@ -229,7 +238,7 @@ def build_hero(pose_action='A_Knight_Idle', frame=12):
     # glTF importer converts Y-up to Z-up; weapon grip at origin, blade along +Z after import.
     # glTF (x,y,z) -> Blender (x,-z,y). Hand_r head (-0.26,0.93,0.03) gltf; grip sits in the fist.
     bind_to_bone(sword, arm, 'hand_r', (-0.265, -0.045, 0.865), (math.radians(90), 0, 0))
-    bind_to_bone(shield, arm, 'lowerarm_l', (0.33, 0.0, 1.10), (0, 0, math.radians(90)))
+    bind_to_bone(shield, arm, 'lowerarm_l', (0.34, 0.0, 1.10), (0, 0, math.radians(-90)))
     for o in sword + shield:
         if o.type == 'MESH': o.name = 'SM_' + ('Sword' if o in sword else 'Shield')
     # choose pose
@@ -247,3 +256,14 @@ def render(path):
     bpy.context.scene.render.filepath = path
     with ctx(): bpy.ops.render.render(write_still=True)
     return path
+
+def shot(name, action, frame, cam_loc, lens=50, target=(0, 0, 0.98), pct=60):
+    """Pose the rig, frame the camera and render a JPG into SourceArt/Blender/renders."""
+    sc = bpy.context.scene; arm = bpy.data.objects['RIG_HeroKnight']
+    act = [a for a in bpy.data.actions if action in a.name][0]
+    arm.animation_data.action = act; sc.frame_set(frame)
+    cam = bpy.data.objects['Cam_Hero']; cam.location = cam_loc; cam.data.lens = lens
+    bpy.data.objects['CamTarget'].location = target
+    sc.render.image_settings.file_format = 'JPEG'; sc.render.image_settings.quality = 90; sc.render.resolution_percentage = pct
+    os.makedirs(ART + 'renders', exist_ok=True)
+    return render(ART + 'renders/' + name + '.jpg')
