@@ -42,7 +42,6 @@ def build_sequence():
         p = sec.get_editor_property('params')
         p.set_editor_property('animation', unreal.load_asset(KN + 'SK_HeroKnight' + clip))
         p.set_editor_property('first_loop_start_frame_offset', unreal.FrameNumber(int(t * tick)))
-        p.set_editor_property('play_rate', 1.0)
         sec.set_editor_property('params', p)
         bound.append(label)
     EAL.save_asset(SEQ)
