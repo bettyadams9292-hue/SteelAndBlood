@@ -59,11 +59,13 @@ w('QA_TEST_RESULTS.md', '''## %s
 - FAIL: weapon not visible in hand - open.
 - Not yet tested: anything gameplay (none exists in Unreal yet), performance profiling.
 ''' % DATE)
-w('KNOWN_ISSUES.md', '''1. Animation pose not evaluated for SkeletalMeshActors in editor-world SceneCapture renders (knights show reference pose).
-2. Longsword attached to hand_r is not visible in renders; needs a real `weapon_r` socket (add via SkeletalMesh toolset) and orientation check.
-3. Showcase lighting is too dark/grainy in captures (exposure bias, sun/skylight intensity, film grain need tuning; Lumen needs more warm-up frames in captures).
-4. Castle wall/tower stones read flat - need normal/height detail (procedural normal or texture set).
-5. Blender is not reachable: the interactive Blender MCP server is not running and no Blender executable is on PATH; the cloud workspace cannot download Blender (blocked). Assets are produced by the Python modelling kit instead (see BLENDER_PIPELINE.md).
+w('KNOWN_ISSUES.md', '''Resolved: editor-world animation now evaluated through Sequencer (LS_Showcase_Poses); weapon_r / shield_l sockets added; weapons were Static mobility and could not attach (now Movable); lighting regraded.
+
+1. Unreal metals read too dark: the master material has no reflection/edge-wear detail comparable to the Blender look-dev materials. Next: bake the Blender procedural materials to texture sets (BaseColor/ORM/Normal) and feed them to UE.
+2. Castle wall/tower stones read flat - need normal/height detail (bake from Blender).
+3. Tick-driven editor jobs run slowly when the Unreal window is unfocused (renders take minutes).
+4. Blender window screenshots return black while Blender is minimised; renders are used for review instead.
+5. Blender-refined knight not yet exported back to Unreal (FBX round-trip pending).
 6. No C++: the Unreal project is Blueprint-only and the available tools cannot write to Source/ or compile. Gameplay must be built in Blueprints (fully possible via the BlueprintTools DSL) unless a C++ module is added and compiled on the machine.
 7. Editor window capture (Slate) returns no windows; viewport captures are size-limited - review images come from SceneCapture exports instead.
 ''')
@@ -88,7 +90,10 @@ Side-on 2.5D, perspective CineCamera ~30 mm at ~7.6 m, play axis = world X, back
 Foreground framing (rocks) -> play lane -> midground storytelling (graves, banners, braziers, litter) -> curtain wall/gate/towers -> far tower silhouettes.
 ''')
 w('BLENDER_PIPELINE.md', '''## Situation
-The Blender MCP integration is installed on the device but Blender itself was not running (interactive server unreachable) and no `blender` executable is on PATH for background mode. Blender could not be installed in the cloud workspace (download host blocked).
+Blender 5.2.3 LTS is connected through the Blender MCP add-on (verified 2026-11-04).
+
+## Blender stage (working, verified)
+`unreal/Scripts/blender/sb_blender_lookdev.py` imports the sbkit glTF exports into Blender, replaces the flat glTF materials with full procedural node materials (AO-driven cavity grime and edge polish, tarnish, anisotropic scratch roughness, hammered micro-bump on steel; real ring bump on chainmail; weave bump, stain and hem mud on cloth; grain on leather/wood; voronoi block detail on stone), bone-parents the sword (hand_r) and shield (lowerarm_l), builds a look-dev stage (sky, warm key, cool rim, fill) and saves `SourceArt/Blender/HeroKnight_Lookdev.blend` next to the Unreal project. Renders go to `SourceArt/Blender/renders/`.
 
 ## Current pipeline (working, verified)
 `unreal/Scripts/lib/sbkit.py` is a dependency-free Python modelling + rigging kit (lathe, bevelled slab, sphere, extrude, quad-grid surfaces, smooth normals, arc-length UVs, 4-bone skin weights, skeleton, baked keyframe animation) that writes glTF 2.0. The same modules run inside Unreal's Python, so assets are generated on the user's machine and imported by `sb_ue_import.py` (Interchange glTF -> SkeletalMesh/Skeleton/PhysicsAsset/AnimSequence or StaticMesh).
