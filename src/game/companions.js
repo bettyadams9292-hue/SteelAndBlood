@@ -220,23 +220,25 @@ IF.Dog3D = class Dog3D {
     const M = (geo, mat, p, x = 0, y = 0, z = 0) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; p.add(m); return m; };
     this.root = new T.Group(); this.body = new T.Group(); this.root.add(this.body); this.root.scale.setScalar(s);
     const B = this.body; B.position.y = 0.5;
-    M(new T.CapsuleGeometry(0.15, 0.5, 6, 12).rotateZ(Math.PI / 2), coat, B, 0, 0, 0).scale.set(1, 1, 0.9); // torso
-    M(new T.CapsuleGeometry(0.13, 0.36, 6, 10).rotateZ(Math.PI / 2), saddle, B, -0.04, 0.06, 0).scale.set(1, 0.7, 0.95); // dark saddle
-    M(new T.SphereGeometry(0.19, 12, 10), coat, B, 0.25, 0.02, 0).scale.set(1.05, 1.1, 0.85); // chest
-    M(new T.SphereGeometry(0.14, 10, 8), belly, B, 0.28, -0.1, 0).scale.set(0.9, 0.9, 0.8);
-    const neck = new T.Group(); neck.position.set(0.36, 0.1, 0); B.add(neck); this.neck = neck;
-    M(new T.CapsuleGeometry(0.09, 0.16, 4, 8), coat, neck, 0.04, 0.08, 0).rotation.z = -0.7;
-    const head = new T.Group(); head.position.set(0.12, 0.2, 0); neck.add(head); this.head = head;
-    M(new T.SphereGeometry(0.1, 12, 10), coat, head, 0, 0, 0).scale.set(1.1, 0.95, 0.9);
-    M(new T.CylinderGeometry(0.045, 0.065, 0.16, 10).rotateZ(-Math.PI / 2), saddle, head, 0.13, -0.03, 0); // muzzle
-    M(new T.SphereGeometry(0.026, 6, 5), nose, head, 0.215, -0.02, 0);
+    // one continuous body: a lathe profile from rump to deep chest (no separate balls), with a tapered neck into the skull
+    const prof = [[0, -0.36], [0.09, -0.34], [0.13, -0.26], [0.135, -0.1], [0.13, 0.05], [0.15, 0.18], [0.155, 0.27], [0.12, 0.34], [0.07, 0.38], [0, 0.39]].map(([r, y]) => new T.Vector2(r, y));
+    const torso = M(new T.LatheGeometry(prof, 16).rotateZ(-Math.PI / 2), coat, B, 0, 0, 0); torso.scale.set(1, 1, 0.82);
+    M(new T.CapsuleGeometry(0.1, 0.36, 4, 10).rotateZ(Math.PI / 2), saddle, B, -0.05, 0.075, 0).scale.set(1, 0.55, 0.9); // dark saddle across the back
+    M(new T.CapsuleGeometry(0.08, 0.28, 4, 10).rotateZ(Math.PI / 2), belly, B, 0.08, -0.07, 0).scale.set(1, 0.6, 0.8); // pale underside
+    const neck = new T.Group(); neck.position.set(0.3, 0.06, 0); B.add(neck); this.neck = neck;
+    const nk = M(new T.CylinderGeometry(0.07, 0.115, 0.26, 12), coat, neck, 0.06, 0.1, 0); nk.rotation.z = -0.75; nk.scale.z = 0.85; // thick at the shoulders, narrowing to the head
+    const ruff = M(new T.CylinderGeometry(0.1, 0.125, 0.12, 12), belly, neck, 0.03, 0.03, 0); ruff.rotation.z = -0.75; ruff.scale.z = 0.8;
+    const head = new T.Group(); head.position.set(0.15, 0.2, 0); neck.add(head); this.head = head;
+    const skull = M(new T.SphereGeometry(0.085, 14, 10), coat, head, 0, 0, 0); skull.scale.set(1.25, 0.95, 0.9);
+    const snout = M(new T.CylinderGeometry(0.04, 0.06, 0.15, 10).rotateZ(-Math.PI / 2), saddle, head, 0.13, -0.025, 0); snout.scale.z = 0.85;
+    M(new T.SphereGeometry(0.024, 6, 5), nose, head, 0.21, -0.015, 0);
     const jaw = new T.Group(); jaw.position.set(0.06, -0.06, 0); head.add(jaw); this.jaw = jaw; M(new T.BoxGeometry(0.14, 0.025, 0.07), saddle, jaw, 0.07, 0, 0);
     for (const z of [-0.05, 0.05]) { M(new T.SphereGeometry(0.014, 6, 5), eye, head, 0.08, 0.035, z); const ear = M(new T.ConeGeometry(0.04, 0.11, 4), saddle, head, -0.02, 0.11, z * 1.1); ear.rotation.x = z > 0 ? 0.25 : -0.25; }
     const tail = new T.Group(); tail.position.set(-0.32, 0.06, 0); B.add(tail); this.tail = tail; M(new T.CapsuleGeometry(0.035, 0.28, 4, 6).rotateZ(Math.PI / 2 + 0.7), saddle, tail, -0.12, -0.08, 0);
     this.legs = [];
     for (const [lx, lz] of [[0.25, 0.08], [0.25, -0.08], [-0.24, 0.08], [-0.24, -0.08]]) {
       const hip = new T.Group(); hip.position.set(lx, -0.05, lz); B.add(hip);
-      M(new T.CapsuleGeometry(0.045, 0.16, 4, 8), coat, hip, 0, -0.11, 0);
+      M(new T.CapsuleGeometry(0.05, 0.14, 4, 8), coat, hip, 0, -0.09, 0).scale.z = 0.8;
       const knee = new T.Group(); knee.position.set(0, -0.22, 0); hip.add(knee);
       M(new T.CapsuleGeometry(0.03, 0.17, 4, 6), lx > 0 ? belly : coat, knee, 0, -0.1, 0); M(new T.SphereGeometry(0.04, 6, 5), belly, knee, 0.02, -0.21, 0).scale.set(1.3, 0.6, 1);
       this.legs.push({ hip, knee, front: lx > 0, off: lz > 0 ? 0 : Math.PI });

@@ -7,7 +7,7 @@ const MODULES = [
   'core/base.js', 'data/items.js', 'data/world.js', 'core/input.js', 'core/audio.js', 'core/save.js',
   'systems/loot.js', 'systems/progression.js', 'render/art.js', 'render/fx.js', 'render/gore.js',
   'render3d/engine.js', 'render3d/materials.js', 'render3d/sky.js', 'render3d/kits.js', 'render3d/terrain.js', 'render3d/gate3d.js', 'render3d/weapons3d.js', 'render3d/knight3d.js', 'render3d/crowd3d.js', 'render3d/fx3d.js',
-  'game/player.js', 'game/combat.js', 'game/tactics.js', 'game/companions.js', 'game/enemies.js', 'game/world.js', 'game/game.js',
+  'game/player.js', 'game/combat.js', 'game/tactics.js', 'game/companions.js', 'game/home.js', 'game/eggs.js', 'game/enemies.js', 'game/world.js', 'game/game.js',
   'ui/ui.js', 'ui/touch.js', 'main.js',
 ];
 const src = (p) => fs.readFileSync(path.join(__dirname, 'src', p), 'utf8');

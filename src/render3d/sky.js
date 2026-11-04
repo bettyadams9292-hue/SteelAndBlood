@@ -68,7 +68,8 @@ IF.sky = {
     R.sun.color.copy(key); R.sun.intensity = b.indoor ? 0.9 : tod.sunI;
     R.hemi.color.copy(mid).lerp(new T.Color('#9aa0c0'), 0.3); R.hemi.groundColor.set(b.ground); R.hemi.intensity = (b.indoor ? 0.9 : tod.hemiI) * 1.6;
     R.rim.color.set(tod.id === 'dawn' ? '#ffd0a0' : '#8aa0ff'); R.rim.intensity = 0.8;
-    R.renderer.toneMappingExposure = b.indoor ? 1.35 : tod.id === 'night' ? 1.45 : 1.3;
+    if (b.id === 'home') { R.hemi.color.set('#ffd8b0'); R.hemi.groundColor.set('#3a2414'); R.hemi.intensity = 2.2; R.sun.intensity = 0.6; }
+    R.renderer.toneMappingExposure = b.id === 'home' ? 1.6 : b.indoor ? 1.35 : tod.id === 'night' ? 1.45 : 1.3;
     this.current = tod;
   },
 };

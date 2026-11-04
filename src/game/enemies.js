@@ -65,6 +65,9 @@ IF.Enemy = class Enemy {
     if (this.state === 'stagger') { this.vx = IF.util.approach(this.vx, 0, 1400 * dt); if (this.stateT > this.staggerT) { this.state = 'chase'; this.stateT = 0; this.cd = Math.max(this.cd, 0.3); } return; }
     this.vx = IF.util.approach(this.vx, 0, (this.boss ? 2600 : 1600) * dt); // friction on knockback
     if (this.boss) { this.bossUpdate(dt, dx, adx); return; }
+    if (this.passive) { // an Easter-egg zombie: dances until someone hits it
+      if (this.hp < this.maxHp) this.passive = false; else { this.walkV = 0; this.phase += dt * 6; this.facing = Math.sin(this.t * 1.5) > 0 ? 1 : -1; this.dance = Math.sin(this.t * 8); return; }
+    }
     switch (this.state) {
       case 'chase': {
         if (!pl.dead) this.facing = Math.sign(dx) || this.facing;

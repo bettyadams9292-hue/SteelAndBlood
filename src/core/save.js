@@ -20,6 +20,7 @@ IF.save = {
       stats: { kills: 0, sections: 0, bosses: 0, distance: 0, time: 0, runs: 0, deaths: 0, bestSection: 0, bestDistance: 0, bestTime: 0, bestKills: 0, legendaries: 0, mythics: 0, upgrades: 0, weaponTypes: 0, fullSet: 0, legendSet: 0, level: 1, shots: 0, killsBy: {} },
       seen: {}, // weapon ids ever obtained
       tutorialDone: false, dailyBest: {},
+      home: { owned: {}, slots: {}, eggs: {} },
       companions: { owned: { rex: { lvl: 1 } }, active: ['rex'], slots: 2, order: 'follow' },
       appearance: { name: 'Sir Aldric', tabard: 'auto', emblem: 'cross', cross: 'auto', cape: 'auto', plume: 'auto', helm: 'auto', finish: 'auto' },
       settings: { music: 0.55, sfx: 0.8, gore: 'full', shake: true, dmgNumbers: true, particles: 'high', touch: 'auto', touchSize: 1, touchOpacity: 0.5, keys: {}, pad: {}, showFps: false, mode: 'endless', graphics: 'auto' },
@@ -80,6 +81,7 @@ IF.save = {
     const all = new Set([...out.weapons, ...out.armour, ...out.accessories].map((i) => i.uid));
     for (const k in out.equipped) if (out.equipped[k] && !all.has(out.equipped[k])) out.equipped[k] = null;
     for (const k in out.skills) if (!IF.SKILL_NODE[k]) delete out.skills[k];
+    if (d.home && typeof d.home === 'object') out.home = { owned: Object.assign({}, d.home.owned), slots: Object.assign({}, d.home.slots), eggs: Object.assign({}, d.home.eggs), init: !!d.home.init };
     if (d.companions && typeof d.companions === 'object' && d.companions.owned) {
       const c = d.companions, owned = {}; for (const k in c.owned) if (IF.COMPANION && IF.COMPANION[k]) owned[k] = { lvl: IF.util.clamp(c.owned[k].lvl | 0, 1, 10) };
       if (!owned.rex) owned.rex = { lvl: 1 };

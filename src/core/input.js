@@ -25,14 +25,14 @@ IF.input = {
   wheelPulse: false,
   rebinding: null, // {action, kind, cb}
   lastDevice: 'keyboard',
-  now: 0,
+  now: 0, tapped: {}, // keys pressed since the last frame (so quick taps are never lost on slow frames)
 
   init(canvas) {
     window.addEventListener('keydown', (e) => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && e.target.type !== 'range') return;
       if (this.rebinding && this.rebinding.kind === 'key') { e.preventDefault(); this._finishRebind(e.code); return; }
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
-      this.keys[e.code] = true; this.lastDevice = 'keyboard';
+      this.keys[e.code] = true; this.tapped[e.code] = true; this.lastDevice = 'keyboard';
       IF.audio && IF.audio.unlock();
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
@@ -76,14 +76,14 @@ IF.input = {
       this.prev[a] = this.state[a];
       let d = false;
       for (const code of b.keys[a] || []) {
-        if (code === 'Wheel') { if (this.wheelPulse) d = true; } else if (this.keys[code]) d = true;
+        if (code === 'Wheel') { if (this.wheelPulse) d = true; } else if (this.keys[code] || this.tapped[code]) d = true;
       }
       if (gp) for (const bi of b.pad[a] || []) if (gp.buttons[bi] && (gp.buttons[bi].pressed || gp.buttons[bi].value > 0.4)) { d = true; this.lastDevice = 'gamepad'; }
       if (this.touch[a]) d = true;
       this.state[a] = d;
       if (d && !this.prev[a]) { this.pressTime[a] = now; this.downSince[a] = now; }
     }
-    this.wheelPulse = false;
+    this.wheelPulse = false; this.tapped = {};
     if (gp) {
       const sx = gp.axes[0] || 0, sy = gp.axes[1] || 0;
       if (Math.abs(sx) > 0.2) { ax = sx; this.lastDevice = 'gamepad'; }

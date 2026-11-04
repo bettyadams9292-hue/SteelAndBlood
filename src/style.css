@@ -182,3 +182,8 @@ h4 { color: var(--gold); }
 .splash .lbar { height: 8px; background: rgba(14,15,17,0.85); border: 1px solid #6a7076; box-shadow: 0 0 0 1px #000, 0 0 18px rgba(0,0,0,0.8); }
 .splash .lbar i { display: block; height: 100%; background: linear-gradient(90deg, #5a0b0f, #a3181e 60%, #e8c878); transition: width 0.25s ease-out; box-shadow: 0 0 12px rgba(200,40,40,0.6); }
 .splash .ltext { margin-top: 10px; font-size: 0.9em; letter-spacing: 0.3em; text-transform: uppercase; color: #ece4d2; text-shadow: 0 0 10px #000, 0 0 2px #000; }
+
+.homepick { width: min(860px, 92vw); max-height: 86vh; display: flex; flex-direction: column; }
+.homepick .hpl { overflow-y: auto; max-height: 60vh; padding-right: 6px; }
+.homepick .hgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+.homepick .hitem { text-align: left; } .homepick .hitem b { display: block; font-size: 0.95em; }

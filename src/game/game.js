@@ -3,7 +3,7 @@
 
 IF.Run = class Run {
   constructor(modeId) {
-    const mode = IF.MODES[modeId] || IF.MODES.endless; this.mode = mode;
+    const mode = modeId === 'home' ? IF.HOME_MODE : IF.MODES[modeId] || IF.MODES.endless; this.mode = mode; if (IF.terrain) IF.terrain.flat = !!mode.home;
     this.mods = { rewardMult: mode.rewardMult };
     let seed = Date.now();
     if (mode.seeded) { const day = new Date().toISOString().slice(0, 10); seed = IF.hashString('daily' + day); const mod = IF.DAILY_MODIFIERS[seed % IF.DAILY_MODIFIERS.length]; mod.apply(this.mods); this.dailyMod = mod; this.day = day; }
@@ -12,12 +12,12 @@ IF.Run = class Run {
     this.section = 1; this.boons = []; this.enemies = []; this.hazards = []; this.shockwaves = [];
     this.kills = 0; this.distance = 0; this.time = 0; this.goldEarned = 0; this.xpEarned = 0; this.bossesKilled = 0; this.rewardsTaken = 0; this.lastWasBoss = false;
     this.ammo = {}; this.combo = 0; this.comboT = 0; this.maxCombo = 0;
-    this.world = IF.world.generate(this, 1, 0);
+    this.world = mode.home ? IF.home.makeWorld(this, 'ground') : IF.world.generate(this, 1, 0);
     this.player = new IF.Player(this);
     for (const k of ['primary', 'secondary']) if (this.player.weapons[k]) this.ensureAmmo(this.player.weapons[k].def.ammo);
     this.camX = 0; this.bannerT = 3.2; this.banner = this.sectionTitle();
     this.allies = []; IF.tac.newRun(this); IF.companions && IF.companions.newRun(this);
-    IF.save.data.stats.runs++;
+    if (mode.home) { this.player.x = 200; this.banner = { top: 'WELCOME HOME', main: IF.save.data.appearance.name }; this.bannerT = 2.5; } else IF.save.data.stats.runs++;
   }
   sectionTitle() { return { top: this.world.isBoss ? 'GUARDIAN · SECTION ' + this.section : 'SECTION ' + this.section, main: this.world.biome.name }; }
   ammoMax(type) { return Math.round(IF.AMMO[type].base * (1 + this.player.st.ammoCap) * (this.mods.ammoMult || 1)); }
@@ -40,6 +40,7 @@ IF.Run = class Run {
     }
   }
   onKill(e) {
+    if (e.egg) IF.eggs.reward(this, e.egg, e.x, e.y - 100);
     const d = IF.save.data, pl = this.player;
     this.kills++; d.stats.kills++; d.stats.killsBy[e.id] = (d.stats.killsBy[e.id] || 0) + 1;
     this.combo++; this.comboT = 3; this.maxCombo = Math.max(this.maxCombo, this.combo);
@@ -56,7 +57,7 @@ IF.Run = class Run {
     IF.save.markDirty();
   }
   onBossKilled(e) {
-    const d = IF.save.data; this.bossesKilled++; d.stats.bosses++;
+    const d = IF.save.data; IF.home.onBoss(e.def); this.bossesKilled++; d.stats.bosses++;
     d.mats.shards += 1 + Math.floor(this.section / 15); d.gold += e.def.gold; this.goldEarned += e.def.gold;
     IF.fx.flash = 0.6; IF.fx.addShake(25); IF.fx.hitstop = 0.35;
     this.banner = { top: 'GUARDIAN DEFEATED', main: e.def.name, sub: '+' + e.def.gold + ' gold · Obsidian shard' }; this.bannerT = 3.5;
@@ -65,7 +66,9 @@ IF.Run = class Run {
   }
 
   update(dt) {
+    if (this.mode.home) { this.time += dt; IF.home.update(this, dt); this.bannerT -= dt; return; }
     const pl = this.player, W = this.world;
+    IF.eggs.update(this);
     this.time += dt; this.comboT -= dt; if (this.comboT <= 0) this.combo = 0;
     if (this.refillAmmo) { this.refillAmmo = false; for (const k in this.ammo) this.ammo[k] = this.ammoMax(k); }
     if (this.healFull) { this.healFull = false; pl.refreshStats(); pl.hp = pl.maxHp; }
@@ -148,7 +151,7 @@ IF.Run = class Run {
     this.world = IF.world.generate(this, this.section, start);
     this.enemies = this.enemies.filter((e) => !e.dead); this.hazards.length = 0; this.shockwaves.length = 0; this.boss = null;
     this.player.dist0 = this.player.x;
-    IF.tac.refill(this); this.throws.length = 0; this.traps.length = 0; this.allies = this.allies.filter((a) => a.kind !== 'sentry'); IF.companions && IF.companions.onSection(this);
+    IF.tac.refill(this); IF.home.checkUnlocks(); this.throws.length = 0; this.traps.length = 0; this.allies = this.allies.filter((a) => a.kind !== 'sentry'); IF.companions && IF.companions.onSection(this);
     this.banner = this.sectionTitle(); this.bannerT = 3;
     IF.audio.setMusic(this.world.biome.music, false);
     // small heal between sections
@@ -198,9 +201,9 @@ IF.game = {
   },
 
   newRun(modeId) {
-    IF.fx.reset(); IF.combat.reset(); IF.gore.reset();
+    IF.fx.reset(); IF.combat.reset(); IF.gore.reset(); if (IF.r3.ok) while (IF.terrain.chunks.length) IF.terrain.dispose(IF.terrain.chunks.shift());
     this.run = new IF.Run(modeId || 'endless'); this.state = 'playing';
-    IF.audio.unlock(); IF.audio.setMusic(this.run.world.biome.music, false);
+    IF.audio.unlock(); IF.audio.setMusic(this.run.mode.home ? 0 : this.run.world.biome.music, false);
     IF.ui.show(null); IF.ui.hud(true);
   },
   pause() { if (this.state !== 'playing') return; this.state = 'paused'; IF.ui.show('pause'); IF.save.write(); },
@@ -232,7 +235,7 @@ IF.game = {
     IF.audio.setMusic(1, false);
     IF.ui.showDeath(run);
   },
-  quitToMenu() { if (this.run && this.state !== 'dead') { const r = this.run; IF.save.data.stats.distance += r.distance; IF.save.data.stats.bestSection = Math.max(IF.save.data.stats.bestSection, r.section); } this.run = null; IF.companions.cleanup(); this.state = 'menu'; IF.save.write(); IF.ui.hud(false); IF.ui.show('menu'); IF.audio.setMusic(0, false); },
+  quitToMenu() { if (this.run && this.state !== 'dead' && !this.run.mode.home) { const r = this.run; IF.save.data.stats.distance += r.distance; IF.save.data.stats.bestSection = Math.max(IF.save.data.stats.bestSection, r.section); } this.run = null; IF.companions.cleanup(); this.state = 'menu'; IF.save.write(); IF.ui.hud(false); IF.ui.show('menu'); IF.audio.setMusic(0, false); },
 
   loop(now) {
     requestAnimationFrame((t) => this.loop(t));
@@ -339,6 +342,7 @@ IF.game = {
   },
   renderHud(ctx, run, t) {
     const pl = run.player, d = IF.save.data, F = (s, w = 700) => w + ' ' + s + 'px Cinzel, Georgia, serif';
+    if (run.mode.home) { IF.home.drawHud(ctx, run, F); if (run.bannerT > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, run.bannerT); ctx.textAlign = 'center'; ctx.fillStyle = '#c9a24a'; ctx.font = F(14); ctx.fillText(run.banner.top, IF.W / 2, 150); ctx.fillStyle = '#ece4d2'; ctx.font = F(34); ctx.fillText(run.banner.main, IF.W / 2, 190); ctx.restore(); } return; }
     if (run.gateHint > 0 && run.world.gateOpen && !run.transition) { run.gateHint -= IF.game.lastDt || 0.016; const gx = IF.r3.ok ? IF.r3.project(run.world.gateX, IF.GROUND - 300, 0).x : run.world.gateX - run.camX, on = gx > 40 && gx < IF.W - 40, x = Math.max(40, Math.min(IF.W - 40, gx)), bob = Math.sin(this.t * 5) * 6; ctx.save(); ctx.globalAlpha = Math.min(1, run.gateHint); ctx.fillStyle = '#e8c878'; ctx.shadowColor = '#000'; ctx.shadowBlur = 8; ctx.beginPath(); if (on) { ctx.moveTo(x - 14, 150 + bob); ctx.lineTo(x + 14, 150 + bob); ctx.lineTo(x, 172 + bob); } else { const d = gx > x ? 1 : -1; ctx.moveTo(x - 10 * d, 340); ctx.lineTo(x + 12 * d, 360); ctx.lineTo(x - 10 * d, 380); } ctx.fill(); ctx.font = '700 12px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('GATE', on ? x : x - 30 * (gx > x ? 1 : -1), on ? 140 + bob : 364); ctx.restore(); }
     if (run.flashT > 0) { ctx.fillStyle = 'rgba(255,252,236,' + Math.min(0.8, run.flashT * 2.4) + ')'; ctx.fillRect(0, 0, IF.W, IF.H); }
     ctx.save(); IF.tac.drawHud(ctx, run, F); IF.companions && IF.companions.drawHud(ctx, run, F);

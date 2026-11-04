@@ -121,6 +121,7 @@ IF.tac = {
     for (const g of run.throws) { ctx.save(); ctx.translate(g.x, g.y); ctx.rotate(g.rot); ctx.fillStyle = g.type === 'frag' ? '#3a4a2a' : g.type === 'stun' ? '#8a8e92' : '#3a6a3a'; if (g.type === 'molotov') { ctx.fillRect(-4, -10, 8, 16); ctx.fillStyle = '#ffa030'; ctx.fillRect(-2, -16, 4, 6); } else { ctx.beginPath(); ctx.arc(0, 0, 6, 0, 6.283); ctx.fill(); } ctx.restore(); }
     for (const tr of run.traps) { ctx.strokeStyle = '#8a8e94'; ctx.lineWidth = 3; ctx.beginPath(); if (tr.armed) { ctx.moveTo(tr.x - 22, IF.GROUND - 2); ctx.lineTo(tr.x + 22, IF.GROUND - 2); for (let i = -2; i <= 2; i++) { ctx.moveTo(tr.x + i * 8, IF.GROUND - 2); ctx.lineTo(tr.x + i * 8 + 3, IF.GROUND - 9); } } else { ctx.moveTo(tr.x - 10, IF.GROUND - 2); ctx.lineTo(tr.x, IF.GROUND - 20); ctx.lineTo(tr.x + 10, IF.GROUND - 2); } ctx.stroke(); }
     for (const a of run.allies) a.draw2d && a.draw2d(ctx);
+    IF.eggs.draw2d(ctx, run);
   },
   /* HUD: the belt, bottom-left */
   drawHud(ctx, run, F) {
@@ -156,6 +157,7 @@ IF.tac = {
       }
       return g;
     });
+    pool('t_eggt', () => { const g = new T.Group(); g.add(new T.Mesh(new T.SphereGeometry(9, 12, 10), IF.mat.metal('#d8b25a', 0.3, 1))); const r = new T.Mesh(new T.TorusGeometry(10, 1.4, 5, 14), IF.mat.metal('#8a6a2a', 0.4, 1)); g.add(r); return g; });
     pool('t_sentry', () => {
       const g = new T.Group(), olive = IF.mat.metal('#4a5236', 0.65, 0.4);
       for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2 + 0.5, leg = new T.Mesh(new T.CylinderGeometry(1.2, 1.2, 46, 6), W.gunmetal); leg.position.set(Math.cos(a) * 12, 20, Math.sin(a) * 12); leg.lookAt(0, 44, 0); leg.rotateX(Math.PI / 2); g.add(leg); }
@@ -172,6 +174,7 @@ IF.tac = {
   render3d(fx, run) {
     const t = IF.r3.clock;
     for (const g of run.throws) { const m = fx.take('t_' + g.type); fx.place(m, g.x, g.y, 0.4); m.rotation.set(g.rot * 0.7, g.rot * 0.3, g.rot); if (g.type === 'molotov') fx.lightEmitters.push({ x: g.x, y: g.y - 10, i: 2.5, c: '#ff8a2a', r: 5 }); }
+    const ET = run.world.eggTarget; if (ET && !ET.hit) { const m = fx.take('t_eggt'); fx.place(m, ET.x, ET.y, -2.0); m.rotation.y = t * 2; }
     for (const tr of run.traps) {
       const m = fx.take('t_trap'); fx.place(m, tr.x, IF.GROUND, 0.35); m.rotation.y = 0.4;
       const close = tr.armed ? 0 : Math.min(1, tr.shutT * 14); // jaws: flat open -> snapped upright

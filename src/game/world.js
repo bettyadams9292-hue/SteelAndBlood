@@ -36,6 +36,7 @@ IF.world = {
     // a supply cache mid-section
     W.pickups.push(this.pickup('ammo', start + len * 0.5 + rng.next() * 200));
     if (rng.chance(0.5)) W.pickups.push(this.pickup('health', start + len * 0.65));
+    IF.eggs && IF.eggs.plant(run, W);
     return W;
   },
   waveSize(n, mode, rng) { return Math.round((3 + n * 0.55 + rng.next() * 2) * mode.enemyMult); },
@@ -71,6 +72,7 @@ IF.world = {
     if (!p.destructible || p.hp <= 0) return;
     p.hp -= dmg; IF.fx.sparks(p.x + p.w / 2, p.y + p.h / 2, 1, 3, '#d0b080'); IF.audio.hit('metal');
     if (p.hp <= 0) {
+      if (p.egg) IF.eggs.reward(run, p.egg, p.x + p.w / 2, p.y);
       if (p.explosive) { setTimeout(() => IF.combat.explode(p.x + p.w / 2, p.y + p.h / 2, 170, 110 + run.section * 8, 'player', { noSelf: false, burn: true }), 60); }
       for (let i = 0; i < 10; i++) IF.fx.spawn({ x: p.x + p.w / 2, y: p.y + p.h / 2, vx: (Math.random() - 0.5) * 500, vy: -200 - Math.random() * 300, life: 1, size: 4 + Math.random() * 5, color: '#5a4128', type: 'debris', grav: 1400, vr: 8, bounce: 0.3 });
       if (p.platform) run.world.platforms = run.world.platforms.filter((q) => !(q.x === p.x + 4));

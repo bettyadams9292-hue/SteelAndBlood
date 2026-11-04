@@ -39,6 +39,7 @@ IF.combat = {
         this.proj.release(p); return;
       }
       if (p.owner === 'player') {
+        if (run.world.eggTarget) IF.eggs.checkShot(run, p);
         for (const e of run.enemies) {
           if (e.dead || p.hit.has(e)) continue;
           const hb = e.hitbox();

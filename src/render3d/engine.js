@@ -107,7 +107,12 @@ IF.r3 = {
     const groundAhead = this.laneH(run.camX + IF.VIEW_W * 0.55);
     const footY = Math.min(py, groundAhead + 0.2);
     const tgtLook = new T.Vector3(cx, Math.max(footY, py - 1.2) + 1.95, 0);
-    const tgtPos = new T.Vector3(cx - 1.2, tgtLook.y + 0.55, 11.8);
+    let camZ = 11.8; const B = run.boss;
+    if (B && !B.dead && Math.abs(B.x - pl.x) < 1600) { // boss fights: frame both fighters and pull back so the boss's silhouette is never cropped
+      const mid = (B.x + pl.x) / 2 * this.S; tgtLook.x = tgtLook.x * 0.4 + mid * 0.6; camZ = 11.8 + Math.min(4, Math.abs(B.x - pl.x) * this.S * 0.35) + 1.5; tgtLook.y += 0.5;
+      IF.fx3d.lightEmitters.push({ x: B.x - 60 * (B.facing || 1), y: B.y - B.h * 0.9, z: 2.2, i: 14, c: '#ffd0a0', r: 10 }); // key light on the boss
+    }
+    const tgtPos = new T.Vector3(tgtLook.x - 1.2, tgtLook.y + 0.55, camZ);
     if (this.cine) this.cine.apply(tgtPos, tgtLook, dt);
     const k = this.snapCam ? 1 : Math.min(1, dt * (this.cine ? 3 : 6)); this.snapCam = false;
     this.camPos.lerp(tgtPos, k); this.camLook.lerp(tgtLook, k);

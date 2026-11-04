@@ -20,7 +20,7 @@ IF.terrain = {
   },
 
   /* Ground height under the play lane (metres). Global and continuous across sections. */
-  laneHeight(x) { const u = x * this.S; return 0.55 * Math.sin(u / 9.3) + 0.32 * Math.sin(u / 4.1 + 1.3) + 0.14 * Math.sin(u / 2.3 + 0.7); },
+  laneHeight(x) { if (this.flat) return 0; const u = x * this.S; return 0.55 * Math.sin(u / 9.3) + 0.32 * Math.sin(u / 4.1 + 1.3) + 0.14 * Math.sin(u / 2.3 + 0.7); },
   /* Full terrain height at (X metres, Z metres). The lane band (|z| < 2.4) follows laneHeight exactly. */
   height(X, Z, cfg, seed) {
     const lane = this.laneHeight(X / this.S);
@@ -41,7 +41,8 @@ IF.terrain = {
   /* ---------- per-frame management ---------- */
   update(run, cx) {
     const W = run.world;
-    if (!this.chunks.length || this.chunks[this.chunks.length - 1].world !== W) this.build(run, W);
+    if (W.home && IF.home.dirty) { IF.home.dirty = false; while (this.chunks.length) this.dispose(this.chunks.shift()); }
+    if (!this.chunks.length || this.chunks[this.chunks.length - 1].world !== W) { if (W.home) { while (this.chunks.length) this.dispose(this.chunks.shift()); this.chunks.push(IF.home3d.build(run, W)); } else this.build(run, W); }
     // drop chunks well behind the camera
     while (this.chunks.length > 2 || (this.chunks.length > 1 && cx - this.chunks[0].world.end * this.S > 40)) this.dispose(this.chunks.shift());
     const t = IF.r3.clock;

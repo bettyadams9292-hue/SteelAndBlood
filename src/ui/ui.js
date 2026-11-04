@@ -83,7 +83,7 @@ IF.ui = {
       btn('play', played ? 'Continue the Crusade' : 'Begin the Crusade', 'Endless Survival · Best: Section ' + d.stats.bestSection) +
       btn('modes', 'Game Modes', 'Boss Rush · Horde · Hardcore · Daily') +
       btn('armoury', 'Armoury', d.weapons.length + ' weapons') + '<div class="mrow">' + btn('equipment', 'Equipment', 'Armour & loadout') + btn('customise', 'Customise Knight', this.esc(d.appearance.name)) + '</div>' +
-      '<div class="mrow">' + btn('skills', 'Skill Tree' + pts) + btn('companions', 'Companions', d.companions.active.length + ' / ' + d.companions.slots + ' marching') + '</div>' + btn('forge', 'Blacksmith & Forge') +
+      '<div class="mrow">' + btn('skills', 'Skill Tree' + pts) + btn('companions', 'Companions', d.companions.active.length + ' / ' + d.companions.slots + ' marching') + '</div>' + '<div class="mrow">' + btn('home', 'Crusader Home', 'Your trophies & curiosities') + btn('forge', 'Blacksmith & Forge') + '</div>' +
       '<div class="mrow">' + btn('stats', 'Statistics') + btn('achievements', 'Achievements') + '</div>' +
       '<div class="mrow">' + btn('settings', 'Settings') + btn('howto', 'How to Play') + '</div>' +
       btn('newgame', 'New Game', 'Erase all progress') +
@@ -287,6 +287,18 @@ IF.ui = {
     const list = IF.ACHIEVEMENTS.map((a) => { const got = d.achievements[a.id]; if (got) n++; const v = Math.min(a.target, d.stats[a.stat] || 0); const rw = a.reward; return '<div class="ach ' + (got ? 'got' : '') + '"><div class="ai">' + (got ? '✠' : '✧') + '</div><div><b>' + a.name + '</b><p>' + a.desc + '</p><div class="pb"><i style="width:' + (v / a.target * 100) + '%"></i></div><small>' + IF.util.fmt(v) + ' / ' + IF.util.fmt(a.target) + ' · Reward: ' + this.costHtml(rw) + '</small></div></div>'; }).join('');
     return this.header('Achievements', n + ' / ' + IF.ACHIEVEMENTS.length + ' unlocked') + '<div class="scroll achs">' + list + '</div>';
   },
+  /* ---------- HOME: display slot picker ---------- */
+  homeSlot(slot) {
+    if (this.homePanel) return; const h = IF.home.data(), cur = h.slots[slot.id]; this.homeSlotId = slot.id; IF.game.state = 'paused';
+    const all = IF.HOME_ITEMS.concat(Object.values(IF.EGG_ITEM)).filter((i) => i.kind === slot.k);
+    const where = (id) => { for (const k in h.slots) if (h.slots[k] === id) return k; return null; };
+    const groups = {}; for (const it of all) (groups[it.cat] = groups[it.cat] || []).push(it);
+    let html = '<div class="ovbox homepick"><h2>' + (slot.k === 'wall' ? 'Wall Mount' : 'Floor Space') + '</h2><p class="dim">Choose what to display here. Items already shown elsewhere are moved.</p><div class="scroll hpl">';
+    for (const cat in groups) { html += '<h4>' + cat + '</h4><div class="hgrid">'; for (const it of groups[cat]) { const own = h.owned[it.id], w = where(it.id); html += '<button class="btn hitem ' + (it.id === cur ? 'pri' : '') + '" data-act="hplace" data-id="' + it.id + '" data-nav ' + (own ? '' : 'disabled') + '><b>' + (own ? this.esc(it.name) : '???') + '</b><small>' + (own ? (w ? (w === slot.id ? 'Displayed here' : 'Shown elsewhere — will move') : 'In storage') : 'Locked · ' + this.esc(it.src)) + '</small></button>'; } html += '</div>'; }
+    html += '</div><div class="acts">' + (cur ? '<button class="btn" data-act="hplace" data-id="" data-nav>Remove (put in storage)</button>' : '') + '<button class="btn" data-act="hclose" data-nav>Close</button></div></div>';
+    const el = document.createElement('div'); el.className = 'dlg scr'; el.innerHTML = html; this.root.appendChild(el); this.homePanel = el;
+  },
+  closeHomeSlot() { if (this.homePanel) { this.homePanel.remove(); this.homePanel = null; } if (IF.game.run && IF.game.run.mode.home) IF.game.state = 'playing'; },
   /* ---------- COMPANIONS ---------- */
   r_companions() {
     const d = IF.save.data, C = d.companions;
@@ -384,6 +396,9 @@ IF.ui = {
       case 'back': this.back(); break;
       case 'play': IF.game.newRun('endless'); break;
       case 'modes': case 'armoury': case 'equipment': case 'skills': case 'forge': case 'stats': case 'achievements': case 'settings': case 'howto': case 'companions': this.show(a, true); break;
+      case 'home': IF.home.enter(); break;
+      case 'hplace': IF.home.place(this.homeSlotId, ds.id || null); this.closeHomeSlot(); break;
+      case 'hclose': this.closeHomeSlot(); break;
       case 'chire': if (IF.companions.hire(ds.id)) { this.toast(IF.COMPANION[ds.id].name + ' joins the crusade.'); IF.audio.ui('upgrade'); } else IF.audio.ui('error'); this.render(); break;
       case 'cup': if (IF.companions.upgrade(ds.id)) { this.toast(IF.COMPANION[ds.id].name + ' grows stronger.'); IF.audio.ui('upgrade'); } else IF.audio.ui('error'); this.render(); break;
       case 'ctog': if (!IF.companions.toggle(ds.id)) { IF.audio.ui('error'); this.toast('All companion slots are full — stand one down first.', 'bad'); } this.render(); break;
