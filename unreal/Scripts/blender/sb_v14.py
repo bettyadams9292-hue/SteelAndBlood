@@ -342,9 +342,14 @@ def upgrade_materials():
     return done
 
 # ------------------------------------------------------------------ export
-def export_game_mesh(rig, path, sub_levels=1):
+def export_game_mesh(rig, path, sub_levels=0, curve_res=4, decimate=0.5):
     """Bake every bound part (modifiers evaluated) into one skinned mesh with per-bone vertex groups and export glTF."""
-    rig.data.pose_position = 'REST'; bpy.context.view_layer.update()
+    rig.data.pose_position = 'REST'
+    saved_ss = [(m, m.levels) for o in D.objects for m in getattr(o, 'modifiers', []) if m.type == 'SUBSURF']
+    saved_cv = [(o.data, o.data.resolution_u, o.data.bevel_resolution) for o in D.objects if o.type == 'CURVE']
+    for m, l in saved_ss: m.levels = min(l, sub_levels)
+    for c, ru, br in saved_cv: c.resolution_u = min(ru, curve_res); c.bevel_resolution = min(br, 1)
+    bpy.context.view_layer.update()
     dg = bpy.context.evaluated_depsgraph_get()
     pieces = []
     for o in D.objects:
@@ -356,8 +361,6 @@ def export_game_mesh(rig, path, sub_levels=1):
                 bn = p.parent_bone if p.parent_type == 'BONE' else None; grad = p.parent_type != 'BONE'; break
             p = p.parent
         if p is None: continue
-        for m in o.modifiers:
-            if m.type == 'SUBSURF': m.levels = min(m.levels, sub_levels)
         ev = o.evaluated_get(dg)
         try: me = D.meshes.new_from_object(ev, preserve_all_data_layers=True, depsgraph=dg)
         except Exception: continue
@@ -378,6 +381,10 @@ def export_game_mesh(rig, path, sub_levels=1):
     bpy.context.view_layer.objects.active = pieces[0]
     bpy.ops.object.join()
     gm = bpy.context.view_layer.objects.active; gm.name = 'SK_HeroKnight_v14'
+    tris_full = sum(len(p.vertices) - 2 for p in gm.data.polygons)
+    if decimate and decimate < 1.0:
+        dm = gm.modifiers.new('Dec', 'DECIMATE'); dm.ratio = decimate; dm.use_collapse_triangulate = True
+        bpy.ops.object.modifier_apply(modifier=dm.name)
     gm.parent = rig; m = gm.modifiers.new('Armature', 'ARMATURE'); m.object = rig
     tris = sum(len(p.vertices) - 2 for p in gm.data.polygons)
     bpy.ops.object.select_all(action='DESELECT'); gm.select_set(True); rig.select_set(True); bpy.context.view_layer.objects.active = rig
@@ -388,5 +395,7 @@ def export_game_mesh(rig, path, sub_levels=1):
                               export_texcoords=True, export_normals=True, export_materials='EXPORT')
     for tr in rig.animation_data.nla_tracks: tr.mute = True
     D.objects.remove(gm, do_unlink=True)
+    for m, l in saved_ss: m.levels = l
+    for c, ru, br in saved_cv: c.resolution_u = ru; c.bevel_resolution = br
     rig.data.pose_position = 'POSE'
-    return {'tris': tris, 'path': path, 'parts': len(pieces)}
+    return {'tris': tris, 'tris_before_decimate': tris_full, 'path': path, 'parts': len(pieces)}
