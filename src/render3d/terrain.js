@@ -90,7 +90,7 @@ IF.terrain = {
   },
   fitToWidth(g, p) { // scale lane props to the gameplay footprint so platforms line up with physics
     const box = new IF.r3.T.Box3().setFromObject(g), w = (box.max.x - box.min.x) / this.S;
-    if (w > 0.3 && p.platform) { const k = Math.max(0.75, Math.min(1.35, p.w / w)), tall = { well: 1, cart: 1, car: 1, jeep: 1, bus: 1, tank: 1 }[p.type]; /* structures with a roof/cab keep their proportions; flat-topped platforms match the physics height (within ±20%) */ g.scale.set(k, tall ? k : Math.max(0.8, Math.min(1.2, p.h / ((box.max.y - box.min.y) / this.S))), Math.min(1.4, Math.max(0.8, k))); }
+    if (w > 0.3 && p.platform) { const k = Math.max(0.75, Math.min(1.35, p.w / w)), tall = { well: 1, cart: 1, car: 1, jeep: 1, bus: 1, tank: 1, barricade: 1, crate: 1 }[p.type]; /* structures with a roof/cab keep their proportions; flat-topped platforms match the physics height (within ±20%) */ g.scale.set(k, tall ? k : Math.max(0.8, Math.min(1.2, p.h / ((box.max.y - box.min.y) / this.S))), Math.min(1.4, Math.max(0.8, k))); }
   },
   wreckMesh(group, cx, p) { const g = IF.kit.rubble(6); g.position.set(cx * this.S, this.laneHeight(cx), 0.1); g.visible = false; group.add(g); return g; },
   harvest(g, chunk, lx, ly) { // collect animated parts and light emitters from a built kit object
@@ -200,7 +200,7 @@ IF.terrain = {
       case 'highway': at(2, () => big(K.overpass(30), 1.5)); at(1, () => big(K.billboard ? K.billboard(rng) : K.cityBlock(rng), 2)); break;
       case 'checkpoint': at(3, () => big(K.watchtower(), 2)); break;
       case 'city': at(5, () => big(K.cityBlock(rng), 2.2 + rng.next())); break; // the dead skyline
-      case 'battlefield': at(3, () => fire(big(K.tank(), 3), 2)); break; // burning armour on the ridge
+      case 'battlefield': at(3, () => fire(big(K.tank(), 1.6), 2)); break; // burning armour on the ridge
       case 'base': at(2, () => big(K.hangar(rng), 1.8)); at(2, () => big(K.watchtower(), 2.2)); break;
       case 'industrial': at(4, () => fire(big(K.chimney(rng), 2), 12)); break;
       case 'settlement': at(1, () => fire(big(K.church(rng), 2), 4)); at(3, () => big(K.shack(rng), 2.6)); break;

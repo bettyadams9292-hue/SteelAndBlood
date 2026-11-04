@@ -24,23 +24,94 @@ IF.kit = {
   }; },
   mats() { return this._m || (this._m = this.M()); },
   /* World-scale standards (metres) checked by audit(): the knight is 1.8 m tall; everything is sized against him. */
-  STANDARDS: { crate: [0.5, 0.75], barrel: [0.8, 1.0], fence: [0.95, 1.15], well: [2.0, 2.6], brazier: [1.0, 1.5], banner: [1.6, 2.2], cart: [0.6, 1.6], car: [1.0, 1.7], cone: [0.3, 0.8], tyres: [0.3, 0.8], hydrant: [0.35, 0.8], locker: [0.8, 2.0], sandbags: [0.3, 0.9], log: [0.25, 0.7], stump: [0.2, 0.7] },
+  STANDARDS: { crate: [0.5, 0.75], barrel: [0.8, 1.0], barricade: [0.9, 1.4], fence: [0.95, 1.15], well: [2.0, 2.6], brazier: [1.0, 1.5], banner: [1.6, 2.2], cart: [0.9, 1.6], car: [1.2, 1.6], jeep: [1.4, 2.0], bus: [2.0, 2.4], tank: [2.0, 2.8], cone: [0.3, 0.8], tyres: [0.3, 0.8], hydrant: [0.35, 0.8], locker: [0.8, 2.0], sandbags: [0.3, 0.9], log: [0.25, 0.7], stump: [0.2, 0.7] },
   audit() { // returns [prop, height, [min,max]] for every builder whose real height breaks its standard
     const T = this.T, out = []; for (const k in this.STANDARDS) { const g = this.prop(k); if (!g) continue; const b = new T.Box3().setFromObject(g), h = b.max.y - b.min.y, [lo, hi] = this.STANDARDS[k]; if (h < lo || h > hi) out.push([k, +h.toFixed(2), [lo, hi]]); if (b.min.y < -0.05) out.push([k + ' (below ground)', +b.min.y.toFixed(2)]); }
     return out; },
 
   /* ---------- props (gameplay lane objects) ---------- */
-  crate(w = 0.62, h = 0.58) { const M = this.mats(), g = this.g(); this.box(w, h, w, M.timber, 0, h / 2, 0, g); for (const s of [-1, 1]) { this.box(w + 0.02, 0.06, 0.06, M.timberDark, 0, h / 2, s * w / 2, g).rotation.z = Math.atan2(h, w); this.box(0.06, h, 0.04, M.timberDark, s * w / 2, h / 2, w / 2 + 0.01, g); } this.box(w + 0.02, 0.05, w + 0.02, M.timberDark, 0, h - 0.025, 0, g); return g; },
-  barrel(explosive) { const M = this.mats(), g = this.g(), mat = explosive ? M.red : IF.mat.metal('#3e4a32', 0.6, 0.6); this.cyl(0.22, 0.22, 0.86, mat, 0, 0.43, 0, g, 18); for (const y of [0.18, 0.68]) this.mesh(new this.T.TorusGeometry(0.222, 0.015, 6, 20), M.iron, 0, y, 0, g).rotation.x = Math.PI / 2; if (explosive) { const lab = this.box(0.18, 0.18, 0.01, IF.mat.basic('#f0c040', 0.6), 0, 0.45, 0.222, g); lab.rotation.z = Math.PI / 4; } return g; },
+  /* side-profile extrusion helper: pts in (x, y) metres, extruded across z (width), centred, softly bevelled */
+  profile(pts, width, mat, g, bevel = 0.03) { const T = this.T, sh = new T.Shape(); sh.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) sh.lineTo(pts[i][0], pts[i][1]); sh.closePath(); const geo = new T.ExtrudeGeometry(sh, { depth: width - bevel * 2, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 4 }); geo.translate(0, 0, -(width - bevel * 2) / 2); return this.mesh(geo, mat, 0, 0, 0, g); },
+  wheel(g, x, y, z, r, w, tyre, rim, spokes) { const T = this.T, t = this.mesh(new T.TorusGeometry(r * 0.78, r * 0.24, 8, 18), tyre, x, y, z, g); const hub = this.cyl(r * 0.5, r * 0.5, w * 0.9, rim, x, y, z, g, 12); hub.rotation.x = Math.PI / 2; if (spokes) for (let i = 0; i < spokes; i++) { const sp = this.box(0.03, r * 1.5, 0.03, rim, x, y, z, g); sp.rotation.z = i / spokes * Math.PI; } this.cyl(r * 0.18, r * 0.18, w, IF.mat.metal('#6a6a66', 0.5, 0.8), x, y, z, g, 8).rotation.x = Math.PI / 2; return t; },
+  crate(w = 0.62, h = 0.58) { // plank crate: boarded faces with gaps, frame battens on every edge, diagonal braces, nail heads, stencil
+    const M = this.mats(), g = this.g(), n = 4, pw = w / n;
+    this.box(w - 0.04, h - 0.04, w - 0.04, M.timberDark, 0, h / 2, 0, g); // inner shadow body (shows through the plank gaps)
+    for (const s of [-1, 1]) for (let i = 0; i < n; i++) { this.box(pw - 0.012, h - 0.02, 0.025, M.timber, -w / 2 + pw * (i + 0.5), h / 2, s * (w / 2 - 0.0125), g); this.box(0.025, h - 0.02, pw - 0.012, M.timber, s * (w / 2 - 0.0125), h / 2, -w / 2 + pw * (i + 0.5), g); }
+    for (let i = 0; i < n; i++) this.box(pw - 0.012, 0.025, w - 0.02, M.timber, -w / 2 + pw * (i + 0.5), h - 0.0125, 0, g);
+    for (const sy of [0.03, h - 0.03]) for (const s of [-1, 1]) { this.box(w + 0.01, 0.06, 0.03, M.timberDark, 0, sy, s * (w / 2 + 0.005), g); this.box(0.03, 0.06, w + 0.01, M.timberDark, s * (w / 2 + 0.005), sy, 0, g); }
+    for (const s of [-1, 1]) { const br = this.box(Math.hypot(w, h) - 0.12, 0.06, 0.02, M.timberDark, 0, h / 2, s * (w / 2 + 0.02), g); br.rotation.z = Math.atan2(h, w) * s; }
+    for (const s of [-1, 1]) for (const x of [-w / 2 + 0.05, w / 2 - 0.05]) for (const y of [0.03, h - 0.03]) this.mesh(new this.T.SphereGeometry(0.008, 4, 3), M.iron, x, y, s * (w / 2 + 0.022), g);
+    return g; },
+  barrel(explosive) { // 200-litre steel drum: rolling hoops, rolled rims, lid with bungs, dents; fuel drums get hazard band and diamond
+    const M = this.mats(), g = this.g(), T = this.T, mat = explosive ? M.red : IF.mat.metal('#3e4a32', 0.6, 0.6), R = 0.29, H = 0.88;
+    const pr = [[R - 0.01, 0], [R, 0.02], [R, 0.27], [R + 0.012, 0.29], [R, 0.31], [R, 0.57], [R + 0.012, 0.59], [R, 0.61], [R, H - 0.02], [R - 0.01, H]].map(([a, b]) => new T.Vector2(a, b));
+    this.mesh(new T.LatheGeometry(pr, 24), mat, 0, 0, 0, g); for (const y of [0.005, H - 0.005]) this.mesh(new T.TorusGeometry(R - 0.004, 0.012, 5, 24), M.iron, 0, y, 0, g).rotation.x = Math.PI / 2;
+    this.mesh(new T.CircleGeometry(R - 0.01, 24), mat, 0, H - 0.012, 0, g).rotation.x = -Math.PI / 2; for (const [bx, bz, br] of [[0.15, 0.1, 0.035], [-0.16, -0.08, 0.025]]) this.cyl(br, br, 0.02, M.iron, bx, H - 0.005, bz, g, 8);
+    if (explosive) { this.mesh(new T.CylinderGeometry(R + 0.002, R + 0.002, 0.08, 24, 1, true), IF.mat.basic('#f0c040', 0.6), 0, 0.44, 0, g); const lab = this.box(0.16, 0.16, 0.01, IF.mat.basic('#f0c040', 0.6), 0, 0.72, R + 0.004, g); lab.rotation.z = Math.PI / 4; }
+    return g; },
   barrels() { const g = this.g(); for (let i = 0; i < 2; i++) { const b = this.barrel(false); b.position.x = -0.24 + i * 0.48; g.add(b); } const t = this.barrel(false); t.rotation.z = Math.PI / 2; t.position.set(0, 0.86 + 0.22, 0); t.position.x = 0.43; g.add(t); return g; },
   sandbags(len = 1.2, rows = 3) { const M = this.mats(), g = this.g(), geo = new this.T.CapsuleGeometry(0.1, 0.2, 4, 8); for (let r = 0; r < rows; r++) for (let i = 0; i < Math.round(len / 0.32) - (r === rows - 1 ? 1 : 0); i++) { const m = this.mesh(geo, M.sand, -len / 2 + 0.16 + i * 0.32 + (r % 2) * 0.16, 0.1 + r * 0.17, (Math.random() - 0.5) * 0.04, g); m.rotation.z = Math.PI / 2; m.scale.set(1, 1.35, 0.8); } return g; },
-  cart() { const M = this.mats(), g = this.g(); this.box(1.1, 0.08, 0.7, M.timber, 0, 0.42, 0, g); for (const s of [-1, 1]) this.box(1.1, 0.25, 0.04, M.timber, 0, 0.58, s * 0.35, g); for (const s of [-1, 1]) { const w = this.mesh(new this.T.TorusGeometry(0.26, 0.04, 6, 16), M.timberDark, 0.1, 0.27, s * 0.42, g); this.cyl(0.03, 0.03, 0.5, M.timberDark, 0.1, 0.27, s * 0.42, g).rotation.x = Math.PI / 2; } this.box(0.9, 0.04, 0.04, M.timberDark, 0.95, 0.4, 0, g); this.box(0.7, 0.2, 0.5, IF.mat.cloth('#6a5a3a'), -0.1, 0.62, 0, g); return g; },
-  car(color) { const M = this.mats(), g = this.g(), paint = IF.mat.metal(color || '#5a2a24', 0.65, 0.45); const body = this.box(1.7, 0.42, 0.85, paint, 0, 0.45, 0, g); this.box(0.95, 0.36, 0.78, paint, -0.08, 0.84, 0, g); this.box(0.5, 0.3, 0.8, M.glass, 0.28, 0.83, 0, g).rotation.z = -0.5; this.box(0.4, 0.28, 0.8, M.glass, -0.47, 0.83, 0, g).rotation.z = 0.5; for (const sx of [-0.55, 0.55]) for (const sz of [-0.42, 0.42]) { const w = this.cyl(0.19, 0.19, 0.14, M.tyre, sx, 0.19, sz, g, 14); w.rotation.x = Math.PI / 2; } this.box(1.72, 0.06, 0.87, M.rust, 0, 0.24, 0, g); g.rotation.z = (Math.random() - 0.5) * 0.06; return g; },
-  jeep() { const M = this.mats(), g = this.g(); this.box(1.8, 0.5, 0.9, M.olive, 0, 0.55, 0, g); this.box(0.6, 0.3, 0.9, M.olive, 0.6, 0.9, 0, g); for (const x of [-0.75, 0.1]) this.box(0.04, 0.5, 0.86, M.iron, x, 1.05, 0, g); this.box(0.9, 0.04, 0.9, M.canvas, -0.32, 1.3, 0, g); for (const sx of [-0.6, 0.6]) for (const sz of [-0.46, 0.46]) this.cyl(0.24, 0.24, 0.18, M.tyre, sx, 0.24, sz, g, 14).rotation.x = Math.PI / 2; const st = this.mesh(new this.T.CircleGeometry(0.16, 20), M.white, 0.2, 0.62, 0.452, g); IF.kit.emblemMesh(g, 0.2, 0.62, 0.455, 0.18, '#a3181e'); return g; },
-  bus() { const M = this.mats(), g = this.g(), p = IF.mat.metal('#8a6a24', 0.7, 0.3); this.box(3, 1.05, 1.0, p, 0, 0.75, 0, g); for (let i = 0; i < 7; i++) this.box(0.32, 0.36, 1.02, M.glass, -1.3 + i * 0.42, 1.0, 0, g); for (const sx of [-1, 1]) for (const sz of [-0.5, 0.5]) this.cyl(0.24, 0.24, 0.16, M.tyre, sx, 0.24, sz, g, 14).rotation.x = Math.PI / 2; g.rotation.z = 0.04; return g; },
-  tank() { const M = this.mats(), g = this.g(); this.box(2.6, 0.5, 1.4, M.olive, 0, 0.55, 0, g); this.box(1.3, 0.38, 1.0, M.olive, -0.1, 0.99, 0, g); const gun = this.cyl(0.06, 0.07, 1.6, M.olive, 1.1, 1.0, 0, g); gun.rotation.z = Math.PI / 2 - 0.08; for (const s of [-1, 1]) { this.box(2.7, 0.38, 0.32, M.dark, 0, 0.22, s * 0.62, g); for (let i = 0; i < 6; i++) this.cyl(0.13, 0.13, 0.34, M.iron, -1.05 + i * 0.42, 0.18, s * 0.62, g).rotation.x = Math.PI / 2; } g.rotation.z = -0.05; return g; },
+  cart() { // two-wheeled hand cart: plank bed on a frame, slatted sides, spoked iron-shod wheels on an axle, long shafts with grips, sacks and a spade
+    const M = this.mats(), g = this.g(), L = 1.5, Wd = 0.95, by = 0.62;
+    this.box(L, 0.06, Wd, M.timber, 0, by, 0, g); for (const s of [-1, 1]) this.box(L + 0.1, 0.1, 0.08, M.timberDark, 0.05, by - 0.08, s * (Wd / 2 - 0.04), g);
+    for (const s of [-1, 1]) { for (const y of [0.16, 0.34]) this.box(L, 0.08, 0.04, M.timber, 0, by + y, s * (Wd / 2), g); for (const x of [-L / 2 + 0.05, 0, L / 2 - 0.05]) this.box(0.05, 0.42, 0.05, M.timberDark, x, by + 0.2, s * (Wd / 2), g); }
+    for (const y of [0.16, 0.34]) this.box(0.04, 0.08, Wd, M.timber, -L / 2, by + y, 0, g);
+    const ax = this.cyl(0.04, 0.04, Wd + 0.3, M.iron, -0.1, 0.42, 0, g, 8); ax.rotation.x = Math.PI / 2;
+    for (const s of [-1, 1]) this.wheel(g, -0.1, 0.42, s * (Wd / 2 + 0.12), 0.42, 0.08, M.iron, M.timberDark, 8);
+    for (const s of [-1, 1]) { const sh = this.box(1.3, 0.06, 0.06, M.timberDark, L / 2 + 0.55, by - 0.18, s * 0.32, g); sh.rotation.z = -0.25; this.cyl(0.03, 0.03, 0.18, M.leather, L / 2 + 1.15, by - 0.35, s * 0.32, g, 6).rotation.x = Math.PI / 2; } this.box(0.05, 0.05, 0.7, M.timberDark, L / 2 + 0.3, by - 0.12, 0, g);
+    for (const [x, z] of [[-0.35, -0.2], [0.05, 0.15], [-0.15, 0.25]]) { const sk = this.mesh(new this.T.CapsuleGeometry(0.16, 0.25, 4, 8), M.sand, x, by + 0.2, z, g); sk.rotation.z = Math.PI / 2; sk.scale.set(1, 1, 0.8); }
+    const sp = this.box(0.04, 1.1, 0.04, M.timber, 0.45, by + 0.45, -0.25, g); sp.rotation.z = -0.7; return g; },
+  car(color) { // abandoned saloon: extruded body with wheel arches, glasshouse with pillars, bumpers, lamps, flat tyres on steel wheels, rust and grime
+    const M = this.mats(), g = this.g(), paint = IF.mat.metal(color || '#5a2a24', 0.7, 0.4), L = 3.6, Wd = 1.62;
+    const body = [[-1.8, 0.28], [-1.82, 0.62], [-1.72, 0.78], [-1.0, 0.82], [1.05, 0.8], [1.78, 0.68], [1.82, 0.42], [1.78, 0.28], [1.45, 0.28], [1.42, 0.52], [1.22, 0.7], [0.92, 0.72], [0.72, 0.52], [0.7, 0.28], [-0.7, 0.28], [-0.72, 0.52], [-0.92, 0.72], [-1.22, 0.7], [-1.42, 0.52], [-1.45, 0.28]];
+    this.profile(body, Wd, paint, g, 0.05);
+    this.profile([[-1.0, 0.8], [-0.62, 1.28], [0.42, 1.3], [0.9, 0.82]], Wd - 0.16, paint, g, 0.04);
+    for (const s of [-1, 1]) { this.profile([[-0.9, 0.84], [-0.58, 1.22], [0.38, 1.24], [0.78, 0.84]], 0.02, M.glass, g, 0).position.z = s * (Wd / 2 - 0.07); }
+    const ws = this.box(0.02, 0.56, Wd - 0.3, M.glass, 0.66, 1.05, 0, g); ws.rotation.z = 0.83; const rw = this.box(0.02, 0.5, Wd - 0.3, M.glass, -0.82, 1.05, 0, g); rw.rotation.z = -0.9;
+    for (const s of [-1, 1]) this.box(0.08, 0.46, 0.06, paint, -0.12, 1.05, s * (Wd / 2 - 0.08), g); // B-pillars
+    for (const x of [-1.86, 1.86]) this.box(0.08, 0.12, Wd + 0.04, IF.mat.metal('#8a8a88', 0.35, 0.9), x, 0.36, 0, g); // bumpers
+    for (const s of [-1, 1]) { this.cyl(0.08, 0.08, 0.04, IF.mat.basic('#d8d2b8', 0.2, 0.3), 1.83, 0.6, s * 0.55, g, 12).rotation.z = Math.PI / 2; this.box(0.03, 0.08, 0.2, IF.mat.basic('#6a0a08', 0.3), -1.83, 0.62, s * 0.6, g); }
+    for (const sx of [-1.07, 1.07]) for (const s of [-1, 1]) this.wheel(g, sx, 0.34, s * (Wd / 2 - 0.12), 0.33, 0.2, M.tyre, IF.mat.metal('#5a5a58', 0.6, 0.7), 0);
+    const grime = this.box(L - 0.2, 0.18, Wd + 0.01, M.rust, 0, 0.36, 0, g); grime.scale.set(1, 1, 1); g.rotation.z = (Math.random() - 0.5) * 0.04; return g; },
+  jeep() { // WWII utility jeep: slab body with flat hood, slotted grille, cut-down sides, flat fenders, folding windscreen, canvas top on bows, spare wheel, star
+    const M = this.mats(), g = this.g(), L = 3.3, Wd = 1.5, o = M.olive;
+    this.profile([[-1.55, 0.42], [-1.6, 0.95], [0.35, 0.95], [0.4, 1.05], [1.55, 1.02], [1.62, 0.6], [1.6, 0.42]], Wd, o, g, 0.03);
+    for (const s of [-1, 1]) this.box(1.0, 0.04, 0.3, o, 1.05, 0.82, s * (Wd / 2 + 0.1), g); for (const s of [-1, 1]) this.box(0.9, 0.04, 0.28, o, -1.05, 0.8, s * (Wd / 2 + 0.08), g); // fenders
+    for (let i = 0; i < 9; i++) this.box(0.02, 0.36, 0.05, M.dark, 1.63, 0.72, -0.4 + i * 0.1, g); for (const s of [-1, 1]) this.cyl(0.08, 0.08, 0.05, IF.mat.basic('#c8c2a8', 0.2, 0.3), 1.64, 0.88, s * 0.5, g, 12).rotation.z = Math.PI / 2;
+    const fr = this.box(0.04, 0.5, Wd - 0.1, o, 0.35, 1.3, 0, g); fr.rotation.z = -0.2; this.box(0.02, 0.4, Wd - 0.2, M.glass, 0.37, 1.3, 0, g).rotation.z = -0.2;
+    for (const x of [-1.2, -0.4]) { const bow = this.mesh(new this.T.TorusGeometry(Wd / 2 - 0.05, 0.02, 4, 12, Math.PI), M.iron, x, 1.05, 0, g); bow.rotation.y = Math.PI / 2; bow.scale.set(1, 0.9, 1); }
+    const top = this.box(0.95, 0.04, Wd - 0.04, M.canvas, -0.8, 1.72, 0, g);
+    for (const sx of [-1.0, 1.05]) for (const s of [-1, 1]) this.wheel(g, sx, 0.41, s * (Wd / 2 - 0.05), 0.4, 0.22, M.tyre, o, 0);
+    this.wheel(g, -1.72, 0.85, 0, 0.36, 0.2, M.tyre, o, 0).rotation.y = Math.PI / 2;
+    this.mesh(new this.T.CircleGeometry(0.2, 20), M.white, 0.9, 1.06, 0, g).rotation.x = -Math.PI / 2; IF.kit.emblemMesh(g, 0.9, 1.065, 0, 0.2, '#a3181e'); return g; },
+  bus() { // burnt-out delivery van: boxy body with cab, windscreen, side door and window, roof rack, smashed lamp, flat tyres
+    const M = this.mats(), g = this.g(), p = IF.mat.metal('#8a6a24', 0.75, 0.35), Wd = 1.9;
+    this.profile([[-2.3, 0.4], [-2.32, 2.1], [0.9, 2.12], [1.25, 1.95], [1.75, 1.25], [2.3, 1.15], [2.32, 0.45], [2.25, 0.4], [1.95, 0.4], [1.9, 0.62], [1.68, 0.8], [1.35, 0.8], [1.15, 0.62], [1.1, 0.4], [-1.1, 0.4], [-1.15, 0.62], [-1.35, 0.8], [-1.68, 0.8], [-1.9, 0.62], [-1.95, 0.4]], Wd, p, g, 0.04);
+    const ws = this.box(0.02, 0.8, Wd - 0.2, M.glass, 1.52, 1.58, 0, g); ws.rotation.z = 0.68;
+    for (const s of [-1, 1]) { this.box(0.7, 0.55, 0.02, M.glass, 1.1, 1.55, s * (Wd / 2 + 0.005), g); this.box(1.0, 1.5, 0.02, IF.mat.metal('#6a5020', 0.8, 0.3), -0.2, 1.15, s * (Wd / 2 + 0.006), g); }
+    for (let i = 0; i < 6; i++) this.box(0.04, 0.06, Wd - 0.1, M.iron, -2 + i * 0.55, 2.2, 0, g); for (const s of [-1, 1]) this.box(3.2, 0.05, 0.04, M.iron, -0.65, 2.25, s * (Wd / 2 - 0.08), g);
+    this.box(0.1, 0.16, Wd + 0.04, IF.mat.metal('#5a5a58', 0.5, 0.8), 2.35, 0.55, 0, g); this.box(0.1, 0.16, Wd + 0.04, IF.mat.metal('#5a5a58', 0.5, 0.8), -2.37, 0.55, 0, g);
+    for (const sx of [-1.52, 1.52]) for (const s of [-1, 1]) this.wheel(g, sx, 0.37, s * (Wd / 2 - 0.12), 0.36, 0.24, M.tyre, IF.mat.metal('#4a4a48', 0.7, 0.6), 0);
+    const soot = this.box(2.4, 0.9, Wd + 0.02, IF.mat.basic('#120c08', 1), -0.9, 1.65, 0, g); soot.scale.set(1, 1, 1); soot.material = IF.mat.get('sootT', () => new this.T.MeshStandardMaterial({ color: '#0a0604', transparent: true, opacity: 0.45, roughness: 1 })); soot.castShadow = false;
+    g.rotation.z = 0.02; return g; },
+  tank() { // knocked-out light tank: sloped hull, tracks on road wheels with skirts, turret with mantlet and gun, hatch, spare track links
+    const M = this.mats(), g = this.g(), o = M.olive, Wd = 2.4;
+    this.profile([[-2.3, 0.55], [-2.4, 1.15], [-1.9, 1.35], [1.6, 1.35], [2.4, 1.0], [2.35, 0.55]], Wd - 0.7, o, g, 0.04);
+    for (const s of [-1, 1]) { const z = s * (Wd / 2 - 0.3); this.profile([[-2.45, 0.25], [-2.6, 0.55], [-2.35, 0.82], [2.35, 0.82], [2.6, 0.55], [2.45, 0.25], [2.2, 0.05], [-2.2, 0.05]], 0.5, M.dark, g, 0.02).position.z = z; for (let i = 0; i < 6; i++) { const rw = this.cyl(0.26, 0.26, 0.52, M.iron, -1.75 + i * 0.7, 0.32, z, g, 14); rw.rotation.x = Math.PI / 2; } this.box(4.6, 0.3, 0.04, o, 0, 0.92, s * (Wd / 2 + 0.0), g); }
+    const tur = this.profile([[-0.95, 1.35], [-1.05, 1.75], [-0.7, 2.0], [0.7, 2.0], [1.0, 1.75], [0.9, 1.35]], 1.6, o, g, 0.05); tur.position.x = -0.2;
+    this.box(0.3, 0.4, 0.5, o, 0.85, 1.7, 0, g); const gun = this.cyl(0.07, 0.08, 2.3, o, 2.1, 1.72, 0, g, 10); gun.rotation.z = Math.PI / 2 - 0.12; this.cyl(0.1, 0.1, 0.25, o, 3.22, 1.86, 0, g, 10).rotation.z = Math.PI / 2 - 0.12;
+    this.cyl(0.3, 0.3, 0.1, o, -0.4, 2.05, 0.3, g, 12); const hatch = this.cyl(0.3, 0.3, 0.05, o, -0.65, 2.3, 0.3, g, 12); hatch.rotation.z = 1.1;
+    for (let i = 0; i < 5; i++) this.box(0.18, 0.04, 0.45, M.dark, -1.5 + i * 0.2, 1.37, -0.6, g);
+    const burn = this.box(1.2, 0.02, 1.0, IF.mat.basic('#0e0a08', 1), 0.9, 1.36, 0.2, g); burn.castShadow = false; g.rotation.z = -0.03; return g; },
   container(color) { const M = this.mats(), g = this.g(), p = IF.mat.metal(color || '#6a2a1e', 0.75, 0.5); this.box(2.4, 1.2, 1.2, p, 0, 0.6, 0, g); for (let i = 0; i < 12; i++) this.box(0.03, 1.1, 1.22, p, -1.1 + i * 0.2, 0.6, 0, g); return g; },
-  barricade() { const M = this.mats(), g = this.g(); for (let i = 0; i < 5; i++) { const b = this.box(1.3, 0.14, 0.06, M.timber, 0, 0.18 + i * 0.13, (i % 2) * 0.05, g); b.rotation.z = (i - 2) * 0.12; } this.crate(0.5, 0.45).children.forEach(() => {}); const c = this.crate(0.5, 0.45); c.position.set(0.2, 0, -0.35); g.add(c); return g; },
+  barricade() { // survivor barricade: knife-rest frame (crossed timbers + rail) faced with salvaged planks and a door, sandbags at the foot, a hand-painted sign
+    const M = this.mats(), g = this.g(), L = 1.6;
+    for (const x of [-L / 2 + 0.1, L / 2 - 0.1]) for (const s of [-1, 1]) { const leg = this.box(0.08, 1.1, 0.08, M.timberDark, x, 0.5, 0, g); leg.rotation.x = s * 0.45; }
+    this.box(L, 0.08, 0.08, M.timberDark, 0, 0.92, 0, g);
+    for (let i = 0; i < 5; i++) { const b = this.box(L * (0.8 + (i % 3) * 0.08), 0.14, 0.04, i === 2 ? IF.mat.wood('#6a5040') : M.timber, (i % 2 ? 0.06 : -0.05), 0.2 + i * 0.16, 0.22, g); b.rotation.z = ((i * 37) % 7 - 3) * 0.025; }
+    this.box(0.6, 0.85, 0.04, IF.mat.wood('#4a3a2a'), 0.35, 0.5, 0.25, g); this.mesh(new this.T.TorusGeometry(0.03, 0.008, 4, 8), M.iron, 0.55, 0.5, 0.28, g);
+    const sign = this.box(0.5, 0.25, 0.02, IF.mat.wood('#8a7a5a'), -0.4, 1.05, 0.26, g); sign.rotation.z = 0.08; this.box(0.36, 0.05, 0.005, IF.mat.basic('#7a0e0a', 0.8), -0.4, 1.06, 0.272, g).rotation.z = 0.08;
+    const sb = this.sandbags(1.3, 2); sb.position.set(0, 0, 0.5); g.add(sb); return g; },
   rubble(n = 9) { const M = this.mats(), g = this.g(); for (let i = 0; i < n; i++) { const r = 0.12 + Math.random() * 0.25; const m = this.mesh(new this.T.DodecahedronGeometry(r, 0), Math.random() < 0.5 ? M.stone : M.concrete, (Math.random() - 0.5) * 1.1, r * 0.6, (Math.random() - 0.5) * 0.6, g); m.rotation.set(Math.random() * 3, Math.random() * 3, 0); } if (Math.random() < 0.6) { const rb = this.cyl(0.015, 0.015, 0.9, M.rust, 0.2, 0.4, 0, g, 5); rb.rotation.z = 0.7; } return g; },
   fence(len = 1.4) { // split-rail fence at a real 1.05 m: posts with a little weathered lean, two rails, a bracing slat
     const M = this.mats(), g = this.g(), n = Math.max(2, Math.round(len / 0.9));
