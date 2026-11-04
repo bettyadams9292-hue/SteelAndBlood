@@ -47,12 +47,7 @@ def build_input():
         EAL.save_asset(ia.get_path_name())
         for k in keys: imc.map_key(ia, key(k))
     EAL.save_asset(imc.get_path_name())
-    # register as a default context so no graph code is needed to add it
-    s = unreal.get_default_object(unreal.EnhancedInputDeveloperSettings)
-    dc = unreal.DefaultContextSetting(); sp(dc, 'input_mapping_context', imc); sp(dc, 'priority', 0)
-    sp(s, 'enable_default_mapping_contexts', True); sp(s, 'default_mapping_contexts', [dc])
-    try: s.save_config()
-    except Exception as e: LOG.append('save_config ' + str(e)[:80])
+    # mapping context is added at BeginPlay by BP_HeroKnight (settings class not exposed to Python in 5.8)
     return imc
 
 def bp(name, parent):
