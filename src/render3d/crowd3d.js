@@ -3,6 +3,15 @@
 'use strict';
 
 IF.crowd = {
+  /* Boss body plans: bulk (girth), limb/torso lengths in rig px and posture. */
+  BOSS_BUILD: {
+    executioner: { bulk: 1.55, torso: 50, upper: 30, fore: 33, lean: 0.12 },   // brutal, broad, long-armed headsman
+    commander: { bulk: 1.15, torso: 50, thigh: 35, shin: 36, lean: -0.1 },     // upright officer's bearing
+    abomination: { bulk: 1.75, torso: 40, upper: 34, fore: 40, lean: 0.38 },   // hunched mass with dragging arms
+    plague_brute: { bulk: 1.85, torso: 42, thigh: 28, shin: 28, lean: 0.12 },  // squat, bloated, stumpy legs
+    general: { bulk: 1.22, torso: 52, thigh: 36, shin: 37, lean: -0.12 },      // tall, parade-ground straight
+    obsidian_king: { bulk: 1.38, torso: 54, thigh: 36, shin: 36, upper: 30, fore: 31, lean: -0.06 }, // regal giant
+  },
   parts: {}, CAP: 96,
   init() {
     const T = IF.r3.T, m = IF.mat, sk = m.skinSet(), cl = m.clothSet();
@@ -69,9 +78,10 @@ IF.crowd = {
     this.root.compose(new T.Vector3(pos.x, pos.y + rise, pos.z), rq, new T.Vector3(sc, sc, sc));
     const flash = e.hitFlash > 0 ? '#ffffff' : e.boss && e.vuln > 0 ? '#ffd36b' : null;
     const skin = this.col(L.skin, 0.9 + ((e.seed % 7) / 7) * 0.25, flash), skinD = this.col(L.skinDark, 1, flash), shirt = this.col(L.shirt, 1, flash), pants = this.col(L.pants, 1, flash), boot = this.col(L.military || L.helmet ? '#2a2a22' : '#221d18', 1, flash);
-    const lost = e.lost || {}, big = (e.boss || e.def.heavy) ? 1.22 : 1, gaunt = L.gaunt ? 0.78 : 1, wb = big * gaunt;
+    const lost = e.lost || {}, BB = e.boss ? IF.crowd.BOSS_BUILD[e.def.id] : null, big = BB ? BB.bulk : (e.boss || e.def.heavy) ? 1.22 : 1, gaunt = L.gaunt ? 0.78 : 1, wb = big * gaunt;
     if (e.isLow) return this.addCrawler(e, L, { skin, skinD, shirt, pants, boot }, lost);
     const P = e._zPose(), D = { thigh: 31, shin: 32, torso: 44, upper: 25, fore: 26 }, A = IF.art;
+    if (BB) { for (const k of ['thigh', 'shin', 'torso', 'upper', 'fore']) if (BB[k]) D[k] = BB[k]; P.lean += BB.lean || 0; } // each boss has its own frame, not a scaled-up zombie
     const nx = Math.sin(P.lean), ny = -Math.cos(P.lean), hip = { x: 0, y: P.hipY };
     const shX = nx * (D.torso - 8), shY = P.hipY + ny * (D.torso - 8), shF = { x: shX + 4, y: shY }, shB = { x: shX - 5, y: shY - 1 };
     const kF = A.ik(3, P.hipY, P.footF.x, P.footF.y - 4, D.thigh, D.shin, -1), kB = A.ik(-3, P.hipY, P.footB.x, P.footB.y - 4, D.thigh, D.shin, -1);

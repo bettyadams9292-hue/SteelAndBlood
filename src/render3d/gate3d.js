@@ -12,7 +12,7 @@ IF.gate3d = {
     const b = W.biome.id, modern = /highway|checkpoint|city|battlefield|base|industrial|bunker|lab|settlement/.test(b);
     const root = new T.Group(), g = new T.Group(); root.add(g); g.rotation.y = this.ANGLE;
     const X = W.gateX * S, Y = IF.terrain.laneHeight(W.gateX);
-    root.position.set(X, Y - 0.05, 0);
+    root.position.set(X + 0.9, Y - 0.05, 0); // offset so the angled gatehouse's near edge sits on the gate line and never overlaps the arena
     const stone = modern ? M.concrete : M.stone, stoneDark = modern ? M.concreteDark : M.stoneDark;
     const OPEN = 1.75, H = 3.9; // half-width and height of the arch opening (metres, local z / y)
 
