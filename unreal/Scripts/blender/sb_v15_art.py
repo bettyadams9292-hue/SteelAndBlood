@@ -28,10 +28,10 @@ def battle_enamel(mat, ivory=(0.80, 0.74, 0.62), iron=(0.045, 0.042, 0.04)):
     fn = N(t, 'ShaderNodeTexNoise', -1400, 0, Scale=90.0, Detail=10.0, Roughness=0.75); L(t, tc, 'Object', fn, 'Vector')
     m1 = N(t, 'ShaderNodeMath', -1150, 300, operation='MULTIPLY'); L(t, big, 'Fac', m1, 0); L(t, fn, 'Fac', m1, 1)
     m2 = N(t, 'ShaderNodeMath', -1000, 200, operation='SUBTRACT'); L(t, m1, 0, m2, 0); L(t, fine, 'Distance', m2, 1)
-    m2b = N(t, 'ShaderNodeMath', -880, 200, operation='MULTIPLY'); m2b.inputs[1].default_value = -1.0; L(t, m2, 0, m2b, 0)
-    chip = R(t, -700, 250, [(0.08, (1, 1, 1, 1)), (0.12, (0, 0, 0, 1))]); L(t, m2b, 0, chip, 'Fac')
-    inv = N(t, 'ShaderNodeInvert', -500, 250); L(t, chip, 'Color', inv, 'Color')
-    L(t, inv, 'Color', mix, 'Fac')
+    # m2 = blotch - voronoi distance: positive only inside blotches near cell centres -> spotty chips
+    chip = R(t, -700, 250, [(0.05, (0, 0, 0, 1)), (0.08, (1, 1, 1, 1))]); L(t, m2, 0, chip, 'Fac')
+    inv = chip
+    L(t, chip, 'Color', mix, 'Fac')
     # paint colour: ivory, cavity grime, soot gradient from the ground up
     ao = N(t, 'ShaderNodeAmbientOcclusion', -1400, -300, samples=16); ao.inputs['Distance'].default_value = 0.035
     grime = R(t, -1150, -300, [(0.35, (0.22, 0.17, 0.11, 1)), (0.9, (1, 1, 1, 1))]); L(t, ao, 'AO', grime, 'Fac')
