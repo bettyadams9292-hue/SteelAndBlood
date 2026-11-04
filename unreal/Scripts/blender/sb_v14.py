@@ -190,9 +190,9 @@ def a_attack(t, L):
     p = {'spine_01': E(z=-14 * up + 20 * dn, x=4 * up - 10 * dn), 'spine_02': E(z=-12 * up + 16 * dn, x=6 * up - 14 * dn), 'head': E(x=-5 * up + 8 * dn),
          'pelvis': E(z=-6 * up + 8 * dn),
          'upperarm_r': E(x=-125 * up - 10 * dn, y=-20 * up + 10 * dn), 'lowerarm_r': E(x=-35 * up + 25 * dn), 'hand_r': E(x=35 * up - 40 * dn),
-         'upperarm_l': E(x=10 * up - 8 * dn, z=-6 * up), 'thigh_r': E(x=-26 * dn - 8 * up), 'calf_r': E(x=-24 * dn - 8 * up), 'foot_r': E(x=-4 * dn),
-         'thigh_l': E(x=18 * dn + 6), 'calf_l': E(x=-16 * dn - 4), 'foot_l': E(x=12 * dn)}
-    return full(p), {'pelvis': (0, -0.05 * dn, -0.07 * dn)}
+         'upperarm_l': E(x=10 * up - 8 * dn, z=-6 * up), 'thigh_r': E(x=-12 * dn - 4 * up), 'calf_r': E(x=-14 * dn - 6 * up), 'foot_r': E(x=6 * dn),
+         'thigh_l': E(x=10 * dn + 3), 'calf_l': E(x=-12 * dn - 3), 'foot_l': E(x=4 * dn)}
+    return full(p), {'pelvis': (0, -0.03 * dn, -0.045 * dn)}
 
 def a_fire(t, L):
     """Short SMG burst from the hip: rhythmic recoil in the left arm and shoulders, braced stance."""
@@ -266,9 +266,10 @@ def enamel(mat, paint=(0.80, 0.77, 0.70), steel=(0.55, 0.56, 0.58)):
     aoi = _n(t, 'ShaderNodeAmbientOcclusion', -1200, 550, samples=16, inside=True); aoi.inputs['Distance'].default_value = 0.015
     # edges = convex areas -> high "inside" AO; chips where edge * noise
     n1 = _n(t, 'ShaderNodeTexNoise', -1200, 0, Scale=55.0, Detail=12.0, Roughness=0.7); _L(t, tc, 'Object', n1, 'Vector')
-    edge = _ramp(t, -950, 550, [(0.70, (0, 0, 0, 1)), (0.95, (1, 1, 1, 1))]); _L(t, aoi, 'AO', edge, 'Fac')
-    ch = _n(t, 'ShaderNodeMath', -700, 350, operation='MULTIPLY'); _L(t, edge, 'Color', ch, 0); _L(t, n1, 'Fac', ch, 1)
-    chip = _ramp(t, -500, 350, [(0.30, (0, 0, 0, 1)), (0.40, (1, 1, 1, 1))]); _L(t, ch, 'Value', chip, 'Fac')
+    edge = None
+    n4 = _n(t, 'ShaderNodeTexNoise', -1200, 800, Scale=9.0, Detail=6.0, Roughness=0.6); _L(t, tc, 'Object', n4, 'Vector')
+    ch = _n(t, 'ShaderNodeMath', -700, 350, operation='MULTIPLY'); _L(t, n4, 'Fac', ch, 0); _L(t, n1, 'Fac', ch, 1)
+    chip = _ramp(t, -500, 350, [(0.40, (0, 0, 0, 1)), (0.44, (1, 1, 1, 1))]); _L(t, ch, 'Value', chip, 'Fac')
     _L(t, chip, 'Color', mix, 'Fac')
     # paint layer: off-white with grime in cavities and large-scale soiling
     dirt = _ramp(t, -950, 250, [(0.4, (0.32, 0.27, 0.2, 1)), (0.9, (1, 1, 1, 1))]); _L(t, ao, 'AO', dirt, 'Fac')
