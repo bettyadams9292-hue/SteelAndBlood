@@ -17,15 +17,29 @@ def fix_camera_boom():
     unreal.EditorAssetLibrary.save_asset(b.get_path_name())
     return 'ok'
 
+def place_capture_actor():
+    """Pre-place a SceneCapture2D in the editor level (actors cannot be spawned from Python inside PIE)."""
+    ES = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    for a in ES.get_all_level_actors():
+        if a.get_actor_label() == 'PIECapture': return 'exists'
+    c = ES.spawn_actor_from_class(unreal.SceneCapture2D, unreal.Vector(0, 800, 200), unreal.Rotator(0, 0, -90))
+    c.set_actor_label('PIECapture'); c.set_folder_path('Gameplay')
+    cc = c.capture_component2d
+    cc.set_editor_property('capture_every_frame', False); cc.set_editor_property('capture_on_movement', False)
+    c.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+    unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
+    return 'placed'
+
 class Tester:
-    PLAN = [(0, 5, None, None), (5, 70, 'IA_Move', 1.0), (70, 75, None, None), (75, 77, 'IA_Attack', True), (77, 110, None, None),
-            (110, 150, 'IA_MoveLeft', True), (150, 152, 'IA_Jump', True), (152, 185, None, None)]
+    # (from_frame, to_frame, {debug var: value}) - drives BP_HeroKnight's Dbg* variables, which are OR-ed with real input
+    PLAN = [(0, 10, {}), (10, 90, {'DbgMove': 1.0}), (90, 95, {'DbgMove': 0.0, 'DbgAttack': True}), (95, 140, {'DbgAttack': False}),
+            (140, 200, {'DbgMove': -1.0}), (200, 204, {'DbgJump': True}), (204, 240, {'DbgJump': False, 'DbgMove': 0.0}),
+            (240, 270, {'DbgBlock': True}), (270, 300, {'DbgBlock': False})]
+    SHOTS = {60: '04_pie_walk', 105: '05_pie_attack', 255: '06_pie_block'}
     def __init__(self, out):
-        self.out = out; self.n = 0; self.log = []; self.h = None; self.rt = None; self.cap = None
+        self.out = out; self.n = 0; self.log = []; self.h = None
     def world(self):
         return unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
-    def sub(self, pc):
-        return unreal.SubsystemBlueprintLibrary.get_local_player_subsystem(pc, unreal.EnhancedInputLocalPlayerSubsystem)
     def start(self):
         self.h = unreal.register_slate_post_tick_callback(self.tick)
     def finish(self, extra=None):
@@ -37,50 +51,35 @@ class Tester:
         try:
             w = self.world()
             if not w: return
-            self.n += 1
             pc = unreal.GameplayStatics.get_player_controller(w, 0); pawn = pc.get_controlled_pawn() if pc else None
-            if not pawn:
-                if self.n > 300: self.finish({'error': 'no pawn'})
-                return
-            for a, b, act, val in self.PLAN:
-                if a <= self.n < b and act:
-                    ia = unreal.load_asset(INP + act)
-                    try:
-                        self.sub(pc).inject_input_for_action(ia, self._val(val), [], [])
-                    except Exception as e:
-                        self.log.append('inject ' + str(e)[:120])
-            if self.n % 15 == 0 or self.n in (76, 90):
+            if not pawn: return
+            self.n += 1
+            for a, b, vals in self.PLAN:
+                if self.n == a:
+                    for k, v in vals.items(): pawn.set_editor_property(k, v)
+            if self.n % 10 == 0:
                 p = pawn.get_actor_location(); r = pawn.get_actor_rotation()
-                try: cur = pawn.get_editor_property('CurAnim')
-                except Exception: cur = '?'
-                cm = pc.player_camera_manager
-                self.log.append({'f': self.n, 'x': round(p.x), 'y': round(p.y), 'z': round(p.z), 'yaw': round(r.yaw), 'anim': cur,
-                                 'cam': [round(cm.get_camera_location().x), round(cm.get_camera_location().y), round(cm.get_camera_location().z)]})
-            if self.n == 90: self.capture(w, pc)
-            if self.n >= 185: self.finish({'pawn': pawn.get_class().get_name()})
+                cam = pawn.get_component_by_class(unreal.CameraComponent).get_world_location()
+                self.log.append({'f': self.n, 'x': round(p.x), 'y': round(p.y), 'z': round(p.z), 'yaw': round(r.yaw),
+                                 'anim': pawn.get_editor_property('CurAnim'), 'cam': [round(cam.x), round(cam.y), round(cam.z)], 'dt': round(dt, 3)})
+            if self.n in self.SHOTS: self.capture(w, pawn, self.SHOTS[self.n])
+            if self.n >= 300: self.finish({'pawn': pawn.get_class().get_name()})
         except Exception:
             import traceback; self.finish({'error': traceback.format_exc()})
-    def _val(self, v):
-        x = unreal.InputActionValue()
-        try:
-            return unreal.EnhancedInputLibrary.make_input_action_value_of_type(float(v) if not isinstance(v, bool) else (1.0 if v else 0.0), 0.0, 0.0, unreal.InputActionValueType.AXIS1D if not isinstance(v, bool) else unreal.InputActionValueType.BOOLEAN)
-        except Exception:
-            return x
-    def capture(self, w, pc):
-        cm = pc.player_camera_manager
-        self.rt = unreal.RenderingLibrary.create_render_target2d(w, 1920, 1080, unreal.TextureRenderTargetFormat.RTF_RGBA8)
-        cap = w.spawn_actor(unreal.SceneCapture2D, cm.get_camera_location(), cm.get_camera_rotation()) if hasattr(w, 'spawn_actor') else \
-            unreal.GameplayStatics.begin_deferred_actor_spawn_from_class(w, unreal.SceneCapture2D, unreal.Transform(cm.get_camera_location(), cm.get_camera_rotation()))
-        if not hasattr(w, 'spawn_actor'):
-            cap = unreal.GameplayStatics.finish_spawning_actor(cap, unreal.Transform(cm.get_camera_location(), cm.get_camera_rotation()))
+    def capture(self, w, pawn, name):
+        cap = [a for a in unreal.GameplayStatics.get_all_actors_of_class(w, unreal.SceneCapture2D) if a.get_actor_label() == 'PIECapture']
+        if not cap: self.log.append('no capture actor'); return
+        cap = cap[0]; camc = pawn.get_component_by_class(unreal.CameraComponent)
+        cap.set_actor_location_and_rotation(camc.get_world_location(), camc.get_world_rotation(), False, False)
+        rt = unreal.RenderingLibrary.create_render_target2d(w, 1600, 900, unreal.TextureRenderTargetFormat.RTF_RGBA8)
         cc = cap.capture_component2d
-        cc.set_editor_property('texture_target', self.rt); cc.set_editor_property('capture_source', unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR)
-        cc.set_editor_property('fov_angle', cm.get_fov_angle())
+        cc.set_editor_property('texture_target', rt); cc.set_editor_property('capture_source', unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR)
+        cc.set_editor_property('fov_angle', camc.get_editor_property('field_of_view'))
         cc.capture_scene()
-        o = unreal.ImageWriteOptions(); o.set_editor_property('format', unreal.DesiredImageFormat.JPG); o.set_editor_property('compression_quality', 88)
+        o = unreal.ImageWriteOptions(); o.set_editor_property('format', unreal.DesiredImageFormat.JPG); o.set_editor_property('compression_quality', 85)
         o.set_editor_property('overwrite_file', True); o.set_editor_property('async_', False)
-        unreal.ImageWriteBlueprintLibrary.export_to_disk(self.rt, self.out + '/04_pie_gameplay.jpg', o)
-        self.log.append('captured')
+        unreal.ImageWriteBlueprintLibrary.export_to_disk(rt, self.out + '/' + name + '.jpg', o)
+        self.log.append('captured ' + name)
 
 T = None
 def run(out):
