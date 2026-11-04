@@ -153,7 +153,7 @@ def upgrade_materials():
 
 # ------------------------------------------------------------------ scene building
 def clean():
-    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.wm.read_homefile(use_empty=True)
 
 def imp(name):
     before = set(bpy.data.objects)
