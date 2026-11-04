@@ -1,0 +1,920 @@
+{
+ "weapons": [
+  {
+   "id": "wooden_sword",
+   "name": "Wooden Sword",
+   "cls": "sword",
+   "dmg": 9
+  },
+  {
+   "id": "iron_sword",
+   "name": "Iron Sword",
+   "cls": "sword",
+   "dmg": 15
+  },
+  {
+   "id": "steel_longsword",
+   "name": "Steel Longsword",
+   "cls": "sword",
+   "dmg": 21
+  },
+  {
+   "id": "claymore",
+   "name": "Claymore",
+   "cls": "greatsword",
+   "dmg": 34
+  },
+  {
+   "id": "greatsword",
+   "name": "Greatsword",
+   "cls": "greatsword",
+   "dmg": 44
+  },
+  {
+   "id": "battle_axe",
+   "name": "Battle Axe",
+   "cls": "axe",
+   "dmg": 27
+  },
+  {
+   "id": "great_axe",
+   "name": "Double-Handed Axe",
+   "cls": "greataxe",
+   "dmg": 46
+  },
+  {
+   "id": "war_hammer",
+   "name": "War Hammer",
+   "cls": "hammer",
+   "dmg": 40
+  },
+  {
+   "id": "mace",
+   "name": "Flanged Mace",
+   "cls": "mace",
+   "dmg": 22
+  },
+  {
+   "id": "morning_star",
+   "name": "Morning Star",
+   "cls": "mace",
+   "dmg": 30
+  },
+  {
+   "id": "spear",
+   "name": "Spear",
+   "cls": "spear",
+   "dmg": 19
+  },
+  {
+   "id": "halberd",
+   "name": "Halberd",
+   "cls": "halberd",
+   "dmg": 36
+  },
+  {
+   "id": "dawnbreaker",
+   "name": "Dawnbreaker",
+   "cls": "sword",
+   "dmg": 38
+  },
+  {
+   "id": "grave_cleaver",
+   "name": "Grave Cleaver",
+   "cls": "greataxe",
+   "dmg": 62
+  },
+  {
+   "id": "crossbow",
+   "name": "Crossbow",
+   "cls": "crossbow",
+   "dmg": 46,
+   "ammo": "bolt"
+  },
+  {
+   "id": "longbow",
+   "name": "Longbow",
+   "cls": "bow",
+   "dmg": 34,
+   "ammo": "bolt"
+  },
+  {
+   "id": "pistol",
+   "name": "Semi-Auto Pistol",
+   "cls": "pistol",
+   "dmg": 14,
+   "ammo": "light"
+  },
+  {
+   "id": "revolver",
+   "name": "Revolver",
+   "cls": "revolver",
+   "dmg": 32,
+   "ammo": "light"
+  },
+  {
+   "id": "hand_cannon",
+   "name": "Heavy Hand Cannon",
+   "cls": "handcannon",
+   "dmg": 58,
+   "ammo": "light"
+  },
+  {
+   "id": "coach_gun",
+   "name": "Double-Barrel Shotgun",
+   "cls": "dbshotgun",
+   "dmg": 13,
+   "ammo": "shell"
+  },
+  {
+   "id": "smg",
+   "name": "Submachine Gun",
+   "cls": "smg",
+   "dmg": 9,
+   "ammo": "light"
+  },
+  {
+   "id": "vk5",
+   "name": "VK-5 Compact SMG",
+   "cls": "smg",
+   "dmg": 11,
+   "ammo": "light"
+  },
+  {
+   "id": "u45",
+   "name": "U-45 Tactical SMG",
+   "cls": "smg",
+   "dmg": 15,
+   "ammo": "light"
+  },
+  {
+   "id": "ar",
+   "name": "Assault Rifle",
+   "cls": "rifle",
+   "dmg": 16,
+   "ammo": "rifle"
+  },
+  {
+   "id": "k47",
+   "name": "K-47 Battle Rifle",
+   "cls": "rifle",
+   "dmg": 22,
+   "ammo": "rifle"
+  },
+  {
+   "id": "m4c",
+   "name": "M-4C Carbine",
+   "cls": "rifle",
+   "dmg": 17,
+   "ammo": "rifle"
+  },
+  {
+   "id": "sk17",
+   "name": "SK-17 Heavy Rifle",
+   "cls": "rifle",
+   "dmg": 30,
+   "ammo": "rifle"
+  },
+  {
+   "id": "shotgun",
+   "name": "Combat Shotgun",
+   "cls": "shotgun",
+   "dmg": 11,
+   "ammo": "shell"
+  },
+  {
+   "id": "pump",
+   "name": "Pump-Action Shotgun",
+   "cls": "pump",
+   "dmg": 16,
+   "ammo": "shell"
+  },
+  {
+   "id": "sniper",
+   "name": "Longshot Sniper Rifle",
+   "cls": "sniper",
+   "dmg": 150,
+   "ammo": "heavy"
+  },
+  {
+   "id": "lmg",
+   "name": "Saw-9 Light MG",
+   "cls": "lmg",
+   "dmg": 17,
+   "ammo": "heavy"
+  },
+  {
+   "id": "hmg",
+   "name": "Ironwall Heavy MG",
+   "cls": "lmg",
+   "dmg": 28,
+   "ammo": "heavy"
+  },
+  {
+   "id": "minigun",
+   "name": "Reaper Minigun",
+   "cls": "minigun",
+   "dmg": 12,
+   "ammo": "heavy"
+  },
+  {
+   "id": "gl",
+   "name": "Thumper Grenade Launcher",
+   "cls": "gl",
+   "dmg": 85,
+   "ammo": "explosive"
+  },
+  {
+   "id": "rl",
+   "name": "Siegebreaker Rocket Launcher",
+   "cls": "rl",
+   "dmg": 220,
+   "ammo": "explosive"
+  },
+  {
+   "id": "m1911",
+   "name": "M1911 Service Pistol",
+   "cls": "pistol",
+   "dmg": 22,
+   "ammo": "light"
+  },
+  {
+   "id": "luger",
+   "name": "P08 Luger",
+   "cls": "pistol",
+   "dmg": 17,
+   "ammo": "light"
+  },
+  {
+   "id": "thompson",
+   "name": "Thompson M1928",
+   "cls": "smg",
+   "dmg": 14,
+   "ammo": "light"
+  },
+  {
+   "id": "mp40",
+   "name": "MP-40",
+   "cls": "smg",
+   "dmg": 12,
+   "ammo": "light"
+  },
+  {
+   "id": "sten",
+   "name": "Sten Mk II",
+   "cls": "smg",
+   "dmg": 11,
+   "ammo": "light"
+  },
+  {
+   "id": "garand",
+   "name": "M1 Garand",
+   "cls": "rifle",
+   "dmg": 40,
+   "ammo": "rifle"
+  },
+  {
+   "id": "stg44",
+   "name": "StG 44",
+   "cls": "rifle",
+   "dmg": 19,
+   "ammo": "rifle"
+  },
+  {
+   "id": "kar98",
+   "name": "Kar98k Scoped",
+   "cls": "sniper",
+   "dmg": 135,
+   "ammo": "heavy"
+  },
+  {
+   "id": "bar",
+   "name": "M1918 BAR",
+   "cls": "lmg",
+   "dmg": 26,
+   "ammo": "rifle"
+  },
+  {
+   "id": "mg42",
+   "name": "MG-42 \"Buzzsaw\"",
+   "cls": "lmg",
+   "dmg": 18,
+   "ammo": "heavy"
+  },
+  {
+   "id": "trench_gun",
+   "name": "M1897 Trench Gun",
+   "cls": "pump",
+   "dmg": 17,
+   "ammo": "shell"
+  },
+  {
+   "id": "bazooka",
+   "name": "M1 Bazooka",
+   "cls": "rl",
+   "dmg": 190,
+   "ammo": "explosive"
+  },
+  {
+   "id": "crusader_rifle",
+   "name": "The Crusader",
+   "cls": "rifle",
+   "dmg": 34,
+   "ammo": "rifle"
+  },
+  {
+   "id": "dragons_breath",
+   "name": "Dragon's Breath",
+   "cls": "shotgun",
+   "dmg": 18,
+   "ammo": "shell"
+  }
+ ],
+ "enemies": [
+  {
+   "id": "walker",
+   "name": "Walker",
+   "hp": 42,
+   "dmg": 9,
+   "speed": 52
+  },
+  {
+   "id": "runner",
+   "name": "Runner",
+   "hp": 32,
+   "dmg": 7,
+   "speed": 205
+  },
+  {
+   "id": "crawler",
+   "name": "Crawler",
+   "hp": 30,
+   "dmg": 8,
+   "speed": 92
+  },
+  {
+   "id": "brute",
+   "name": "Brute",
+   "hp": 260,
+   "dmg": 26,
+   "speed": 42
+  },
+  {
+   "id": "exploder",
+   "name": "Exploder",
+   "hp": 46,
+   "dmg": 38,
+   "speed": 74
+  },
+  {
+   "id": "armoured",
+   "name": "Armoured Zombie",
+   "hp": 120,
+   "dmg": 13,
+   "speed": 50
+  },
+  {
+   "id": "screamer",
+   "name": "Screamer",
+   "hp": 55,
+   "dmg": 6,
+   "speed": 70
+  },
+  {
+   "id": "military",
+   "name": "Military Zombie",
+   "hp": 95,
+   "dmg": 14,
+   "speed": 64
+  },
+  {
+   "id": "mutant",
+   "name": "Mutant",
+   "hp": 150,
+   "dmg": 20,
+   "speed": 120
+  },
+  {
+   "id": "elite",
+   "name": "Elite Revenant",
+   "hp": 420,
+   "dmg": 28,
+   "speed": 96
+  }
+ ],
+ "bosses": [
+  {
+   "id": "executioner",
+   "name": "The Castle Executioner",
+   "hp": 1700
+  },
+  {
+   "id": "commander",
+   "name": "The Fallen Commander",
+   "hp": 2300
+  },
+  {
+   "id": "abomination",
+   "name": "The Abomination",
+   "hp": 3100
+  },
+  {
+   "id": "plague_brute",
+   "name": "The Plague Brute",
+   "hp": 3900
+  },
+  {
+   "id": "general",
+   "name": "The Undead General",
+   "hp": 4900
+  },
+  {
+   "id": "obsidian_king",
+   "name": "The Obsidian King",
+   "hp": 6600
+  }
+ ],
+ "biomes": [
+  {
+   "id": "village",
+   "name": "Abandoned Village"
+  },
+  {
+   "id": "forest",
+   "name": "The Dark Forest"
+  },
+  {
+   "id": "castle",
+   "name": "Ruined Castle"
+  },
+  {
+   "id": "highway",
+   "name": "Overgrown Highway"
+  },
+  {
+   "id": "checkpoint",
+   "name": "Military Checkpoint"
+  },
+  {
+   "id": "city",
+   "name": "Destroyed City"
+  },
+  {
+   "id": "battlefield",
+   "name": "War-Torn Battlefield"
+  },
+  {
+   "id": "base",
+   "name": "Abandoned Military Base"
+  },
+  {
+   "id": "industrial",
+   "name": "Infested Industrial Works"
+  },
+  {
+   "id": "bunker",
+   "name": "Underground Bunker"
+  },
+  {
+   "id": "lab",
+   "name": "Abandoned Laboratory"
+  },
+  {
+   "id": "settlement",
+   "name": "Destroyed Settlement"
+  }
+ ],
+ "armourSets": [
+  {
+   "id": "worn_iron",
+   "name": "Worn Iron"
+  },
+  {
+   "id": "reinforced_steel",
+   "name": "Reinforced Steel"
+  },
+  {
+   "id": "knight_commander",
+   "name": "Knight Commander"
+  },
+  {
+   "id": "blackened_war",
+   "name": "Blackened War"
+  },
+  {
+   "id": "royal",
+   "name": "Royal"
+  },
+  {
+   "id": "obsidian",
+   "name": "Legendary Obsidian"
+  },
+  {
+   "id": "mythic",
+   "name": "Ascendant Mythic"
+  }
+ ],
+ "slots": [
+  "helmet",
+  "chest",
+  "gauntlets",
+  "legs",
+  "boots",
+  "shield",
+  "cape"
+ ],
+ "skillTrees": [
+  {
+   "id": "melee",
+   "name": "Blade",
+   "nodes": [
+    {
+     "id": "m_edge",
+     "name": "Honed Edge",
+     "max": 5
+    },
+    {
+     "id": "m_tempo",
+     "name": "Battle Tempo",
+     "max": 3
+    },
+    {
+     "id": "m_crit",
+     "name": "Find the Gap",
+     "max": 3
+    },
+    {
+     "id": "m_guard",
+     "name": "Iron Guard",
+     "max": 3
+    },
+    {
+     "id": "m_heavy",
+     "name": "Crushing Blows",
+     "max": 3
+    },
+    {
+     "id": "m_combo",
+     "name": "Flowing Steel",
+     "max": 2
+    }
+   ]
+  },
+  {
+   "id": "firearms",
+   "name": "Firearms",
+   "nodes": [
+    {
+     "id": "f_cal",
+     "name": "Heavy Calibre",
+     "max": 5
+    },
+    {
+     "id": "f_aim",
+     "name": "Steady Aim",
+     "max": 3
+    },
+    {
+     "id": "f_reload",
+     "name": "Speed Loader",
+     "max": 3
+    },
+    {
+     "id": "f_mag",
+     "name": "Deep Pockets",
+     "max": 3
+    },
+    {
+     "id": "f_crit",
+     "name": "Headhunter",
+     "max": 3
+    },
+    {
+     "id": "f_recoil",
+     "name": "Recoil Control",
+     "max": 2
+    }
+   ]
+  },
+  {
+   "id": "survival",
+   "name": "Survival",
+   "nodes": [
+    {
+     "id": "s_vigor",
+     "name": "Vigour",
+     "max": 5
+    },
+    {
+     "id": "s_plate",
+     "name": "Thick Plate",
+     "max": 3
+    },
+    {
+     "id": "s_regen",
+     "name": "Second Wind",
+     "max": 3
+    },
+    {
+     "id": "s_stamina",
+     "name": "Endurance",
+     "max": 3
+    },
+    {
+     "id": "s_dodge",
+     "name": "Evasion",
+     "max": 2
+    },
+    {
+     "id": "s_stoic",
+     "name": "Stoic",
+     "max": 3
+    }
+   ]
+  },
+  {
+   "id": "special",
+   "name": "Valour",
+   "nodes": [
+    {
+     "id": "a_berserk",
+     "name": "Berserker",
+     "max": 1
+    },
+    {
+     "id": "a_warcry",
+     "name": "War Cry",
+     "max": 1
+    },
+    {
+     "id": "a_nova",
+     "name": "Holy Nova",
+     "max": 1
+    },
+    {
+     "id": "a_charge",
+     "name": "Crusader Charge",
+     "max": 1
+    },
+    {
+     "id": "a_cool",
+     "name": "Zeal",
+     "max": 3
+    },
+    {
+     "id": "a_power",
+     "name": "Conviction",
+     "max": 3
+    }
+   ]
+  }
+ ],
+ "abilities": [
+  {
+   "id": "berserk",
+   "name": "Berserker",
+   "cd": 30
+  },
+  {
+   "id": "warcry",
+   "name": "War Cry",
+   "cd": 28
+  },
+  {
+   "id": "nova",
+   "name": "Holy Nova",
+   "cd": 22
+  },
+  {
+   "id": "charge",
+   "name": "Crusader Charge",
+   "cd": 14
+  }
+ ],
+ "achievements": [
+  {
+   "id": "first_blood",
+   "name": "First Blood",
+   "desc": "Kill your first zombie"
+  },
+  {
+   "id": "kill100",
+   "name": "Centurion",
+   "desc": "Kill 100 zombies"
+  },
+  {
+   "id": "kill1000",
+   "name": "Thousand Graves",
+   "desc": "Kill 1,000 zombies"
+  },
+  {
+   "id": "kill10000",
+   "name": "Extinction Event",
+   "desc": "Kill 10,000 zombies"
+  },
+  {
+   "id": "sections10",
+   "name": "Long Road",
+   "desc": "Complete 10 sections in total"
+  },
+  {
+   "id": "sections100",
+   "name": "The Endless March",
+   "desc": "Complete 100 sections in total"
+  },
+  {
+   "id": "run10",
+   "name": "Survivor",
+   "desc": "Reach section 10 in a single run"
+  },
+  {
+   "id": "run25",
+   "name": "Last Light",
+   "desc": "Reach section 25 in a single run"
+  },
+  {
+   "id": "boss1",
+   "name": "Kingslayer Apprentice",
+   "desc": "Defeat your first boss"
+  },
+  {
+   "id": "boss10",
+   "name": "Tyrant's Bane",
+   "desc": "Defeat 10 bosses"
+  },
+  {
+   "id": "distance",
+   "name": "Ten Leagues",
+   "desc": "Travel 10,000 metres in total"
+  },
+  {
+   "id": "legendary",
+   "name": "Legend Forged",
+   "desc": "Obtain a Legendary item"
+  },
+  {
+   "id": "mythic",
+   "name": "Touched by Myth",
+   "desc": "Obtain a Mythic item"
+  },
+  {
+   "id": "arsenal",
+   "name": "Walking Arsenal",
+   "desc": "Unlock 15 different weapons"
+  },
+  {
+   "id": "allweapons",
+   "name": "Master-at-Arms",
+   "desc": "Unlock every weapon"
+  },
+  {
+   "id": "fullset",
+   "name": "Clad in Glory",
+   "desc": "Equip a complete 6-piece armour set bonus"
+  },
+  {
+   "id": "legendset",
+   "name": "Obsidian Paladin",
+   "desc": "Equip a 6-piece Legendary Obsidian or Mythic set"
+  },
+  {
+   "id": "level10",
+   "name": "Veteran",
+   "desc": "Reach knight level 10"
+  },
+  {
+   "id": "level30",
+   "name": "Paragon",
+   "desc": "Reach knight level 30"
+  },
+  {
+   "id": "upgrade",
+   "name": "Blacksmith",
+   "desc": "Upgrade equipment 25 times"
+  },
+  {
+   "id": "survive600",
+   "name": "Ten Minutes of Hell",
+   "desc": "Survive 10 minutes in one run"
+  }
+ ],
+ "modes": [
+  {
+   "id": "endless",
+   "name": "Endless Survival"
+  },
+  {
+   "id": "bossrush",
+   "name": "Boss Rush"
+  },
+  {
+   "id": "horde",
+   "name": "Horde Survival"
+  },
+  {
+   "id": "hardcore",
+   "name": "Hardcore"
+  },
+  {
+   "id": "daily",
+   "name": "Daily Challenge"
+  }
+ ],
+ "accessories": [
+  {
+   "id": "pilgrim_token",
+   "name": "Pilgrim's Token"
+  },
+  {
+   "id": "dog_tags",
+   "name": "Fallen Soldier's Tags"
+  },
+  {
+   "id": "wolf_fang",
+   "name": "Wolf Fang Charm"
+  },
+  {
+   "id": "bandolier",
+   "name": "Ammo Bandolier"
+  },
+  {
+   "id": "saints_relic",
+   "name": "Saint's Relic"
+  },
+  {
+   "id": "adrenal_injector",
+   "name": "Adrenal Injector"
+  },
+  {
+   "id": "heart_of_iron",
+   "name": "Heart of Iron"
+  },
+  {
+   "id": "obsidian_eye",
+   "name": "Obsidian Eye"
+  }
+ ],
+ "rarities": [
+  {
+   "id": "common",
+   "name": "Common"
+  },
+  {
+   "id": "uncommon",
+   "name": "Uncommon"
+  },
+  {
+   "id": "rare",
+   "name": "Rare"
+  },
+  {
+   "id": "epic",
+   "name": "Epic"
+  },
+  {
+   "id": "legendary",
+   "name": "Legendary"
+  },
+  {
+   "id": "mythic",
+   "name": "Mythic"
+  }
+ ],
+ "perks": [
+  "bleed",
+  "burn",
+  "pierce",
+  "lifesteal",
+  "crit",
+  "swift",
+  "heavy",
+  "execute",
+  "shock",
+  "extmag",
+  "quickload",
+  "holy",
+  "explosive",
+  "cleave"
+ ],
+ "affixes": [
+  "maxHp",
+  "moveSpeed",
+  "dmgReduce",
+  "meleeDmg",
+  "gunDmg",
+  "reloadSpeed",
+  "crit",
+  "regen",
+  "ammoCap",
+  "resToxic",
+  "resBlast",
+  "stamina"
+ ],
+ "dailyModifiers": [
+  "glass",
+  "runners",
+  "brutes",
+  "ammo",
+  "night"
+ ]
+}
