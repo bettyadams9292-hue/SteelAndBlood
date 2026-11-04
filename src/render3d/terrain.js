@@ -131,6 +131,20 @@ IF.terrain = {
     IF.kit.box(L, 0.6, 16, M.concreteDark, cx, 5.2, -1, g);
     for (let x = x0; x < x1; x += 4) { IF.kit.box(0.5, 9, 0.8, M.concrete, x, 4, -6.6, g); IF.kit.box(0.4, 0.5, 16, M.iron, x, 4.7, -1, g); const lamp = IF.kit.box(0.8, 0.12, 0.3, IF.mat.glow(b.id === 'lab' ? '#8affe0' : '#a0ffb0', 2.5), x + 2, 4.75, 0, g); lamp.castShadow = false; }
     for (let x = x0 + 3; x < x1; x += 7) { const p = IF.kit.pipes(6); p.position.set(x, 0.3, -5.8); g.add(p); }
+    // set pieces so the two underground zones read as distinct places
+    const K = IF.kit;
+    for (let x = x0 + 6; x < x1; x += 13) {
+      if (b.id === 'bunker') { // blast door with hazard stripes and a red warning lamp; stencilled bay number
+        K.box(3.2, 3.4, 0.3, M.steel, x, 1.7, -6.5, g); for (let i = 0; i < 8; i++) K.box(0.4, 0.3, 0.05, IF.mat.basic(i % 2 ? '#d8b020' : '#151515', 0.7), x - 1.4 + i * 0.4, 3.65, -6.3, g);
+        K.box(0.25, 0.25, 0.2, IF.mat.glow('#ff2a1a', 2.5), x + 2, 3.2, -6.3, g).castShadow = false; K.box(3.4, 0.3, 0.5, M.iron, x, 3.5, -6.4, g);
+        for (let i = 0; i < 4; i++) K.box(0.7, 0.35, 0.5, M.sand, x - 3 + (i % 2) * 0.4, 0.2 + Math.floor(i / 2) * 0.35, -6, g);
+      } else { // observation window onto a glowing specimen hall, biohazard placard, flickering strip light
+        K.box(4, 1.8, 0.1, IF.mat.get('labwin', () => new T.MeshStandardMaterial({ color: '#0a2a24', emissive: '#1a8a6a', emissiveIntensity: 0.8, roughness: 0.05, metalness: 0.5 })), x, 2.4, -6.55, g);
+        K.box(4.2, 0.12, 0.2, M.steel, x, 3.35, -6.5, g); K.box(4.2, 0.12, 0.2, M.steel, x, 1.45, -6.5, g); for (const d of [-2.05, 2.05]) K.box(0.12, 2, 0.2, M.steel, x + d, 2.4, -6.5, g);
+        for (let i = 0; i < 3; i++) { const tank = K.cyl(0.35, 0.35, 1.2, IF.mat.glow('#3affb0', 0.5), x - 1.2 + i * 1.2, 2.2, -7.2, g, 10); tank.castShadow = false; }
+        K.box(0.6, 0.6, 0.05, IF.mat.basic('#d8b020', 0.6), x + 2.8, 2.2, -6.5, g);
+      }
+    }
     return g;
   },
 

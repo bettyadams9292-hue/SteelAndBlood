@@ -388,6 +388,7 @@ IF.Player = class Player {
       if (!on && this.y < IF.GROUND) { this.onGround = false; this.groundY = IF.GROUND; }
     }
     // footsteps & walk phase
+    { const acc = (this.vx - (this._pvx || 0)) / Math.max(dt, 1e-3) * this.facing; this._pvx = this.vx; this.accLean = IF.util.approach(this.accLean || 0, IF.util.clamp(acc * 0.00011, -0.16, 0.16), dt * 1.2); } // lean into starts, sit back into stops
     if (this.onGround && Math.abs(this.vx) > 20) {
       { const sp = Math.abs(this.vx), stride = 14 + 12 * Math.min(1, sp / 260); this.phase += sp * dt * Math.PI / (2 * stride * IF.KNIGHT_SCALE); } // feet plant: stride cycle matched to ground speed
       this.stepAcc += Math.abs(this.vx) * dt; if (this.stepAcc > 78) { this.stepAcc = 0; IF.audio.step(this.look.tier); if (Math.abs(this.vx) > 300) IF.fx.dust(this.x, this.y, 1); }
@@ -414,6 +415,7 @@ IF.Player = class Player {
       P.hipY = -70 + Math.sin(t * 2.2) * 0.8; P.capeWave = Math.sin(t * 1.4) * 0.12; P.tabardSway = Math.sin(t * 1.3) * 0.15;
     }
     if (this.landT > 0) P.hipY += 8;
+    if (this.onGround && this.state === 'normal') { P.lean += this.accLean || 0; if ((this.accLean || 0) < -0.06 && Math.abs(this.vx) < 120) { P.footF = { x: P.footF.x + 8, y: 0 }; P.hipY += 3; } } // braking: front foot plants, knees give
     if (this.crouch) { P.hipY = -44; P.footF = { x: 18, y: 0 }; P.footB = { x: -16, y: 0 }; P.lean = 0.28; P.tabardSway = 0.4; }
     // ---- upper body ----
     if (this.state === 'attack') this._attackPose(P);

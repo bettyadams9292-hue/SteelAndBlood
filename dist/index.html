@@ -1580,7 +1580,7 @@ window.BGU={computeMikkTSpaceTangents,mergeGeometries,mergeAttributes,deepCloneA
  * concatenates modules in dependency order (see build.js MODULES list). */
 'use strict';
 const IF = (window.IF = window.IF || {});
-IF.VERSION = '2.2.0';
+IF.VERSION = '2.3.0';
 IF.TITLE = 'Steel & Blood: Knights of the Apocalypse';
 IF.W = 1280; // logical render width
 IF.H = 720;  // logical render height
@@ -4247,6 +4247,20 @@ IF.terrain = {
     IF.kit.box(L, 0.6, 16, M.concreteDark, cx, 5.2, -1, g);
     for (let x = x0; x < x1; x += 4) { IF.kit.box(0.5, 9, 0.8, M.concrete, x, 4, -6.6, g); IF.kit.box(0.4, 0.5, 16, M.iron, x, 4.7, -1, g); const lamp = IF.kit.box(0.8, 0.12, 0.3, IF.mat.glow(b.id === 'lab' ? '#8affe0' : '#a0ffb0', 2.5), x + 2, 4.75, 0, g); lamp.castShadow = false; }
     for (let x = x0 + 3; x < x1; x += 7) { const p = IF.kit.pipes(6); p.position.set(x, 0.3, -5.8); g.add(p); }
+    // set pieces so the two underground zones read as distinct places
+    const K = IF.kit;
+    for (let x = x0 + 6; x < x1; x += 13) {
+      if (b.id === 'bunker') { // blast door with hazard stripes and a red warning lamp; stencilled bay number
+        K.box(3.2, 3.4, 0.3, M.steel, x, 1.7, -6.5, g); for (let i = 0; i < 8; i++) K.box(0.4, 0.3, 0.05, IF.mat.basic(i % 2 ? '#d8b020' : '#151515', 0.7), x - 1.4 + i * 0.4, 3.65, -6.3, g);
+        K.box(0.25, 0.25, 0.2, IF.mat.glow('#ff2a1a', 2.5), x + 2, 3.2, -6.3, g).castShadow = false; K.box(3.4, 0.3, 0.5, M.iron, x, 3.5, -6.4, g);
+        for (let i = 0; i < 4; i++) K.box(0.7, 0.35, 0.5, M.sand, x - 3 + (i % 2) * 0.4, 0.2 + Math.floor(i / 2) * 0.35, -6, g);
+      } else { // observation window onto a glowing specimen hall, biohazard placard, flickering strip light
+        K.box(4, 1.8, 0.1, IF.mat.get('labwin', () => new T.MeshStandardMaterial({ color: '#0a2a24', emissive: '#1a8a6a', emissiveIntensity: 0.8, roughness: 0.05, metalness: 0.5 })), x, 2.4, -6.55, g);
+        K.box(4.2, 0.12, 0.2, M.steel, x, 3.35, -6.5, g); K.box(4.2, 0.12, 0.2, M.steel, x, 1.45, -6.5, g); for (const d of [-2.05, 2.05]) K.box(0.12, 2, 0.2, M.steel, x + d, 2.4, -6.5, g);
+        for (let i = 0; i < 3; i++) { const tank = K.cyl(0.35, 0.35, 1.2, IF.mat.glow('#3affb0', 0.5), x - 1.2 + i * 1.2, 2.2, -7.2, g, 10); tank.castShadow = false; }
+        K.box(0.6, 0.6, 0.05, IF.mat.basic('#d8b020', 0.6), x + 2.8, 2.2, -6.5, g);
+      }
+    }
     return g;
   },
 
@@ -4794,7 +4808,10 @@ IF.Knight3D = class Knight3D {
     const R = IF.r3, S = R.S * IF.KNIGHT_SCALE, J = IF.rig.solveKnight(P), Pt = this.parts, span = (o, a, b, z) => IF.rig.span(o, a, b, z);
     this.root.position.set(x * R.S, R.wy(x, y), opts.z || 0.25);
     this.root.scale.setScalar(S);
-    this.root.rotation.set(0, f > 0 ? -0.42 : Math.PI + 0.42, opts.rollZ || 0);
+    // turning: pivot smoothly through the camera-facing side instead of snapping 180 degrees
+    const tgtYaw = f > 0 ? -0.42 : -Math.PI + 0.42, dtY = IF.game.lastDt || 0.016;
+    if (this.yaw === undefined || opts.snap) this.yaw = tgtYaw; else this.yaw += (tgtYaw - this.yaw) * Math.min(1, dtY * 13);
+    this.root.rotation.set(0, this.yaw, opts.rollZ || 0);
     this.body.rotation.set(0, 0, 0); this.body.position.set(0, 0, 0);
     if (opts.roll) { this.body.position.y = 38; this.body.rotation.z = -opts.roll; this.body.position.x = 0; this.body.translateY(-38); }
     const zF = 10, zB = -10;
@@ -4817,7 +4834,10 @@ IF.Knight3D = class Knight3D {
     // shield: on the back, or raised on the off arm while blocking
     if (Pt.shield) { if (P.shieldMode === 'front') { Pt.shield.position.set(J.hB.x + 6, -J.hB.y + 2, zB + 2); Pt.shield.rotation.set(0, Math.PI / 2 - 0.55, 0.05); Pt.shield.scale.setScalar(1.05); } else { const nx = Math.sin(J.lean), ny = Math.cos(J.lean); Pt.shield.position.set(J.hip.x + nx * 24 - 16, -J.hip.y + ny * 24, -6); Pt.shield.rotation.set(0, -Math.PI / 2 + 0.7, J.lean * 0.6 + 0.15); Pt.shield.scale.setScalar(0.88); } }
     // cape: anchored behind the shoulders, swinging with motion
-    if (Pt.cape) { const cape = Pt.cape, pos = cape.geometry.attributes.position, base = cape.userData.base, t = R.clock, w = P.capeWave || 0;
+    if (Pt.cape) { const cape = Pt.cape, pos = cape.geometry.attributes.position, base = cape.userData.base, t = R.clock, dtc = IF.game.lastDt || 0.016;
+      // cloth: a damped spring follows the motion target, so the cape lags, overshoots and settles (and swings through turns)
+      const turn = (this._pyaw === undefined ? 0 : (this.yaw - this._pyaw) / dtc) * 0.05; this._pyaw = this.yaw;
+      this.cw = this.cw || 0; this.cwv = this.cwv || 0; this.cwv += ((P.capeWave || 0) + Math.abs(turn) - this.cw) * 55 * dtc; this.cwv *= Math.pow(0.04, dtc); this.cw += this.cwv * dtc; const w = this.cw;
       const ax = (J.shB.x + J.shF.x) / 2 - 6, ay = -(J.shB.y + J.shF.y) / 2 + 4;
       cape.position.set(ax * S / 1, 0, 0); // placed in root space below
       cape.position.set(0, 0, 0); cape.scale.setScalar(1); cape.rotation.set(0, 0, 0); this.root.add(cape);
@@ -5552,6 +5572,7 @@ IF.Player = class Player {
       if (!on && this.y < IF.GROUND) { this.onGround = false; this.groundY = IF.GROUND; }
     }
     // footsteps & walk phase
+    { const acc = (this.vx - (this._pvx || 0)) / Math.max(dt, 1e-3) * this.facing; this._pvx = this.vx; this.accLean = IF.util.approach(this.accLean || 0, IF.util.clamp(acc * 0.00011, -0.16, 0.16), dt * 1.2); } // lean into starts, sit back into stops
     if (this.onGround && Math.abs(this.vx) > 20) {
       { const sp = Math.abs(this.vx), stride = 14 + 12 * Math.min(1, sp / 260); this.phase += sp * dt * Math.PI / (2 * stride * IF.KNIGHT_SCALE); } // feet plant: stride cycle matched to ground speed
       this.stepAcc += Math.abs(this.vx) * dt; if (this.stepAcc > 78) { this.stepAcc = 0; IF.audio.step(this.look.tier); if (Math.abs(this.vx) > 300) IF.fx.dust(this.x, this.y, 1); }
@@ -5578,6 +5599,7 @@ IF.Player = class Player {
       P.hipY = -70 + Math.sin(t * 2.2) * 0.8; P.capeWave = Math.sin(t * 1.4) * 0.12; P.tabardSway = Math.sin(t * 1.3) * 0.15;
     }
     if (this.landT > 0) P.hipY += 8;
+    if (this.onGround && this.state === 'normal') { P.lean += this.accLean || 0; if ((this.accLean || 0) < -0.06 && Math.abs(this.vx) < 120) { P.footF = { x: P.footF.x + 8, y: 0 }; P.hipY += 3; } } // braking: front foot plants, knees give
     if (this.crouch) { P.hipY = -44; P.footF = { x: 18, y: 0 }; P.footB = { x: -16, y: 0 }; P.lean = 0.28; P.tabardSway = 0.4; }
     // ---- upper body ----
     if (this.state === 'attack') this._attackPose(P);

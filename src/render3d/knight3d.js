@@ -164,7 +164,10 @@ IF.Knight3D = class Knight3D {
     const R = IF.r3, S = R.S * IF.KNIGHT_SCALE, J = IF.rig.solveKnight(P), Pt = this.parts, span = (o, a, b, z) => IF.rig.span(o, a, b, z);
     this.root.position.set(x * R.S, R.wy(x, y), opts.z || 0.25);
     this.root.scale.setScalar(S);
-    this.root.rotation.set(0, f > 0 ? -0.42 : Math.PI + 0.42, opts.rollZ || 0);
+    // turning: pivot smoothly through the camera-facing side instead of snapping 180 degrees
+    const tgtYaw = f > 0 ? -0.42 : -Math.PI + 0.42, dtY = IF.game.lastDt || 0.016;
+    if (this.yaw === undefined || opts.snap) this.yaw = tgtYaw; else this.yaw += (tgtYaw - this.yaw) * Math.min(1, dtY * 13);
+    this.root.rotation.set(0, this.yaw, opts.rollZ || 0);
     this.body.rotation.set(0, 0, 0); this.body.position.set(0, 0, 0);
     if (opts.roll) { this.body.position.y = 38; this.body.rotation.z = -opts.roll; this.body.position.x = 0; this.body.translateY(-38); }
     const zF = 10, zB = -10;
@@ -187,7 +190,10 @@ IF.Knight3D = class Knight3D {
     // shield: on the back, or raised on the off arm while blocking
     if (Pt.shield) { if (P.shieldMode === 'front') { Pt.shield.position.set(J.hB.x + 6, -J.hB.y + 2, zB + 2); Pt.shield.rotation.set(0, Math.PI / 2 - 0.55, 0.05); Pt.shield.scale.setScalar(1.05); } else { const nx = Math.sin(J.lean), ny = Math.cos(J.lean); Pt.shield.position.set(J.hip.x + nx * 24 - 16, -J.hip.y + ny * 24, -6); Pt.shield.rotation.set(0, -Math.PI / 2 + 0.7, J.lean * 0.6 + 0.15); Pt.shield.scale.setScalar(0.88); } }
     // cape: anchored behind the shoulders, swinging with motion
-    if (Pt.cape) { const cape = Pt.cape, pos = cape.geometry.attributes.position, base = cape.userData.base, t = R.clock, w = P.capeWave || 0;
+    if (Pt.cape) { const cape = Pt.cape, pos = cape.geometry.attributes.position, base = cape.userData.base, t = R.clock, dtc = IF.game.lastDt || 0.016;
+      // cloth: a damped spring follows the motion target, so the cape lags, overshoots and settles (and swings through turns)
+      const turn = (this._pyaw === undefined ? 0 : (this.yaw - this._pyaw) / dtc) * 0.05; this._pyaw = this.yaw;
+      this.cw = this.cw || 0; this.cwv = this.cwv || 0; this.cwv += ((P.capeWave || 0) + Math.abs(turn) - this.cw) * 55 * dtc; this.cwv *= Math.pow(0.04, dtc); this.cw += this.cwv * dtc; const w = this.cw;
       const ax = (J.shB.x + J.shF.x) / 2 - 6, ay = -(J.shB.y + J.shF.y) / 2 + 4;
       cape.position.set(ax * S / 1, 0, 0); // placed in root space below
       cape.position.set(0, 0, 0); cape.scale.setScalar(1); cape.rotation.set(0, 0, 0); this.root.add(cape);
