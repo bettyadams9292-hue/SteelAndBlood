@@ -36,7 +36,7 @@ IF.Knight3D = class Knight3D {
   lathe(pts, seg = 16) { return new this.T.LatheGeometry(pts.map(([r, y]) => new this.T.Vector2(r, y)), seg); }
   mats(look) {
     const m = IF.mat, pal = (p, fb) => p || fb, L = look;
-    const metalOf = (p) => p ? m.metal(p.metal, p.rust ? 0.62 : p.gold ? 0.3 : 0.32, p.id === 'blackened' ? 0.75 : 0.92) : m.metal('#6c6e70', 0.55, 0.85);
+    const metalOf = (p) => p ? m.metal(p.metal, p.rust ? 0.66 : p.gold ? 0.36 : 0.44, p.id === 'blackened' ? 0.75 : 0.88) : m.metal('#6c6e70', 0.58, 0.82); // brushed, battle-worn plate rather than chrome
     const chest = pal(L.chest, IF.art.MAIL), legs = pal(L.legs, IF.art.MAIL), boots = L.boots || IF.art.LEATHER, hands = L.gauntlets || IF.art.LEATHER, helm = L.helmet || IF.art.MAIL;
     return {
       chest: metalOf(L.chest), legs: metalOf(L.legs), arms: metalOf(L.chest), helm: metalOf(L.helmet),

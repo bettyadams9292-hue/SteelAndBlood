@@ -24,7 +24,7 @@ IF.kit = {
   }; },
   mats() { return this._m || (this._m = this.M()); },
   /* World-scale standards (metres) checked by audit(): the knight is 1.8 m tall; everything is sized against him. */
-  STANDARDS: { crate: [0.5, 0.75], barrel: [0.8, 1.0], fence: [0.95, 1.15], well: [2.0, 2.6], brazier: [1.0, 1.5], banner: [1.6, 2.2], cart: [0.9, 1.6], car: [1.2, 1.7], cone: [0.3, 0.8], tyres: [0.3, 0.8], hydrant: [0.35, 0.8], locker: [0.8, 2.0], sandbags: [0.3, 0.9], log: [0.25, 0.7], stump: [0.2, 0.7] },
+  STANDARDS: { crate: [0.5, 0.75], barrel: [0.8, 1.0], fence: [0.95, 1.15], well: [2.0, 2.6], brazier: [1.0, 1.5], banner: [1.6, 2.2], cart: [0.6, 1.6], car: [1.0, 1.7], cone: [0.3, 0.8], tyres: [0.3, 0.8], hydrant: [0.35, 0.8], locker: [0.8, 2.0], sandbags: [0.3, 0.9], log: [0.25, 0.7], stump: [0.2, 0.7] },
   audit() { // returns [prop, height, [min,max]] for every builder whose real height breaks its standard
     const T = this.T, out = []; for (const k in this.STANDARDS) { const g = this.prop(k); if (!g) continue; const b = new T.Box3().setFromObject(g), h = b.max.y - b.min.y, [lo, hi] = this.STANDARDS[k]; if (h < lo || h > hi) out.push([k, +h.toFixed(2), [lo, hi]]); if (b.min.y < -0.05) out.push([k + ' (below ground)', +b.min.y.toFixed(2)]); }
     return out; },

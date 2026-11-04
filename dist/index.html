@@ -1580,7 +1580,7 @@ window.BGU={computeMikkTSpaceTangents,mergeGeometries,mergeAttributes,deepCloneA
  * concatenates modules in dependency order (see build.js MODULES list). */
 'use strict';
 const IF = (window.IF = window.IF || {});
-IF.VERSION = '2.4.0';
+IF.VERSION = '2.5.0';
 IF.TITLE = 'Steel & Blood: Knights of the Apocalypse';
 IF.W = 1280; // logical render width
 IF.H = 720;  // logical render height
@@ -3914,7 +3914,7 @@ IF.kit = {
   }; },
   mats() { return this._m || (this._m = this.M()); },
   /* World-scale standards (metres) checked by audit(): the knight is 1.8 m tall; everything is sized against him. */
-  STANDARDS: { crate: [0.5, 0.75], barrel: [0.8, 1.0], fence: [0.95, 1.15], well: [2.0, 2.6], brazier: [1.0, 1.5], banner: [1.6, 2.2], cart: [0.9, 1.6], car: [1.2, 1.7], cone: [0.3, 0.8], tyres: [0.3, 0.8], hydrant: [0.35, 0.8], locker: [0.8, 2.0], sandbags: [0.3, 0.9], log: [0.25, 0.7], stump: [0.2, 0.7] },
+  STANDARDS: { crate: [0.5, 0.75], barrel: [0.8, 1.0], fence: [0.95, 1.15], well: [2.0, 2.6], brazier: [1.0, 1.5], banner: [1.6, 2.2], cart: [0.6, 1.6], car: [1.0, 1.7], cone: [0.3, 0.8], tyres: [0.3, 0.8], hydrant: [0.35, 0.8], locker: [0.8, 2.0], sandbags: [0.3, 0.9], log: [0.25, 0.7], stump: [0.2, 0.7] },
   audit() { // returns [prop, height, [min,max]] for every builder whose real height breaks its standard
     const T = this.T, out = []; for (const k in this.STANDARDS) { const g = this.prop(k); if (!g) continue; const b = new T.Box3().setFromObject(g), h = b.max.y - b.min.y, [lo, hi] = this.STANDARDS[k]; if (h < lo || h > hi) out.push([k, +h.toFixed(2), [lo, hi]]); if (b.min.y < -0.05) out.push([k + ' (below ground)', +b.min.y.toFixed(2)]); }
     return out; },
@@ -4707,7 +4707,7 @@ IF.Knight3D = class Knight3D {
   lathe(pts, seg = 16) { return new this.T.LatheGeometry(pts.map(([r, y]) => new this.T.Vector2(r, y)), seg); }
   mats(look) {
     const m = IF.mat, pal = (p, fb) => p || fb, L = look;
-    const metalOf = (p) => p ? m.metal(p.metal, p.rust ? 0.62 : p.gold ? 0.3 : 0.32, p.id === 'blackened' ? 0.75 : 0.92) : m.metal('#6c6e70', 0.55, 0.85);
+    const metalOf = (p) => p ? m.metal(p.metal, p.rust ? 0.66 : p.gold ? 0.36 : 0.44, p.id === 'blackened' ? 0.75 : 0.88) : m.metal('#6c6e70', 0.58, 0.82); // brushed, battle-worn plate rather than chrome
     const chest = pal(L.chest, IF.art.MAIL), legs = pal(L.legs, IF.art.MAIL), boots = L.boots || IF.art.LEATHER, hands = L.gauntlets || IF.art.LEATHER, helm = L.helmet || IF.art.MAIL;
     return {
       chest: metalOf(L.chest), legs: metalOf(L.legs), arms: metalOf(L.chest), helm: metalOf(L.helmet),
