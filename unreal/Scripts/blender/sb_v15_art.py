@@ -151,3 +151,64 @@ def apply_all():
     rep['knees'] = knee_crosses()
     rep['torn'] = {n: tear_hem(n, d, s) for n, d, s in (('TabardFront', 0.14, 1.0), ('TabardBack', 0.16, 2.0), ('Cape', 0.22, 3.0))}
     return rep
+
+# ------------------------------------------------------------------ pass 2 (closer to the reference boards)
+def scale_obj(name, s):
+    o = D.objects.get(name)
+    if not o or o.get('sb_scaled'): return False
+    mn, mx = wbb(o); c = (mn + mx) / 2
+    scale_about([o], c, s); o['sb_scaled'] = 1; return True
+
+def fix_helm_cross():
+    for n in ('HelmCrossV', 'HelmCrossH'):
+        o = D.objects.get(n)
+        if not o: continue
+        sw = o.modifiers.get('Wrap')
+        if sw:
+            sw.wrap_method = 'NEAREST_SURFACEPOINT'; sw.wrap_mode = 'OUTSIDE_SURFACE'; sw.offset = 0.006
+    return True
+
+def tabard_border(mat, red=(0.36, 0.02, 0.015), half=0.15):
+    """Red side borders on the tabard (object-space |x| > half), keeps the existing cross/cloth shading."""
+    mat.use_nodes = True; t = mat.node_tree
+    b = next((n for n in t.nodes if n.bl_idname == 'ShaderNodeBsdfPrincipled'), None)
+    if not b or mat.get('sb_border'): return False
+    src = b.inputs['Base Color'].links[0].from_socket if b.inputs['Base Color'].links else None
+    base = tuple(b.inputs['Base Color'].default_value)
+    tc = K._n(t, 'ShaderNodeTexCoord', -1200, -900); sep = K._n(t, 'ShaderNodeSeparateXYZ', -1000, -900); K._L(t, tc, 'Object', sep, 'Vector')
+    ab = K._n(t, 'ShaderNodeMath', -800, -900, operation='ABSOLUTE'); K._L(t, sep, 'X', ab, 0)
+    gt = K._n(t, 'ShaderNodeMath', -600, -900, operation='GREATER_THAN'); gt.inputs[1].default_value = half; K._L(t, ab, 0, gt, 0)
+    mx = K._n(t, 'ShaderNodeMix', -300, -700, data_type='RGBA'); K._L(t, gt, 0, mx, 'Factor')
+    if src: t.links.new(src, mx.inputs[6])
+    else: mx.inputs[6].default_value = base
+    mx.inputs[7].default_value = (*red, 1)
+    for l in list(b.inputs['Base Color'].links): t.links.remove(l)
+    t.links.new(mx.outputs[2], b.inputs['Base Color'])
+    mat['sb_border'] = 1; return True
+
+def armour_boots():
+    plate = D.materials['ArmorPlate']; gold = D.materials['Gold']; n = 0
+    for s in ('1', '-1'):
+        for part, mat in (('', plate), ('Shaft', plate), ('ToeCap', plate), ('HeelCup', plate), ('Lame0', gold), ('Lame1', gold)):
+            o = D.objects.get('Boot' + s + part)
+            if not o: continue
+            for i, m in enumerate(o.data.materials):
+                if m and m.name in ('BootLeather', 'DarkSteel'): o.data.materials[i] = mat; n += 1
+    return n
+
+def bigger_chips():
+    for nm in ('Armor', 'ArmorPlate'):
+        t = D.materials[nm].node_tree
+        for n in t.nodes:
+            if n.bl_idname == 'ShaderNodeTexNoise' and abs(n.inputs['Scale'].default_value - 7.0) < 1e-3: n.inputs['Scale'].default_value = 4.0
+            if n.bl_idname == 'ShaderNodeTexVoronoi' and abs(n.inputs['Scale'].default_value - 70.0) < 1e-3: n.inputs['Scale'].default_value = 32.0
+            if n.bl_idname == 'ShaderNodeTexNoise' and abs(n.inputs['Scale'].default_value - 90.0) < 1e-3: n.inputs['Scale'].default_value = 45.0
+
+def pass2():
+    r = {'helm': fix_helm_cross()}
+    r['pcross'] = [scale_obj(n, 1.6) for n in ('PCross1', 'PCross-1')]
+    r['chest'] = scale_obj('ChestCross', 1.5)
+    r['tabard'] = tabard_border(D.materials['TabardCloth']) if 'TabardCloth' in D.materials else None
+    r['boots'] = armour_boots()
+    bigger_chips()
+    return r
