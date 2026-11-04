@@ -152,12 +152,24 @@ def upgrade_materials():
     return done
 
 # ------------------------------------------------------------------ scene building
+def ctx():
+    """A full UI context (window/area/region) so operators that rely on context.object work from timers/servers."""
+    win = bpy.context.window_manager.windows[0]
+    area = next((a for a in win.screen.areas if a.type == 'VIEW_3D'), win.screen.areas[0])
+    region = next((r for r in area.regions if r.type == 'WINDOW'), area.regions[0])
+    return bpy.context.temp_override(window=win, area=area, region=region, scene=win.scene, view_layer=win.view_layer)
+
 def clean():
-    bpy.ops.wm.read_homefile(use_empty=True)
+    for o in list(bpy.data.objects): bpy.data.objects.remove(o, do_unlink=True)
+    for coll in (bpy.data.meshes, bpy.data.armatures, bpy.data.materials, bpy.data.actions, bpy.data.cameras, bpy.data.lights, bpy.data.images):
+        for d in list(coll):
+            if d.users == 0: coll.remove(d)
+    for c in list(bpy.data.collections): bpy.data.collections.remove(c)
 
 def imp(name):
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=SRC + name + '.gltf')
+    with ctx():
+        bpy.ops.import_scene.gltf(filepath=SRC + name + '.gltf')
     return [o for o in bpy.data.objects if o not in before]
 
 def bind_to_bone(objs, arm, bone, world_loc, world_rot):
@@ -169,7 +181,8 @@ def bind_to_bone(objs, arm, bone, world_loc, world_rot):
         o.matrix_world = Matrix.Translation(world_loc) @ Euler(world_rot).to_matrix().to_4x4()
         bpy.ops.object.select_all(action='DESELECT'); o.select_set(True); arm.select_set(True)
         bpy.context.view_layer.objects.active = arm; arm.data.bones.active = arm.data.bones[bone]
-        bpy.ops.object.parent_set(type='BONE', keep_transform=True)
+        with ctx():
+            bpy.ops.object.parent_set(type='BONE', keep_transform=True)
     arm.data.pose_position = 'POSE'
     return objs
 
@@ -177,16 +190,17 @@ def stage():
     sc = bpy.context.scene
     w = bpy.data.worlds.new('W_Dusk'); sc.world = w; w.use_nodes = True
     bg = w.node_tree.nodes['Background']; bg.inputs[0].default_value = (0.012, 0.014, 0.02, 1); bg.inputs[1].default_value = 1.0
-    bpy.ops.mesh.primitive_circle_add(vertices=96, radius=4.0, fill_type='NGON', location=(0, 0, 0))
-    g = bpy.context.object; g.name = 'Stage_Ground'
+    import bmesh
+    me = bpy.data.meshes.new('Stage_Ground'); bm = bmesh.new(); bmesh.ops.create_circle(bm, cap_ends=True, segments=96, radius=4.0); bm.to_mesh(me); bm.free()
+    g = bpy.data.objects.new('Stage_Ground', me); sc.collection.objects.link(g)
     gm = bpy.data.materials.new('M_StageStone'); stone(gm, (0.2, 0.19, 0.17)); g.data.materials.append(gm)
     def area(name, loc, rot, energy, col, size):
-        bpy.ops.object.light_add(type='AREA', location=loc); l = bpy.context.object; l.name = name
+        ld = bpy.data.lights.new(name, 'AREA'); l = bpy.data.objects.new(name, ld); l.location = loc; sc.collection.objects.link(l)
         l.rotation_euler = rot; l.data.energy = energy; l.data.color = col; l.data.size = size; return l
     area('Key_Warm', (2.4, -2.6, 3.0), (math.radians(52), 0, math.radians(42)), 900, (1.0, 0.72, 0.5), 1.6)
     area('Rim_Cool', (-2.0, 2.6, 2.6), (math.radians(-55), 0, math.radians(-145)), 1100, (0.55, 0.68, 1.0), 1.0)
     area('Fill', (-3.0, -2.0, 1.2), (math.radians(80), 0, math.radians(-55)), 120, (0.8, 0.85, 1.0), 3.0)
-    bpy.ops.object.camera_add(location=(2.2, -4.6, 1.25)); cam = bpy.context.object; cam.name = 'Cam_Hero'
+    cam = bpy.data.objects.new('Cam_Hero', bpy.data.cameras.new('Cam_Hero')); cam.location = (2.2, -4.6, 1.25); sc.collection.objects.link(cam)
     cam.data.lens = 70
     tgt = bpy.data.objects.new('CamTarget', None); tgt.location = (0, 0, 0.98); sc.collection.objects.link(tgt)
     c = cam.constraints.new('TRACK_TO'); c.target = tgt; c.track_axis = 'TRACK_NEGATIVE_Z'; c.up_axis = 'UP_Y'
@@ -208,7 +222,8 @@ def build_hero(pose_action='A_Knight_Idle', frame=12):
     for o in body:
         o.name = 'SK_HeroKnight_Body'
         bpy.context.view_layer.objects.active = o
-        try: bpy.ops.object.shade_auto_smooth(angle=math.radians(50))
+        try:
+            with ctx(): bpy.ops.object.shade_auto_smooth(angle=math.radians(50))
         except Exception: pass
     sword = imp('SM_Wpn_Longsword'); shield = imp('SM_Shield_Heater')
     # glTF importer converts Y-up to Z-up; weapon grip at origin, blade along +Z after import.
@@ -225,10 +240,10 @@ def build_hero(pose_action='A_Knight_Idle', frame=12):
     mats = upgrade_materials()
     cam = stage()
     os.makedirs(ART, exist_ok=True)
-    bpy.ops.wm.save_as_mainfile(filepath=ART + 'HeroKnight_Lookdev.blend')
+    with ctx(): bpy.ops.wm.save_as_mainfile(filepath=ART + 'HeroKnight_Lookdev.blend')
     return {'mats': mats, 'actions': [a.name for a in bpy.data.actions], 'objects': [o.name for o in bpy.data.objects]}
 
 def render(path):
     bpy.context.scene.render.filepath = path
-    bpy.ops.render.render(write_still=True)
+    with ctx(): bpy.ops.render.render(write_still=True)
     return path
