@@ -99,7 +99,7 @@ IF.crowd = {
     else this.addHead(e, L, P, hx, hy, wb, skin, skinD, flash);
     // wounds
     if (e.wounds) for (const w of e.wounds) this.push('wound', w.x, -w.y, 10 * wb + 2, null, w.r / 3, 1, 1);
-    if (e.boss) IF.chars3d.bossExtras(e, P, { shF, eF, hF: { x: eF.ex, y: eF.ey } }, this.root);
+    if (e.boss) IF.chars3d.bossExtras(e, P, { shF, shB, eF, hF: { x: eF.ex, y: eF.ey }, hip: { x: 0, y: P.hipY }, nx, ny, torso: D.torso }, this.root);
   },
   addHead(e, L, P, hx, hy, wb, skin, skinD, flash) {
     const T = IF.r3.T, hq = new T.Quaternion().setFromEuler(new T.Euler(0, 0, -((P.head || 0) + Math.sin(e.t * 1.7 + e.seed) * 0.08 + 0.15))), k = wb;

@@ -174,7 +174,7 @@ IF.Companion = class Companion {
   pose() {
     const t = this.t, sp = this.speedNow, run = sp > 20, P = { hipX: 0, hipY: -70, lean: 0.06, footF: { x: 9, y: 0 }, footB: { x: -9, y: 0 }, handF: { x: 18, y: -60 }, handB: { x: -6, y: -52 }, shieldMode: 'back', capeWave: 0, tabardSway: 0, headTilt: 0, wAngle: -1.1, elbowF: 1, elbowB: 1 };
     if (this.down) { P.hipY = -20; P.footF = { x: 40, y: 0 }; P.footB = { x: 34, y: 0 }; P.lean = -1.3; return P; }
-    if (run) { this.phase += sp * 0.00042 * 60 * (this.run.lastDt || 0.016); const ph = this.phase, k = Math.min(1, sp / 260), stride = 14 + 12 * k; P.footF = { x: Math.sin(ph) * stride, y: -Math.max(0, Math.cos(ph)) * (6 + 10 * k) }; P.footB = { x: Math.sin(ph + Math.PI) * stride, y: -Math.max(0, Math.cos(ph + Math.PI)) * (6 + 10 * k) }; P.hipY = -70 - Math.abs(Math.sin(ph)) * 3 * k; P.lean = 0.06 + 0.12 * k; P.capeWave = 0.4 * k; P.tabardSway = Math.sin(ph) * 0.6; }
+    if (run) { this.phase += sp * (IF.game.lastDt || 0.016) * Math.PI / (2 * (14 + 12 * Math.min(1, sp / 260)) * IF.KNIGHT_SCALE); const ph = this.phase, k = Math.min(1, sp / 260), stride = 14 + 12 * k; P.footF = { x: Math.sin(ph) * stride, y: -Math.max(0, Math.cos(ph)) * (6 + 10 * k) }; P.footB = { x: Math.sin(ph + Math.PI) * stride, y: -Math.max(0, Math.cos(ph + Math.PI)) * (6 + 10 * k) }; P.hipY = -70 - Math.abs(Math.sin(ph)) * 3 * k; P.lean = 0.06 + 0.12 * k; P.capeWave = 0.4 * k; P.tabardSway = Math.sin(ph) * 0.6; }
     else { P.hipY = -70 + Math.sin(t * 2.2) * 0.8; P.tabardSway = Math.sin(t * 1.3) * 0.15; }
     if (this.ranged) {
       const cls = this.wi.def.cls, grip = IF.art.GRIP[cls] || IF.art.GRIP.rifle, pistol = cls === 'pistol'; this.kick = Math.max(0, (this.kick || 0) - 0.15);
@@ -248,7 +248,7 @@ IF.Dog3D = class Dog3D {
   update(c) {
     const R = IF.r3, t = c.t, sp = c.speedNow, k = Math.min(1, sp / 300);
     this.root.position.set(c.x * R.S, R.wy(c.x, IF.GROUND), c.z); this.root.rotation.y = c.facing > 0 ? 0 : Math.PI;
-    const gait = t * (6 + sp * 0.04);
+    c.gaitPh = (c.gaitPh || 0) + (sp > 15 ? sp * (IF.game.lastDt || 0.016) * 0.078 : 0) + (IF.game.lastDt || 0.016) * 0.4; const gait = c.gaitPh;
     this.legs.forEach((L) => { const ph = gait + L.off + (L.front ? 0 : Math.PI * 0.5); L.hip.rotation.z = Math.sin(ph) * 0.65 * k; L.knee.rotation.z = (L.front ? -1 : 1) * Math.max(0, Math.cos(ph)) * 0.7 * k; });
     this.body.position.y = 0.5 + Math.abs(Math.sin(gait)) * 0.03 * k; this.body.rotation.z = Math.sin(gait * 2) * 0.03 * k;
     this.tail.rotation.z = 0.5 + Math.sin(t * (c.state === 'follow' ? 9 : 4)) * 0.35; this.tail.rotation.y = Math.sin(t * 9) * 0.4;

@@ -203,7 +203,7 @@ IF.home3d = {
   fire(x, y, z, s, g, chunk, laneX, lightY) {
     const T = IF.r3.T, mk = (c, o) => IF.mat.get('flame' + c, () => new T.MeshBasicMaterial({ color: c, transparent: true, opacity: o, blending: T.AdditiveBlending, depthWrite: false }));
     const geo = IF.kit._flameGeo || new T.ConeGeometry(0.16, 0.5, 8);
-    [['#ff5a10', 0.55, 1.15], ['#ffa030', 0.7, 0.85], ['#fff0a0', 0.85, 0.5]].forEach(([c, o, k]) => { const f = new T.Mesh(geo, mk(c, o)); f.position.set(x, y, z); f.scale.setScalar(k * s); f.userData.flame = true; f.userData.fid = Math.random() * 10; f.castShadow = false; g.add(f); chunk.flames.push(f); });
+    [['#c8340a', 0.42, 1.15], ['#e8701a', 0.38, 0.82], ['#ffc860', 0.45, 0.45]].forEach(([c, o, k]) => { const f = new T.Mesh(geo, mk(c, o)); f.position.set(x, y, z); f.scale.setScalar(k * s); f.userData.flame = true; f.userData.fid = Math.random() * 10; f.castShadow = false; g.add(f); chunk.flames.push(f); });
     chunk.lights.push({ x: laneX, y: IF.GROUND - lightY, z: z + 0.6, i: 4 * s + 1, c: '#ff9a40', r: 7 });
   },
   /* one builder per displayable (metres; floor items stand at y=0, wall items centred on the mount) */

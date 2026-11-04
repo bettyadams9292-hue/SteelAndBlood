@@ -140,13 +140,13 @@ IF.terrain = {
     const span = (step, fn) => { for (let X = x0 + rng.next() * step; X < x1; X += step * (0.6 + rng.next() * 0.8)) fn(X); };
     switch (b.id) {
       case 'village': case 'settlement':
-        span(9, (X) => place(b.id === 'village' ? K.cottage(rng, rng.chance(0.5)) : K.shack(rng), X, -9 - rng.next() * 12, (rng.next() - 0.5) * 0.5));
+        span(9, (X) => place(b.id === 'village' ? K.house(rng, rng.chance(0.45)) : K.shack(rng), X, -9 - rng.next() * 12, (rng.next() - 0.5) * 0.5));
         if (b.id === 'village') span(55, (X) => place(K.church(rng), X, -22 - rng.next() * 6, -0.2 + rng.next() * 0.4));
         span(6, (X) => place(K.fence(1.4), X, -3.2 - rng.next(), rng.next() * 0.4));
         span(14, (X) => place(K.brazier(), X, -2.9, 0, false));
         span(18, (X) => { const bn = K.banner(); place(bn, X, -3.4, 0, false); });
         break;
-      case 'forest': span(25, (X) => place(K.cottage(rng, true), X, -14 - rng.next() * 8, rng.next())); span(20, (X) => place(K.log(), X, -3.5, rng.next() * 3)); break;
+      case 'forest': span(25, (X) => place(K.house(rng, true), X, -14 - rng.next() * 8, rng.next())); span(20, (X) => place(K.log(), X, -3.5, rng.next() * 3)); break;
       case 'castle':
         span(16, (X) => place(K.castleWall(14, rng), X, -12 - rng.next() * 3, 0));
         span(22, (X) => place(K.tower(rng), X, -13 - rng.next() * 4, 0));
@@ -159,7 +159,7 @@ IF.terrain = {
         span(16, (X) => place(K.billboard(rng), X, -12 - rng.next() * 5, 0));
         if (b.id === 'checkpoint') { span(20, (X) => place(K.watchtower(), X, -7 - rng.next() * 3, 0, false)); span(7, (X) => place(K.sandbags(2.2), X, -3.2, 0)); span(9, (X) => place(K.wire(2), X, -4.2, 0)); }
         break;
-      case 'city': span(7, (X) => place(K.cityBlock(rng), X, -10 - rng.next() * 14, 0)); span(9, (X) => place(K.car(), X, -4 - rng.next() * 2, rng.next() * 3)); span(6, (X) => place(K.rubble(12), X, -3.4 - rng.next() * 2, rng.next() * 3)); break;
+      case 'city': span(8, (X) => place(K.cityBlock(rng), X, -15 - rng.next() * 16, 0)); span(9, (X) => place(K.car(), X, -4 - rng.next() * 2, rng.next() * 3)); span(6, (X) => place(K.rubble(12), X, -3.4 - rng.next() * 2, rng.next() * 3)); break;
       case 'battlefield':
         span(18, (X) => place(K.tank(), X, -7 - rng.next() * 8, rng.next() * 3)); span(12, (X) => place(K.trench(8), X, -4.5, 0));
         span(5, (X) => place(K.crater(0.8 + rng.next()), X, -3 - rng.next() * 6, 0)); span(8, (X) => place(K.wire(2), X, -3.6, 0));
@@ -172,6 +172,25 @@ IF.terrain = {
     }
     // ruined debris scattered close to the lane everywhere outdoors
     if (!cfg.indoor) span(4, (X) => place(K.rubble(4), X, -2.8 - rng.next() * 1.5, rng.next() * 3));
+    if (!cfg.indoor) this.landmarks(b, W, rng, group, place, x0, x1);
+  },
+  /* Distant landmarks give every zone its own skyline: big silhouettes far behind, half-lost in fog. */
+  landmarks(b, W, rng, group, place, x0, x1) {
+    const K = IF.kit, big = (o, s) => { o.scale.setScalar(s); return o; }, Z = () => -62 - rng.next() * 18;
+    const at = (n, f) => { for (let i = 0; i < n; i++) { const X = x0 + (x1 - x0) * (i + 0.3 + rng.next() * 0.4) / n; const o = f(X); if (o) place(o, X, o.userData.z || Z(), rng.next() * 0.6 - 0.3, false); } };
+    const fire = (o, y) => { o.userData.light = { y: -y * 100, i: 6, c: '#ff6a20', r: 30 }; o.userData.smoke = { y: -y * 100 }; return o; };
+    switch (b.id) {
+      case 'village': at(1, () => big(K.church(rng), 2.2)); at(2, () => big(K.house(rng, true), 2.4)); break; // hilltop abbey and the burning manor
+      case 'forest': at(2, () => big(K.tower(rng), 1.8)); break; // ruined watchtowers above the canopy
+      case 'castle': at(1, () => { const g = K.g(); for (let i = 0; i < 3; i++) { const t = big(K.tower(rng), 2.4 - i * 0.3); t.position.set(-16 + i * 16, 0, -i * 4); g.add(t); } const w = big(K.castleWall(30, rng), 1.6); g.add(w); return g; }); break; // the keep
+      case 'highway': at(2, () => big(K.overpass(30), 1.5)); at(1, () => big(K.billboard ? K.billboard(rng) : K.cityBlock(rng), 2)); break;
+      case 'checkpoint': at(3, () => big(K.watchtower(), 2)); break;
+      case 'city': at(5, () => big(K.cityBlock(rng), 2.2 + rng.next())); break; // the dead skyline
+      case 'battlefield': at(3, () => fire(big(K.tank(), 3), 2)); break; // burning armour on the ridge
+      case 'base': at(2, () => big(K.hangar(rng), 1.8)); at(2, () => big(K.watchtower(), 2.2)); break;
+      case 'industrial': at(4, () => fire(big(K.chimney(rng), 2), 12)); break;
+      case 'settlement': at(1, () => fire(big(K.church(rng), 2), 4)); at(3, () => big(K.shack(rng), 2.6)); break;
+    }
   },
   /* Instanced vegetation & rocks: thousands of items in a handful of draw calls. */
   vegetation(cfg, rng, group, x0, x1, seed) {

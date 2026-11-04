@@ -58,9 +58,11 @@ IF.Knight3D = class Knight3D {
       const knee = (P['knee' + s] = new T.Group()); B.add(knee); this.M(new T.SphereGeometry(6.8, 14, 10), mt.legs, knee); const wing = this.M(new T.CylinderGeometry(7.5, 7.5, 1.2, 14, 1, false, 0, Math.PI), mt.legs, knee, 0, 0, 3); wing.rotation.x = Math.PI / 2;
       if (look.legs && look.legs.spikes) this.M(new T.ConeGeometry(2.2, 9, 6), mt.legs, knee, 6, 0, 0).rotation.z = -Math.PI / 2;
       const foot = (P['foot' + s] = new T.Group()); B.add(foot);
-      for (let i = 0; i < 4; i++) this.M(new T.BoxGeometry(6, 5 - i * 0.6, 11 - i * 0.6), mt.boots, foot, -3 + i * 5.2, 3 + i * 0.3, 0).rotation.z = -0.08 * i;
-      this.M(new T.ConeGeometry(4.4, 8, 8), mt.boots, foot, 19, 2.4, 0).rotation.z = -Math.PI / 2;
-      this.M(new T.BoxGeometry(24, 1.4, 11), mt.leather, foot, 6, 0.5, 0);
+      this.M(this.lathe([[5.6, 0], [6.4, 3], [6.2, 8], [5.4, 10]], 14), mt.boots, foot, -1, 1.5, 0).scale.z = 0.95; // ankle cuff
+      for (let i = 0; i < 5; i++) { const l = this.M(new T.CapsuleGeometry(4.6 - i * 0.35, 3.2, 4, 10).rotateZ(Math.PI / 2), mt.boots, foot, 2.5 + i * 3.6, 3.9 - i * 0.45, 0); l.scale.set(1, 0.72, 1.18 - i * 0.05); }
+      const toe = this.M(new T.ConeGeometry(3.6, 7, 10), mt.boots, foot, 21, 2.2, 0); toe.rotation.z = -Math.PI / 2; toe.scale.set(1, 1, 0.8);
+      this.M(new T.CapsuleGeometry(1.0, 1.2, 3, 6), mt.trim, foot, -1, 7, 6.2); // buckle
+      this.M(new T.BoxGeometry(26, 1.6, 10), IF.mat.leather('#22180f'), foot, 7, 0.6, 0); // stitched leather sole
     }
     // arms
     for (const s of ['F', 'B']) {
@@ -73,14 +75,25 @@ IF.Knight3D = class Knight3D {
     }
     // torso
     const torso = (P.torso = new T.Group()); B.add(torso);
-    const plate = this.M(this.lathe([[14, -2], [16.5, 6], [19, 20], [20, 30], [17, 40], [11, 47]], 20), mt.chest, torso); plate.scale.z = 0.72;
-    this.M(new T.BoxGeometry(1.6, 34, 1.6), mt.chest, torso, 18.6, 22, 0); // centre ridge
-    for (let i = 0; i < 3; i++) { const f = this.M(this.lathe([[16 + i * 0.8, 0], [17.5 + i * 1.2, -4]], 18), mt.chest, torso, 0, -1 - i * 3.6, 0); f.scale.z = 0.78; } // faulds
+    const plate = this.M(this.lathe([[13.5, -2], [15.5, 3], [17.2, 10], [18.8, 18], [19.8, 25], [20.2, 31], [19, 37], [16.4, 42], [12.5, 46], [10.5, 47.5]], 28), mt.chest, torso); plate.scale.z = 0.74;
+    const ridge = this.M(this.lathe([[0.9, 4], [1.4, 20], [1.2, 36], [0.6, 44]], 6), mt.chest, torso, 0, 0, 0); ridge.position.x = 19.6 * 0.995; ridge.scale.set(1, 1, 1); // medial ridge
+    const plackart = this.M(this.lathe([[16.2, 2], [18.3, 9], [19.2, 16], [17.4, 21], [14, 23]], 24, 0), mt.chest, torso); plackart.scale.set(1.035, 1, 0.77); // lower lame over the belly
+    this.M(new T.TorusGeometry(11.5, 1.2, 6, 20), mt.chest, torso, 0, 46.6, 0).rotation.x = Math.PI / 2; // rolled neck edge
+    for (const z of [-8, 8]) for (const y of [11, 20]) this.M(new T.SphereGeometry(0.9, 6, 4), mt.trim, torso, 18.4, y, z); // rivets
+    for (let i = 0; i < 3; i++) { const f = this.M(this.lathe([[16.3 + i * 0.9, 1], [17.6 + i * 1.3, -4.2]], 22), mt.chest, torso, 0, -1 - i * 3.8, 0); f.scale.z = 0.78; if (i === 2) { const tr = this.M(new T.TorusGeometry(20.2, 0.4, 4, 22), mt.trim, torso, 0, -12.8, 0); tr.rotation.x = Math.PI / 2; tr.scale.y = 0.78; } } // faulds with gilt edges
     this.M(new T.CylinderGeometry(9, 12, 7, 14), mt.helm, torso, 0, 47, 0); // gorget
-    // surcoat: open cylinder with heraldry front & back, skirt panels below the belt
-    const tex = mt.tabard.map; tex.repeat.set(2, 1);
-    const coat = this.M(new T.CylinderGeometry(20.5, 18, 36, 24, 1, true), mt.tabard, torso, 0, 26, 0); coat.scale.z = 0.8;
-    const skirt = (P.skirt = this.M(new T.CylinderGeometry(18.5, 22, 30, 24, 3, true), mt.tabard, torso, 0, -7, 0)); skirt.scale.z = 0.86;
+    // tabard: separate front and back panels of heavy cloth hanging from the shoulders (open at the sides, like the real thing),
+    // folds baked into the geometry, a gilt hem, belted at the waist; the skirt panels sway with the stride
+    const tabMat = mt.tabard.clone(); tabMat.map = mt.tabard.map.clone(); tabMat.map.repeat.set(1, 1); tabMat.map.offset.set(0, 0); tabMat.map.needsUpdate = true; tabMat.side = T.DoubleSide;
+    const panel = (r0, r1, h, y, front, folds, depth) => {
+      const g = new T.CylinderGeometry(r0, r1, h, 18, 6, true, (front ? Math.PI / 2 : Math.PI * 1.5) - 0.82, 1.64), pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i), yy = pos.getY(i), a = Math.atan2(x, z), k = (h / 2 - yy) / h, f = Math.sin(a * folds) * depth * (0.3 + k); const rr = Math.hypot(x, z) + f + 0.6; pos.setXYZ(i, Math.sin(a) * rr, yy, Math.cos(a) * rr); }
+      g.computeVertexNormals(); const m = this.M(g, tabMat, torso, 0, y, 0); m.scale.z = 0.8; return m;
+    };
+    panel(21.2, 19, 37, 26, true, 9, 0.35); panel(21.2, 19, 37, 26, false, 9, 0.35);
+    const skirt = (P.skirt = new T.Group()); torso.add(skirt); skirt.position.y = 6;
+    for (const front of [true, false]) { const sp = panel(19.5, 24, 32, 0, front, 7, 1.3); torso.remove(sp); sp.position.y = -15; skirt.add(sp); }
+    if (look.cape) { const capeM = IF.mat.cloth(look.cape.cloth || '#8e1218', 'mantle' + look.cape.cloth); const mantle = this.M(new T.TorusGeometry(13.5, 3.2, 8, 22), capeM, torso, -1, 44.5, 0); mantle.rotation.x = Math.PI / 2; mantle.scale.set(1, 0.82, 1); for (const z of [-10.5, 10.5]) { const c = this.M(new T.CylinderGeometry(2.4, 2.4, 1.2, 12), mt.trim, torso, 11.5, 43, z); c.rotation.z = Math.PI / 2; } } // cloak collar and clasps the cape hangs from
     this.M(new T.TorusGeometry(18.6, 1.6, 6, 24), mt.leather, torso, 0, 6, 0).rotation.x = Math.PI / 2; // belt
     this.M(new T.BoxGeometry(2.5, 6, 6), mt.trim, torso, 19, 6, 0);
     // pauldrons
@@ -178,7 +191,7 @@ IF.Knight3D = class Knight3D {
       const ax = (J.shB.x + J.shF.x) / 2 - 6, ay = -(J.shB.y + J.shF.y) / 2 + 4;
       cape.position.set(ax * S / 1, 0, 0); // placed in root space below
       cape.position.set(0, 0, 0); cape.scale.setScalar(1); cape.rotation.set(0, 0, 0); this.root.add(cape);
-      for (let i = 0; i < pos.count; i++) { const bx = base[i * 3], by = base[i * 3 + 1], k = -by / 104; pos.setXYZ(i, ax - k * k * (18 + w * 30) - k * 6 + bx * 0.08, ay + by * (1 - Math.abs(w) * 0.12), -12 + bx * 0.7 + Math.sin(t * 4 + k * 5 + bx * 0.1) * 5 * k); }
+      for (let i = 0; i < pos.count; i++) { const bx = base[i * 3], by = base[i * 3 + 1], k = -by / 104; const wrap = (1 - k) * (1 - k); pos.setXYZ(i, ax - 13 - k * k * (16 + w * 30) - k * 5 + Math.abs(bx) * 0.32 * wrap + Math.sin(t * 4 + k * 5 + bx * 0.12) * 3.2 * k, ay + by * (1 - Math.abs(w) * 0.12), bx * (0.62 + 0.38 * k)); }
       pos.needsUpdate = true; cape.geometry.computeVertexNormals(); }
     if (Pt.aura) Pt.aura.material.opacity = 0.05 + Math.sin(R.clock * 3) * 0.02;
     // hit flash / iframe flicker via material swap

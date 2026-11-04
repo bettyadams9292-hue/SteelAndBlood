@@ -160,8 +160,30 @@ IF.chars3d = {
     IF.crowd.end();
     IF.companions.render3d(run);
     for (const id in this.bossW) if (!this.seenBoss[id]) this.bossW[id].visible = false;
+    if (this.bossA) for (const id in this.bossA) if (!this.seenBoss[id]) { const A = this.bossA[id]; A.paulF.visible = A.paulB.visible = A.chest.visible = A.aura.visible = false; }
+  },
+  /* Bespoke armour for each boss so it never reads as an enlarged zombie: spiked pauldrons, a breastplate,
+   * a crest (crown / horns / helmet plume) and a ground aura that marks it out from the horde. */
+  bossArmour(e, J, rootMatrix) {
+    const T = IF.r3.T, L = e.def.look, id = e.def.id; this.bossA = this.bossA || {};
+    let A = this.bossA[id];
+    if (!A) {
+      const metalC = L.obsidian ? '#2a1f3a' : L.medals || L.helmet ? '#3a3f36' : '#3a3434', metal = IF.mat.metal(metalC, 0.4, 0.9, 'bossm' + id), trim = IF.mat.metal(L.obsidian ? '#b77bff' : '#a8843a', 0.3, 1, 'bosst' + id), glow = IF.mat.glow(L.eyes || '#ff4020', 2.2);
+      const mk = () => { const g = new T.Group(); g.matrixAutoUpdate = false; IF.r3.scene.add(g); return g; }, M = (geo, m, g, x = 0, y = 0, z = 0) => { const o = new T.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+      A = this.bossA[id] = { paulF: mk(), paulB: mk(), chest: mk(), aura: null };
+      for (const k of ['paulF', 'paulB']) { const g = A[k]; for (let i = 0; i < 3; i++) { const l = M(new T.SphereGeometry(15 - i * 2, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), metal, g, 0, -i * 5, 0); l.scale.set(1.1, 0.8, 1); } M(new T.TorusGeometry(14.5, 1, 5, 18), trim, g, 0, 0, 0).rotation.x = Math.PI / 2; for (let i = -1; i <= 1; i++) M(new T.ConeGeometry(2.6, 16, 6), metal, g, i * 7, 12, 0); }
+      const c = A.chest; const pl = M(new T.SphereGeometry(20, 16, 12, 0, Math.PI * 2, 0.35, 1.9), metal, c, 0, 0, 0); pl.scale.set(0.85, 1.25, 1.0); M(new T.BoxGeometry(2, 34, 2), trim, c, 17.5, 0, 0);
+      M(new T.TorusGeometry(10, 2, 6, 16), glow, c, 15, 6, 0).rotation.y = Math.PI / 2; // glowing sigil
+      const ring = new T.Mesh(new T.RingGeometry(0.85, 1, 48).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: L.eyes || '#ff3020', transparent: true, opacity: 0.5, blending: T.AdditiveBlending, depthWrite: false })); IF.r3.scene.add(ring); A.aura = ring;
+    }
+    const v = !e.dead || e.deadT < 2.5, place = (g, x, y, z, rot, sc) => { g.visible = v; g.matrix.multiplyMatrices(rootMatrix, new T.Matrix4().compose(new T.Vector3(x, -y, z), new T.Quaternion().setFromEuler(new T.Euler(0, 0, rot)), new T.Vector3(sc, sc, sc))); };
+    place(A.paulF, J.shF.x, J.shF.y - 3, 14, -0.2, 1.05); place(A.paulB, J.shB.x, J.shB.y - 3, -14, -0.2, 1.05);
+    place(A.chest, J.hip.x + J.nx * J.torso * 0.55, J.hip.y + J.ny * J.torso * 0.55, 0, -P_lean(J), 1);
+    const R = IF.r3; R.toWorld(e.x, IF.GROUND, 0, A.aura.position); A.aura.position.y += 0.04; const s = (e.w * 1.3 + 40) * R.S * (1 + Math.sin(R.clock * 3) * 0.05); A.aura.scale.set(s, 1, s * 0.6); A.aura.visible = !e.dead;
+    function P_lean(J) { return Math.atan2(J.nx, -J.ny); }
   },
   bossExtras(e, P, J, rootMatrix) {
+    this.bossArmour(e, J, rootMatrix); this.seenBoss[e.def.id] = 1;
     const T = IF.r3.T, L = e.def.look, W = { axe: 'great_axe', sword: 'steel_longsword', greatsword: 'greatsword', rifle: 'k47' }[L.weapon]; if (!W) return;
     let g = this.bossW[e.def.id];
     if (!g) { const def = Object.assign({}, IF.WEAPON[W]); if (L.weapon === 'greatsword') def.look = { blade: '#2a1f3a', edge: '#b77bff', guard: '#140f1b', glow: '#a36bff' }; if (L.weapon === 'axe') def.look = { blade: '#4a4642', edge: '#9a8a7a', guard: '#2a1a10' }; g = this.bossW[e.def.id] = IF.wep3d.build(def, L.weapon === 'greatsword' ? 4 : 0); g.matrixAutoUpdate = false; IF.r3.scene.add(g); }

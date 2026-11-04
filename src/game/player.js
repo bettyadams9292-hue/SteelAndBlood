@@ -389,7 +389,7 @@ IF.Player = class Player {
     }
     // footsteps & walk phase
     if (this.onGround && Math.abs(this.vx) > 20) {
-      this.phase += Math.abs(this.vx) * dt * 0.034;
+      { const sp = Math.abs(this.vx), stride = 14 + 12 * Math.min(1, sp / 260); this.phase += sp * dt * Math.PI / (2 * stride * IF.KNIGHT_SCALE); } // feet plant: stride cycle matched to ground speed
       this.stepAcc += Math.abs(this.vx) * dt; if (this.stepAcc > 78) { this.stepAcc = 0; IF.audio.step(this.look.tier); if (Math.abs(this.vx) > 300) IF.fx.dust(this.x, this.y, 1); }
     }
   }
