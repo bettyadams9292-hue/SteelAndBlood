@@ -1580,7 +1580,7 @@ window.BGU={computeMikkTSpaceTangents,mergeGeometries,mergeAttributes,deepCloneA
  * concatenates modules in dependency order (see build.js MODULES list). */
 'use strict';
 const IF = (window.IF = window.IF || {});
-IF.VERSION = '2.3.0';
+IF.VERSION = '2.3.1';
 IF.TITLE = 'Steel & Blood: Knights of the Apocalypse';
 IF.W = 1280; // logical render width
 IF.H = 720;  // logical render height
@@ -6800,7 +6800,7 @@ IF.Enemy = class Enemy {
         if (adx < this.def.reach * 0.85 && !pl.dead) target = 0;
         if (this.trapped > 0) { this.trapped -= dt; target = 0; this.walkV = 0; if (Math.random() < 0.05) IF.fx.blood(this.x, IF.GROUND - 20, 0, 1); }
         this.walkV = IF.util.approach(this.walkV || 0, target, 900 * dt);
-        this.x += this.walkV * dt; this.phase += Math.abs(this.walkV) * dt * 0.05;
+        this.x += this.walkV * dt; this.phase += Math.abs(this.walkV) * dt * Math.PI / (2 * (this.id === 'runner' ? 22 : 12) * (this.scale || 1) * 1.1); // stride matched to ground speed
         const vertical = this.isLow ? pl.y > IF.GROUND - 70 : pl.y > this.y - this.h - 70;
         if (adx < this.def.reach && this.cd <= 0 && !pl.dead && vertical) { this.state = 'windup'; this.stateT = 0; this.walkV = 0; }
         break;
@@ -6972,8 +6972,12 @@ IF.Enemy = class Enemy {
     P.handF = { x: 32 + sway, y: -90 + Math.sin(t * 3) * 4 }; P.handB = { x: 26 - sway, y: -84 + Math.cos(t * 2.7) * 4 };
     if (this.id === 'runner' && moving) { P.lean = 0.5; P.handF = { x: 10 + Math.sin(ph) * 22, y: -78 }; P.handB = { x: 6 - Math.sin(ph) * 22, y: -76 }; }
     if (this.def.screamer) { P.handF = { x: 10, y: -64 }; P.handB = { x: 4, y: -62 }; P.lean = 0.05; }
-    if (this.state === 'windup') { const k = Math.min(1, this.stateT / this.def.windup); P.lean -= 0.25 * k; P.handF = { x: 8, y: -126 * (1 - 0.1 * k) }; P.handB = { x: 2, y: -122 }; P.jaw = 0.4 * k; }
-    if (this.state === 'active') { P.lean += 0.35; P.handF = { x: 52, y: -70 }; P.handB = { x: 46, y: -76 }; P.jaw = 0.5; }
+    const wuT = this.def.windup * (this.tempo ? this.tempo.wind : 1);
+    if (this.state === 'windup') { const k = Math.min(1, this.stateT / wuT); /* telegraph lasts exactly as long as the real wind-up */ P.lean -= 0.25 * k; P.handF = { x: 8, y: -126 * (1 - 0.1 * k) }; P.handB = { x: 2, y: -122 }; P.jaw = 0.4 * k; }
+    if (this.state === 'active') { const k = IF.util.easeOut ? IF.util.easeOut(Math.min(1, this.stateT / Math.max(0.05, this.def.active))) : Math.min(1, this.stateT / this.def.active); P.lean = P.lean - 0.25 + 0.6 * k; P.handF = { x: 8 + 44 * k, y: -126 + 56 * k }; P.handB = { x: 2 + 44 * k, y: -122 + 46 * k }; P.jaw = 0.5 + 0.3 * k; } // the strike sweeps from the raised telegraph down onto the target during the hit window
+    if (this.state === 'recover') { const k = Math.min(1, this.stateT / Math.max(0.05, this.def.recover)), r = 1 - k; P.lean += 0.35 * r; P.handF = { x: P.handF.x * k + 52 * r, y: P.handF.y * k - 70 * r }; P.handB = { x: P.handB.x * k + 46 * r, y: P.handB.y * k - 76 * r }; } // follow-through eases back to the shamble
+    if (this.state === 'stagger') { const k = Math.min(1, this.stateT / Math.max(0.05, this.staggerT || 0.3)), h = Math.sin(k * Math.PI); P.lean -= 0.45 * h; P.head = -0.4 * h; P.handF = { x: 10, y: -96 + 20 * h }; P.handB = { x: -6, y: -90 + 18 * h }; if (this.stunned > 0) { P.head = Math.sin(this.t * 6) * 0.3; P.lean = -0.1 + Math.sin(this.t * 3) * 0.08; } } // flinch on hit; dazed sway when stunned
+    if (this.passive) { P.handF = { x: 20, y: -110 + this.dance * 20 }; P.handB = { x: -10, y: -110 - this.dance * 20 }; P.lean = this.dance * 0.15; P.footF = { x: 10 + this.dance * 6, y: -Math.max(0, this.dance) * 10 }; } // the Easter-egg jig
     if (this.state === 'scream') { P.lean = -0.3; P.head = -0.5; P.jaw = 0.9; P.handF = { x: 20, y: -100 }; P.handB = { x: -6, y: -100 }; }
     if (this.state === 'throw') { const k = Math.min(1, this.stateT / 0.6); P.handF = { x: -20 + 50 * k, y: -130 + 30 * k }; }
     if (this.boss && this.atk) this._bossPose(P, this.atk);
