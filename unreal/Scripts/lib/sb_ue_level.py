@@ -10,6 +10,11 @@ WPN = '/Game/SteelAndBlood/Weapons/'
 KN = '/Game/SteelAndBlood/Characters/Player/HeroKnight/SK_HeroKnight/SkeletalMeshes/'
 LEVEL = '/Game/SteelAndBlood/Levels/L_RuinedCastle_Showcase'
 
+WARN = []
+def sp(o, k, v):
+    try: o.set_editor_property(k, v)
+    except Exception as e: WARN.append('%s.%s: %s' % (o.get_class().get_name(), k, str(e)[:80]))
+
 def sm(name, root=ENV): return unreal.load_asset(root + name + '/StaticMeshes/' + name)
 
 def put(asset, loc, yaw=0.0, scale=1.0, label=None, folder=None, pitch=0.0, roll=0.0):
@@ -58,47 +63,47 @@ def lighting():
     sun = spawn(unreal.DirectionalLight, (0, 0, 2000), (-7.0, 150.0, 0), 'Sun_Dusk', 'Lighting')
     lc = sun.light_component
     lc.set_intensity(9.0); lc.set_light_color(unreal.LinearColor(1.0, 0.62, 0.42, 1))
-    lc.set_editor_property('atmosphere_sun_light', True); lc.set_editor_property('cast_shadows', True)
-    lc.set_editor_property('light_source_angle', 1.2)
+    sp(lc, 'atmosphere_sun_light', True); sp(lc, 'cast_shadows', True)
+    sp(lc, 'light_source_angle', 1.2)
     moon = spawn(unreal.DirectionalLight, (0, 0, 2100), (-38.0, -60.0, 0), 'Moon_Rim', 'Lighting')
     ml = moon.light_component
     ml.set_intensity(1.6); ml.set_light_color(unreal.LinearColor(0.55, 0.65, 1.0, 1))
-    ml.set_editor_property('atmosphere_sun_light', False); ml.set_editor_property('atmosphere_sun_light_index', 1)
-    ml.set_editor_property('forward_shading_priority', 0)
+    sp(ml, 'atmosphere_sun_light', False); sp(ml, 'atmosphere_sun_light_index', 1)
+    sp(ml, 'forward_shading_priority', 0)
     spawn(unreal.SkyAtmosphere, (0, 0, 0), label='SkyAtmosphere', folder='Lighting')
     sky = spawn(unreal.SkyLight, (0, 0, 300), label='SkyLight', folder='Lighting')
-    sc = sky.light_component; sc.set_editor_property('real_time_capture', True); sc.set_intensity(1.2)
+    sc = sky.light_component; sp(sc, 'real_time_capture', True); sc.set_intensity(1.2)
     sc.set_light_color(unreal.LinearColor(0.75, 0.8, 1.0, 1))
     fog = spawn(unreal.ExponentialHeightFog, (0, 0, -50), label='HeightFog', folder='Lighting')
     fc = fog.component
-    fc.set_editor_property('fog_density', 0.035); fc.set_editor_property('fog_height_falloff', 0.35)
-    fc.set_editor_property('fog_inscattering_luminance', unreal.LinearColor(0.32, 0.30, 0.34, 1))
-    fc.set_editor_property('volumetric_fog', True)
-    fc.set_editor_property('volumetric_fog_scattering_distribution', 0.55)
-    fc.set_editor_property('volumetric_fog_extinction_scale', 1.6)
-    fc.set_editor_property('start_distance', 300.0)
+    sp(fc, 'fog_density', 0.035); sp(fc, 'fog_height_falloff', 0.35)
+    sp(fc, 'fog_inscattering_luminance', unreal.LinearColor(0.32, 0.30, 0.34, 1))
+    sp(fc, 'enable_volumetric_fog', True)
+    sp(fc, 'volumetric_fog_scattering_distribution', 0.55)
+    sp(fc, 'volumetric_fog_extinction_scale', 1.6)
+    sp(fc, 'start_distance', 300.0)
     try:
         spawn(unreal.VolumetricCloud, (0, 0, 0), label='Clouds', folder='Lighting')
     except Exception:
         pass
     ppv = spawn(unreal.PostProcessVolume, (0, 0, 0), label='PostProcess_Grade', folder='Lighting')
-    ppv.set_editor_property('unbound', True)
+    sp(ppv, 'unbound', True)
     s = ppv.get_editor_property('settings')
     def ov(k, v):
-        s.set_editor_property('override_' + k, True); s.set_editor_property(k, v)
+        sp(s, 'override_' + k, True); sp(s, k, v)
     ov('bloom_intensity', 0.55); ov('vignette_intensity', 0.5); ov('film_grain_intensity', 0.12)
     ov('auto_exposure_bias', 0.4); ov('auto_exposure_min_brightness', 0.3); ov('auto_exposure_max_brightness', 2.5)
     ov('color_saturation', unreal.Vector4(0.88, 0.86, 0.86, 1.0)); ov('color_contrast', unreal.Vector4(1.12, 1.12, 1.12, 1.0))
     ov('color_gain_shadows', unreal.Vector4(0.92, 0.95, 1.08, 1.0))
     ov('ambient_occlusion_intensity', 0.7)
-    ppv.set_editor_property('settings', s)
+    sp(ppv, 'settings', s)
 
 def fire_light(loc, label):
     p = spawn(unreal.PointLight, loc, label=label, folder='Lighting')
     c = p.light_component
     c.set_intensity(55.0); c.set_light_color(unreal.LinearColor(1.0, 0.45, 0.15, 1))
-    c.set_editor_property('attenuation_radius', 1100.0); c.set_editor_property('source_radius', 18.0)
-    c.set_editor_property('cast_shadows', True)
+    sp(c, 'attenuation_radius', 1100.0); sp(c, 'source_radius', 18.0)
+    sp(c, 'cast_shadows', True)
     return p
 
 def dress():
@@ -163,7 +168,7 @@ def build():
     cam = camera()
     detail = camera(40, 360, 130, 40.0, 'DetailCamera_Knight')
     LES.save_current_level()
-    return {'actors': len(ES.get_all_level_actors()), 'camera': cam.get_actor_label()}
+    return {'actors': len(ES.get_all_level_actors()), 'camera': cam.get_actor_label(), 'warn': WARN}
 
 def lineup():
     """Second shot: knight animation poses side by side for review."""
