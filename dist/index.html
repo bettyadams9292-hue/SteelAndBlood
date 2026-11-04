@@ -1580,7 +1580,7 @@ window.BGU={computeMikkTSpaceTangents,mergeGeometries,mergeAttributes,deepCloneA
  * concatenates modules in dependency order (see build.js MODULES list). */
 'use strict';
 const IF = (window.IF = window.IF || {});
-IF.VERSION = '2.8.0';
+IF.VERSION = '2.9.0';
 IF.TITLE = 'Steel & Blood: Knights of the Apocalypse';
 IF.W = 1280; // logical render width
 IF.H = 720;  // logical render height
@@ -2189,10 +2189,28 @@ IF.audio = {
       this.verbSend.connect(this.verb); this.verb.connect(this.comp);
       const len = this.ctx.sampleRate * 2; this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noiseBuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      this.ready = true; this.applyVolumes();
+      // per-space reverb send (open field / stone interior / timber house) used by the sound bank
+      this.space = this.ctx.createConvolver(); this.spaceOut = this.ctx.createGain(); this.spaceOut.gain.value = 0.55; this.space.connect(this.spaceOut); this.spaceOut.connect(this.sfxBus);
+      this.ambience();
+      this.ready = true; this.applyVolumes(); this.setSpace(this.spaceKind || 'field');
       this.music.timer = setInterval(() => this._schedule(), 50);
     } catch (e) { console.warn('Audio unavailable', e); }
   },
+  /* the room the sounds are in: picks the reverb, footstep surface and wind level */
+  setSpace(kind) { this.spaceKind = kind; if (!this.ready || !IF.sfx) return; try { this.space.buffer = IF.sfx.ir(kind === 'wood' ? 'wood' : kind === 'stone' ? 'stone' : 'field'); } catch (e) { /* bank IRs need AudioBuffer support */ } if (this.windG) this.windG.gain.setTargetAtTime(kind === 'field' ? 0.07 : 0.012, this.ctx.currentTime, 1.5); },
+  /* ambience bed: gusting wind — brown noise through a slowly wandering low-pass, always running under everything */
+  ambience() {
+    const c = this.ctx, n = c.sampleRate * 6, b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0); let l = 0; for (let i = 0; i < n; i++) { l = (l + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = l * 3.5; }
+    for (let i = 0; i < 2000; i++) { d[i] *= i / 2000; d[n - 1 - i] *= i / 2000; }
+    const s = c.createBufferSource(); s.buffer = b; s.loop = true; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500; lp.Q.value = 2;
+    const lfo = c.createOscillator(); lfo.frequency.value = 0.07; const lg = c.createGain(); lg.gain.value = 320; lfo.connect(lg); lg.connect(lp.frequency);
+    const lfo2 = c.createOscillator(); lfo2.frequency.value = 0.13; const lg2 = c.createGain(); lg2.gain.value = 0.03; this.windG = c.createGain(); this.windG.gain.value = 0.06; lfo2.connect(lg2); lg2.connect(this.windG.gain);
+    s.connect(lp); lp.connect(this.windG); this.windG.connect(this.sfxBus); s.start(); lfo.start(); lfo2.start();
+  },
+  /* where the next sound comes from (lane x); used for stereo position and distance roll-off */
+  from(x) { this._x = x; return this; },
+  _take() { const x = this._x; this._x = undefined; return x; },
+  _bank(name, o = {}) { if (!this.ready || !IF.sfx || !IF.sfx.has(name)) return false; const x = this._x; o.x = o.x ?? x; IF.sfx.play(this, name, o); return true; },
   _impulse(sec, decay) {
     const rate = this.ctx.sampleRate, len = rate * sec, buf = this.ctx.createBuffer(2, len, rate);
     for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay); }
@@ -2236,6 +2254,9 @@ IF.audio = {
   },
   shot(cls) {
     if (!this.ready) return; const c = this.ctx, t = c.currentTime;
+    { const x = this._take(), named = { bow: 'bow', crossbow: 'crossbow', gl: 'launcherGL', rl: 'launcherRL' }[cls] || 'gun_' + cls, key = this.GUN_VOICE[cls] || named !== 'gun_' + cls ? named : 'gun_pistol';
+      if (cls === 'minigun' && !this._ok('mini', 30)) return;
+      if (IF.sfx && IF.sfx.has(key)) { IF.sfx.play(this, key, { x, vol: cls === 'minigun' || cls === 'smg' ? 0.8 : 1, room: 0.18 }); if (cls === 'pump') IF.sfx.play(this, 'pumpRack', { x, delay: 0.3, vol: 0.7, room: 0.1 }); if (cls === 'dbshotgun' || cls === 'revolver') {} return; } }
     if (cls === 'bow') { this._tone(t, 0.18, { type: 'triangle', f: 220, f2: 90, vol: 0.35 }); this._noise(t, 0.12, { f: 2400, f2: 600, vol: 0.2 }); return; }
     if (cls === 'crossbow') { this._tone(t, 0.12, { type: 'square', f: 160, f2: 60, vol: 0.25 }); this._noise(t, 0.1, { f: 1500, vol: 0.35, q: 3 }); return; }
     if (cls === 'gl') { this._tone(t, 0.25, { type: 'sine', f: 120, f2: 40, vol: 0.7 }); this._noise(t, 0.2, { type: 'lowpass', f: 900, vol: 0.4 }); return; }
@@ -2250,17 +2271,26 @@ IF.audio = {
   _mech(t, n) { for (let i = 0; i < n; i++) { this._noise(t + i * 0.09, 0.05, { type: 'bandpass', f: 2600 + i * 500, q: 6, vol: 0.32 }); this._tone(t + i * 0.09, 0.04, { type: 'square', f: 900 + i * 200, f2: 500, vol: 0.06 }); } },
   reload(cls, phase) {
     if (!this.ready) return; const t = this.ctx.currentTime;
+    if (IF.sfx && IF.sfx.has('magIn')) { const sh = /shotgun|pump/.test(cls), o = { vol: 0.55, room: 0.08 };
+      if (phase === 'start') { if (cls === 'sniper') IF.sfx.play(this, 'boltCycle', o); else if (sh) IF.sfx.play(this, 'shell', o); else if (cls === 'bow' || cls === 'crossbow') IF.sfx.play(this, 'pouch', o); else IF.sfx.play(this, 'magOut', o); }
+      else { if (sh) { IF.sfx.play(this, 'shell', o); IF.sfx.play(this, 'pumpRack', Object.assign({ delay: 0.15 }, o)); } else if (cls === 'sniper') IF.sfx.play(this, 'boltCycle', o); else if (cls === 'bow' || cls === 'crossbow') IF.sfx.play(this, 'pouch', o); else { IF.sfx.play(this, 'magIn', o); IF.sfx.play(this, 'charge', Object.assign({ delay: 0.22 }, o)); } }
+      return; }
     if (phase === 'start') this._mech(t, cls === 'lmg' || cls === 'minigun' ? 3 : 1);
     else this._mech(t, 2);
   },
-  casing() { if (!this.ready || !this._ok('casing', 45)) return; const t = this.ctx.currentTime + 0.25 + Math.random() * 0.15; this._tone(t, 0.08, { f: 4200 + Math.random() * 1500, vol: 0.05 }); this._tone(t + 0.07, 0.06, { f: 5200 + Math.random() * 900, vol: 0.03 }); },
-  empty() { if (!this.ready || !this._ok('empty', 140)) return; this._mech(this.ctx.currentTime, 1); },
+  casing() { if (!this.ready || !this._ok('casing', 45)) return; if (this._bank('casing', { vol: 0.28, delay: 0.18, room: 0.05 })) return; const t = this.ctx.currentTime + 0.25 + Math.random() * 0.15; this._tone(t, 0.08, { f: 4200 + Math.random() * 1500, vol: 0.05 }); this._tone(t + 0.07, 0.06, { f: 5200 + Math.random() * 900, vol: 0.03 }); },
+  empty() { if (!this.ready || !this._ok('empty', 140)) return; if (this._bank('dryFire', { vol: 0.5, room: 0 })) return; this._mech(this.ctx.currentTime, 1); },
   swing(weight) {
     if (!this.ready) return; const t = this.ctx.currentTime, w = weight || 1;
+    if (this._bank(w > 1.3 ? 'swingHeavy' : 'swingLight', { vol: 0.55 + Math.min(0.3, w * 0.12), rate: 1.1 - Math.min(0.25, w * 0.08), room: 0.1 })) { if (w > 1.3 && Math.random() < 0.6) this._bank('effort', { vol: 0.35, room: 0.1 }); return; }
     this._noise(t, 0.14 + 0.1 * w, { type: 'bandpass', f: 1800 / w, f2: 500 / w, q: 1.5, vol: 0.32, attack: 0.03 });
   },
   hit(kind, crit) {
-    if (!this.ready || !this._ok('hit', 22)) return; const t = this.ctx.currentTime;
+    if (!this.ready || !this._ok('hit', 22)) { this._take(); return; } const t = this.ctx.currentTime;
+    if (IF.sfx && IF.sfx.has('flesh')) { const x = this._take();
+      if (kind === 'metal') IF.sfx.play(this, 'metal', { x, vol: 0.6, room: 0.35 }); else if (kind === 'block') IF.sfx.play(this, 'block', { x, vol: 0.75, room: 0.25 });
+      else { IF.sfx.play(this, crit ? 'fleshHeavy' : 'flesh', { x, vol: crit ? 0.95 : 0.75, room: 0.1 }); if (crit) IF.sfx.play(this, 'gore', { x, vol: 0.5, room: 0.1 }); }
+      return; }
     if (kind === 'metal' || kind === 'block') {
       this._tone(t, 0.35, { type: 'triangle', f: 1300, vol: 0.18, verb: 0.3 }); this._tone(t, 0.3, { type: 'triangle', f: 1870, vol: 0.12 });
       this._noise(t, 0.08, { type: 'highpass', f: 3000, vol: 0.3 });
@@ -2271,13 +2301,15 @@ IF.audio = {
     if (crit) this._tone(t, 0.25, { type: 'square', f: 1600, f2: 2600, vol: 0.06 });
   },
   explosion(size) {
-    if (!this.ready || !this._ok('expl', 60)) return; const t = this.ctx.currentTime, s = size || 1;
+    if (!this.ready || !this._ok('expl', 60)) { this._take(); return; } const t = this.ctx.currentTime, s = size || 1;
+    if (this._bank('explosion', { vol: Math.min(1.2, 0.45 + s * 0.6), rate: 1.12 - Math.min(0.3, s * 0.15), room: 0.3 })) { this._take(); return; }
     this._noise(t, 1.2 * s, { type: 'lowpass', f: 1600, f2: 80, vol: 0.95, attack: 0.002, verb: 0.5 });
     this._tone(t, 0.7 * s, { type: 'sine', f: 90, f2: 28, vol: 0.9 });
     this._noise(t, 0.2, { type: 'highpass', f: 2000, vol: 0.4 });
   },
   groan(pitch) {
-    if (!this.ready || !this._ok('groan', 380)) return; const c = this.ctx, t = c.currentTime, dur = 0.7 + Math.random() * 0.8;
+    if (!this.ready || !this._ok('groan', 380)) { this._take(); return; }
+    if (this._bank('moan', { vol: 0.42, rate: pitch || 1, vary: 0.12, room: 0.3 })) { this._take(); return; } const c = this.ctx, t = c.currentTime, dur = 0.7 + Math.random() * 0.8;
     const f0 = (70 + Math.random() * 50) * (pitch || 1);
     const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * (0.75 + Math.random() * 0.4), t + dur);
     const lfo = c.createOscillator(); lfo.frequency.value = 5 + Math.random() * 4; const lg = c.createGain(); lg.gain.value = f0 * 0.06; lfo.connect(lg); lg.connect(o.frequency);
@@ -2287,29 +2319,36 @@ IF.audio = {
     o.connect(f1); o.connect(f2); f1.connect(g); f2.connect(g); g.connect(this.sfxBus); const s = c.createGain(); s.gain.value = 0.4; g.connect(s); s.connect(this.verbSend);
     o.start(t); lfo.start(t); o.stop(t + dur + 0.1); lfo.stop(t + dur + 0.1);
   },
-  zombieAttack() { if (!this.ready || !this._ok('zatk', 120)) return; const t = this.ctx.currentTime; this._noise(t, 0.3, { type: 'bandpass', f: 700, f2: 300, q: 3, vol: 0.4 }); this._tone(t, 0.25, { type: 'sawtooth', f: 180, f2: 90, vol: 0.12 }); },
-  zombieDeath() { if (!this.ready || !this._ok('zdie', 70)) return; const t = this.ctx.currentTime; this._tone(t, 0.5, { type: 'sawtooth', f: 140, f2: 50, vol: 0.12 }); this._noise(t, 0.25, { type: 'lowpass', f: 600, vol: 0.35 }); },
-  scream() { if (!this.ready) return; const t = this.ctx.currentTime; for (let i = 0; i < 3; i++) this._tone(t, 1.3, { type: 'sawtooth', f: 700 + i * 230, f2: 1400 + i * 300, vol: 0.07, verb: 0.6, detune: i * 15 }); this._noise(t, 1.2, { type: 'bandpass', f: 2500, q: 2, vol: 0.2 }); },
-  roar() { if (!this.ready) return; const t = this.ctx.currentTime; this._tone(t, 1.6, { type: 'sawtooth', f: 70, f2: 45, vol: 0.4, verb: 0.6 }); this._noise(t, 1.5, { type: 'lowpass', f: 700, f2: 200, vol: 0.6, attack: 0.1, verb: 0.6 }); },
+  zombieAttack() { if (!this.ready || !this._ok('zatk', 120)) { this._take(); return; } if (this._bank('snarl', { vol: 0.55, vary: 0.15, room: 0.15 })) { this._take(); return; } const t = this.ctx.currentTime; this._noise(t, 0.3, { type: 'bandpass', f: 700, f2: 300, q: 3, vol: 0.4 }); this._tone(t, 0.25, { type: 'sawtooth', f: 180, f2: 90, vol: 0.12 }); },
+  zombieDeath() { if (!this.ready || !this._ok('zdie', 70)) { this._take(); return; } if (this._bank('death', { vol: 0.55, vary: 0.15, room: 0.2 })) { this._take(); return; } const t = this.ctx.currentTime; this._tone(t, 0.5, { type: 'sawtooth', f: 140, f2: 50, vol: 0.12 }); this._noise(t, 0.25, { type: 'lowpass', f: 600, vol: 0.35 }); },
+  scream() { if (!this.ready) return; if (this._bank('scream', { vol: 0.6, room: 0.5 })) { this._take(); return; } const t = this.ctx.currentTime; for (let i = 0; i < 3; i++) this._tone(t, 1.3, { type: 'sawtooth', f: 700 + i * 230, f2: 1400 + i * 300, vol: 0.07, verb: 0.6, detune: i * 15 }); this._noise(t, 1.2, { type: 'bandpass', f: 2500, q: 2, vol: 0.2 }); },
+  roar() { if (!this.ready) return; if (this._bank('roar', { vol: 1, room: 0.45 })) { this._take(); return; } const t = this.ctx.currentTime; this._tone(t, 1.6, { type: 'sawtooth', f: 70, f2: 45, vol: 0.4, verb: 0.6 }); this._noise(t, 1.5, { type: 'lowpass', f: 700, f2: 200, vol: 0.6, attack: 0.1, verb: 0.6 }); },
   step(armourTier) {
     if (!this.ready || !this._ok('step', 120)) return; const t = this.ctx.currentTime;
+    { const sp = this.spaceKind, run = IF.game && IF.game.run, surf = sp === 'wood' ? (run && run.world.floor === 'basement' ? 'stepStone' : 'stepWood') : sp === 'stone' ? 'stepStone' : 'stepDirt';
+      if (this._bank(surf, { vol: 0.42, room: 0.15 })) { if (armourTier > 0 || Math.random() < 0.5) this._bank('armour', { vol: 0.12 + armourTier * 0.04, room: 0.05 }); return; } }
     this._noise(t, 0.07, { type: 'lowpass', f: 500, vol: 0.18 });
     this._tone(t, 0.09, { type: 'triangle', f: 2200 + Math.random() * 600, vol: 0.025 + armourTier * 0.004 });
   },
-  land() { if (!this.ready) return; const t = this.ctx.currentTime; this._noise(t, 0.15, { type: 'lowpass', f: 400, vol: 0.4 }); this._tone(t, 0.15, { type: 'triangle', f: 1900, vol: 0.05 }); },
-  jump() { if (!this.ready) return; const t = this.ctx.currentTime; this._noise(t, 0.12, { type: 'bandpass', f: 900, f2: 1600, vol: 0.12 }); },
-  dodge() { if (!this.ready) return; const t = this.ctx.currentTime; this._noise(t, 0.3, { type: 'bandpass', f: 600, f2: 2000, q: 1, vol: 0.28, attack: 0.04 }); },
-  hurt() { if (!this.ready || !this._ok('hurt', 150)) return; const t = this.ctx.currentTime; this._tone(t, 0.3, { type: 'sawtooth', f: 220, f2: 110, vol: 0.14 }); this._noise(t, 0.15, { type: 'lowpass', f: 700, vol: 0.35 }); this._tone(t, 0.25, { type: 'triangle', f: 1500, vol: 0.06 }); },
-  pickup() { if (!this.ready || !this._ok('pick', 60)) return; const t = this.ctx.currentTime; this._tone(t, 0.12, { type: 'triangle', f: 880, vol: 0.12 }); this._tone(t + 0.06, 0.15, { type: 'triangle', f: 1320, vol: 0.1 }); },
-  coin() { if (!this.ready || !this._ok('coin', 50)) return; const t = this.ctx.currentTime; this._tone(t, 0.1, { type: 'square', f: 1975, vol: 0.04 }); this._tone(t + 0.05, 0.18, { type: 'square', f: 2637, vol: 0.04 }); },
-  ping() { if (!this.ready) return; const t = this.ctx.currentTime; this._tone(t + 0.05, 0.35, { type: 'sine', f: 2650, f2: 2500, vol: 0.12 }); this._tone(t + 0.05, 0.3, { type: 'sine', f: 4100, vol: 0.05 }); },
-  bolt() { if (!this.ready) return; const t = this.ctx.currentTime; this._noise(t, 0.05, { type: 'highpass', f: 2500, vol: 0.15 }); this._noise(t + 0.18, 0.06, { type: 'bandpass', f: 1800, vol: 0.18 }); },
+  land() { if (!this.ready) return; if (this._bank('land', { vol: 0.7, room: 0.15 })) return; const t = this.ctx.currentTime; this._noise(t, 0.15, { type: 'lowpass', f: 400, vol: 0.4 }); this._tone(t, 0.15, { type: 'triangle', f: 1900, vol: 0.05 }); },
+  jump() { if (!this.ready) return; if (this._bank('effort', { vol: 0.3, room: 0.05 })) { this._bank('armour', { vol: 0.15 }); return; } const t = this.ctx.currentTime; this._noise(t, 0.12, { type: 'bandpass', f: 900, f2: 1600, vol: 0.12 }); },
+  dodge() { if (!this.ready) return; if (this._bank('roll', { vol: 0.7, room: 0.1 })) return; const t = this.ctx.currentTime; this._noise(t, 0.3, { type: 'bandpass', f: 600, f2: 2000, q: 1, vol: 0.28, attack: 0.04 }); },
+  hurt() { if (!this.ready || !this._ok('hurt', 150)) return; if (this._bank('grunt', { vol: 0.65, room: 0.1 })) return; const t = this.ctx.currentTime; this._tone(t, 0.3, { type: 'sawtooth', f: 220, f2: 110, vol: 0.14 }); this._noise(t, 0.15, { type: 'lowpass', f: 700, vol: 0.35 }); this._tone(t, 0.25, { type: 'triangle', f: 1500, vol: 0.06 }); },
+  pickup() { if (!this.ready || !this._ok('pick', 60)) return; if (this._bank('pouch', { vol: 0.6, room: 0.05 })) return; const t = this.ctx.currentTime; this._tone(t, 0.12, { type: 'triangle', f: 880, vol: 0.12 }); this._tone(t + 0.06, 0.15, { type: 'triangle', f: 1320, vol: 0.1 }); },
+  coin() { if (!this.ready || !this._ok('coin', 50)) return; if (this._bank('coin', { vol: 0.35, room: 0.05 })) return; const t = this.ctx.currentTime; this._tone(t, 0.1, { type: 'square', f: 1975, vol: 0.04 }); this._tone(t + 0.05, 0.18, { type: 'square', f: 2637, vol: 0.04 }); },
+  ping() { if (!this.ready) return; if (this._bank('ping', { vol: 0.5, delay: 0.04, room: 0.1 })) return; const t = this.ctx.currentTime; this._tone(t + 0.05, 0.35, { type: 'sine', f: 2650, f2: 2500, vol: 0.12 }); this._tone(t + 0.05, 0.3, { type: 'sine', f: 4100, vol: 0.05 }); },
+  bolt() { if (!this.ready) return; if (this._bank('boltCycle', { vol: 0.55, room: 0.05 })) return; const t = this.ctx.currentTime; this._noise(t, 0.05, { type: 'highpass', f: 2500, vol: 0.15 }); this._noise(t + 0.18, 0.06, { type: 'bandpass', f: 1800, vol: 0.18 }); },
   gate() { // portcullis: deep rumble, ratcheting chain clanks, a final iron thud
-    if (!this.ready) return; const t = this.ctx.currentTime;
+    if (!this.ready) return; const t = this.ctx.currentTime; if (this._bank('chains', { vol: 0.9, room: 0.4 })) return;
     this._noise(t, 2.2, { type: 'lowpass', f: 180, vol: 0.35 });
     for (let i = 0; i < 14; i++) this._tone(t + i * 0.13, 0.05, { type: 'square', f: 140 + (i % 3) * 30, vol: 0.05 });
     this._tone(t + 2.0, 0.5, { type: 'sine', f: 70, f2: 40, vol: 0.3 });
   },
+  /* companion hounds */
+  dog(kind) { if (!this.ready || !this._ok('dog' + kind, kind === 'bark' ? 700 : 400)) { this._take(); return; } this._bank(kind, { vol: kind === 'bark' ? 0.5 : 0.4, vary: 0.1, room: 0.2 }); this._take(); },
+  trap() { this._bank('trapSnap', { vol: 0.9, room: 0.2 }); this._take(); },
+  molotov() { this._bank('glass', { vol: 0.8, room: 0.2 }); this._take(); },
+  flash() { this._bank('flashbang', { vol: 1, room: 0.3 }); this._take(); },
   ui(kind) {
     if (!this.ready) return; const t = this.ctx.currentTime;
     if (kind === 'hover') { if (this._ok('hover', 50)) this._tone(t, 0.05, { type: 'triangle', f: 1400, vol: 0.03 }); }
@@ -2393,6 +2432,233 @@ IF.audio = {
   _padFilter(t, dur, f) { const fl = this.ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.setValueAtTime(f * 0.6, t); fl.frequency.linearRampToValueAtTime(f, t + dur * 0.5); fl.frequency.linearRampToValueAtTime(f * 0.6, t + dur); fl.connect(this.musicBus); return fl; },
   _kick(t, v, tom) { this._tone(t, tom ? 0.6 : 0.35, { type: 'sine', f: tom ? 110 : 140, f2: tom ? 50 : 42, vol: v, out: this.musicBus, verb: tom ? 0.5 : 0.1 }); },
   _snare(t, v) { this._noise(t, 0.22, { type: 'bandpass', f: 1800, q: 0.8, vol: v, out: this.musicBus, verb: 0.3 }); this._tone(t, 0.1, { type: 'triangle', f: 220, f2: 140, vol: v * 0.6, out: this.musicBus }); },
+};
+
+/* ==== core/sfx.js ==== */
+/* Sound bank — physically-informed, fully synthesised sound effects (no external recordings, no licensing).
+ *
+ * Every effect is rendered ahead of time into several variations with an OfflineAudioContext while the
+ * loading screen is up, so the expensive layers (waveshaping, modal resonators, convolution tails,
+ * hundreds of debris grains) cost nothing at play time. Playback then picks a random variation, nudges
+ * its pitch, pans it by the source's position on screen, attenuates it with distance, and sends a little
+ * of it to the current space's reverb (open field, stone interior, timber house).
+ *
+ * Recipes, by family:
+ *  - firearms: muzzle blast (clipped noise burst) + barrel body (swept low-pass noise) + chest thump
+ *    (pitch-dropping sine) + supersonic crack for rifles + action clatter + outdoor slap-back echo tail
+ *  - explosions: overpressure crack, roaring low-passed body, sub drop, then gravel/debris patter
+ *  - metal: modal synthesis (inharmonic partials of a plate/blade, each with its own decay)
+ *  - flesh: low thud + wet squelch (resonant band sweep) + bone snaps for crits
+ *  - voices: glottal pulse with jitter/shimmer and creaky sub-harmonics through vowel formant filters
+ *    (zombie moans, snarls, death gurgles, screams, boss roars, the knight's grunts, the dog's barks)
+ *  - foley: footsteps per surface (dirt crunch grains, timber thud, stone click) with armour jingle,
+ *    reloads (magazine, bolt, pump, shell), brass casings bouncing, coins, pouches, chains, stone
+ *  - plucked strings: Karplus–Strong for bows and crossbows */
+'use strict';
+
+IF.sfx = {
+  SR: 32000, bank: {}, ready: false, building: false, voices: {},
+  rnd: Math.random,
+
+  /* ---------------------------------------------------------------- toolkit (offline graph helpers) */
+  noiseBuf: null,
+  _noise() { if (this.noiseBuf) return this.noiseBuf; const n = this.SR * 3, b = new AudioBuffer({ length: n, numberOfChannels: 1, sampleRate: this.SR }), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return (this.noiseBuf = b); },
+  _brown() { if (this.brownBuf) return this.brownBuf; const n = this.SR * 3, b = new AudioBuffer({ length: n, numberOfChannels: 1, sampleRate: this.SR }), d = b.getChannelData(0); let l = 0; for (let i = 0; i < n; i++) { l = (l + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = l * 3.5; } return (this.brownBuf = b); },
+  src(c, t, dur, brown) { const s = c.createBufferSource(); s.buffer = brown ? this._brown() : this._noise(); s.start(t, Math.random() * 2); s.stop(t + dur + 0.02); return s; },
+  filt(c, type, f, q = 0.7, gain = 0) { const b = c.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; b.gain.value = gain; return b; },
+  gain(c, v = 1) { const g = c.createGain(); g.gain.value = v; return g; },
+  /* exponential envelope: attack to peak, then decay with time-constant tau (seconds) */
+  env(g, t, peak, attack, tau, end) { const p = g.gain; p.setValueAtTime(0.00001, t); p.linearRampToValueAtTime(peak, t + attack); p.setTargetAtTime(0.00001, t + attack, tau); if (end) p.setValueAtTime(0, end); return g; },
+  shaper(c, amt) { const ws = c.createWaveShaper(), n = 1024, cu = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; cu[i] = Math.tanh(x * amt) / Math.tanh(amt); } ws.curve = cu; ws.oversample = '2x'; return ws; },
+  chain(...nodes) { for (let i = 0; i < nodes.length - 1; i++) nodes[i].connect(nodes[i + 1]); return nodes[nodes.length - 1]; },
+  osc(c, type, f, t, dur) { const o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(Math.min(f, this.SR * 0.45), t); o.start(t); o.stop(t + dur + 0.02); return o; },
+  /* modal resonator: a struck object = sum of inharmonic partials, each decaying at its own rate */
+  modal(c, out, t, f0, ratios, decays, amps = [], vol = 1) { ratios.forEach((r, i) => { if (f0 * r > this.SR * 0.45) return; /* partials above Nyquist are inaudible anyway */ const o = this.osc(c, 'sine', f0 * r * (1 + (Math.random() - 0.5) * 0.004), t, decays[i] * 6); const g = this.env(this.gain(c, 0), t, vol * (amps[i] ?? 1 / (i + 1)), 0.001, decays[i]); o.connect(g); g.connect(out); }); },
+  /* a single noise burst through a filter, with envelope */
+  burst(c, out, t, { type = 'bandpass', f = 1000, f2, q = 0.8, vol = 0.5, attack = 0.001, tau = 0.05, dur, brown, sweep } = {}) {
+    dur = dur || tau * 7; const s = this.src(c, t, dur, brown), fl = this.filt(c, type, f, q); if (f2) fl.frequency.setTargetAtTime(f2, t, sweep || tau * 1.5); const g = this.env(this.gain(c, 0), t, vol, attack, tau); s.connect(fl); fl.connect(g); g.connect(out); return g;
+  },
+  thump(c, out, t, f, f2, tau, vol) { const o = this.osc(c, 'sine', f, t, tau * 8); o.frequency.setTargetAtTime(f2, t, tau * 0.8); const g = this.env(this.gain(c, 0), t, vol, 0.002, tau); o.connect(g); g.connect(out); },
+  /* impulse responses: outdoor (sparse early reflections off walls/hills + long low-passed tail), stone room, timber room */
+  ir(kind) {
+    this._irs = this._irs || {}; if (this._irs[kind]) return this._irs[kind];
+    const SR = this.SR, L = kind === 'field' ? 1.8 : kind === 'stone' ? 1.3 : 0.8, n = Math.floor(SR * L), b = new AudioBuffer({ length: n, numberOfChannels: 2, sampleRate: SR });
+    for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); let lp = 0; const k = kind === 'field' ? 0.18 : kind === 'stone' ? 0.45 : 0.3;
+      for (let i = 0; i < n; i++) { const tt = i / SR; lp += k * ((Math.random() * 2 - 1) - lp); d[i] = lp * Math.exp(-tt * (kind === 'field' ? 2.8 : kind === 'stone' ? 3.6 : 6.5)) * (kind === 'field' ? Math.min(1, tt / 0.06) : 1); }
+      const refl = kind === 'field' ? [[0.09, 0.5], [0.21, 0.35], [0.38, 0.22], [0.62, 0.14]] : kind === 'stone' ? [[0.012, 0.6], [0.023, 0.45], [0.037, 0.35], [0.055, 0.25]] : [[0.007, 0.5], [0.015, 0.35], [0.024, 0.2]];
+      for (const [dt, a] of refl) { const i0 = Math.floor((dt + ch * 0.003 + Math.random() * 0.004) * SR); for (let j = 0; j < 60 && i0 + j < n; j++) d[i0 + j] += a * Math.exp(-j / 12) * (j % 2 ? -1 : 1); } }
+    return (this._irs[kind] = b);
+  },
+  tail(c, inp, out, kind, wet) { const cv = c.createConvolver(); cv.normalize = true; cv.buffer = this.ir(kind); const lp = this.filt(c, 'lowpass', kind === 'field' ? 2200 : kind === 'stone' ? 5000 : 3500, 0.5), g = this.gain(c, wet); inp.connect(cv); cv.connect(lp); lp.connect(g); g.connect(out); }, // echoes come back duller: air and soft surfaces eat the highs
+  /* voice: glottal source with jitter, shimmer and creak, through vowel formants (+ breath) */
+  voice(c, out, t, dur, o) {
+    const { lp = 4200, f0 = 110, f1 = f0, jitter = 0.04, formants = [[600, 6, 1], [1100, 8, 0.6], [2400, 10, 0.3]], breath = 0.2, rough = 0, roughF = 30, vol = 0.5, attack = 0.08, sub = 0, dist = 0, vib = 0 } = o;
+    const bus = this.gain(c, 1), src = this.osc(c, 'sawtooth', f0, t, dur); src.frequency.setValueAtTime(f0, t); src.frequency.linearRampToValueAtTime(f1, t + dur);
+    const steps = Math.ceil(dur / 0.05); for (let i = 1; i < steps; i++) src.detune.setValueAtTime((Math.random() - 0.5) * jitter * 1200 + (vib ? Math.sin(i * 0.05 * vib * 6.28) * 40 : 0), t + i * 0.05); // jitter + vibrato
+    const srcG = this.gain(c, 1); src.connect(srcG);
+    if (sub) { const s2 = this.osc(c, 'sawtooth', f0 / 2, t, dur); s2.frequency.linearRampToValueAtTime(f1 / 2, t + dur); const sg = this.gain(c, sub); s2.connect(sg); sg.connect(srcG); } // creaky sub-harmonic
+    if (rough) { const amp = this.gain(c, 1 - rough * 0.5), am = this.osc(c, 'square', roughF, t, dur), ag = this.gain(c, rough * 0.5); am.connect(ag); ag.connect(amp.gain); srcG.connect(amp); amp.connect(bus); } else srcG.connect(bus); // roughness = fast amplitude flutter
+    const br = this.src(c, t, dur), brG = this.gain(c, breath); br.connect(brG); brG.connect(bus);
+    let shaped = bus; if (dist) { const ws = this.shaper(c, dist); bus.connect(ws); shaped = ws; }
+    const mix = this.gain(c, 0), mg = mix.gain; mg.setValueAtTime(0, t); mg.linearRampToValueAtTime(vol, t + attack); mg.setValueAtTime(vol, t + Math.max(attack, dur * 0.6)); mg.linearRampToValueAtTime(0, t + dur);
+    for (const [ff, q, a] of formants) { const bp = this.filt(c, 'bandpass', ff, q), fg = this.gain(c, a * 2.2); shaped.connect(bp); bp.connect(fg); fg.connect(mix); if (o.glide) bp.frequency.linearRampToValueAtTime(ff * o.glide, t + dur); }
+    const tone = this.filt(c, 'lowpass', lp, 0.6); mix.connect(tone); tone.connect(out); return mix; // throat and mouth roll off the top end
+  },
+  /* Karplus–Strong plucked string, computed directly */
+  pluck(f, dur, damp = 0.996, bright = 0.5) {
+    const SR = this.SR, n = Math.floor(SR * dur), N = Math.floor(SR / f), buf = new Float32Array(N), out = new Float32Array(n); for (let i = 0; i < N; i++) buf[i] = Math.random() * 2 - 1;
+    let p = 0; for (let i = 0; i < n; i++) { const a = buf[p], b2 = buf[(p + 1) % N]; out[i] = a; buf[p] = damp * (bright * a + (1 - bright) * 0.5 * (a + b2)); p = (p + 1) % N; } return out;
+  },
+  bufFrom(arr) { const b = new AudioBuffer({ length: arr.length, numberOfChannels: 1, sampleRate: this.SR }); b.copyToChannel(arr, 0); return b; },
+  playArr(c, out, t, arr, vol = 1) { const s = c.createBufferSource(); s.buffer = arr instanceof AudioBuffer ? arr : this.bufFrom(arr); const g = this.gain(c, vol); s.connect(g); g.connect(out); s.start(t); },
+
+  /* ---------------------------------------------------------------- recipes: (c, out, v) => duration */
+  GUNS: { // blast tau, body cutoff, thump Hz, crack (supersonic), loudness, tail wetness, action clatter
+    pistol: { tau: 0.018, body: 2600, thump: 140, crack: 0, vol: 0.75, wet: 0.35, mech: 1 },
+    revolver: { tau: 0.03, body: 1900, thump: 110, crack: 0, vol: 0.9, wet: 0.45, mech: 0 },
+    handcannon: { tau: 0.045, body: 1500, thump: 85, crack: 0.4, vol: 1, wet: 0.55, mech: 0 },
+    smg: { tau: 0.014, body: 2900, thump: 160, crack: 0, vol: 0.62, wet: 0.25, mech: 1 },
+    rifle: { tau: 0.022, body: 2300, thump: 120, crack: 0.8, vol: 0.85, wet: 0.45, mech: 1 },
+    shotgun: { tau: 0.05, body: 1300, thump: 78, crack: 0, vol: 1, wet: 0.5, mech: 0 },
+    pump: { tau: 0.055, body: 1200, thump: 72, crack: 0, vol: 1, wet: 0.55, mech: 0 },
+    dbshotgun: { tau: 0.06, body: 1100, thump: 66, crack: 0, vol: 1, wet: 0.55, mech: 0 },
+    sniper: { tau: 0.04, body: 1800, thump: 70, crack: 1, vol: 1, wet: 0.75, mech: 0 },
+    lmg: { tau: 0.02, body: 2100, thump: 105, crack: 0.7, vol: 0.8, wet: 0.35, mech: 1 },
+    minigun: { tau: 0.01, body: 3200, thump: 150, crack: 0.5, vol: 0.55, wet: 0.2, mech: 0 },
+  },
+  gun(c, out, v, P) {
+    const t = 0.002, dry = this.gain(c, 1), bus = this.gain(c, 1); dry.connect(bus); bus.connect(out);
+    // muzzle blast: hard-clipped broadband burst
+    const blast = this.burst(c, dry, t, { type: 'highpass', f: 500, vol: 1.2 * P.vol, tau: P.tau, attack: 0.0004 }); blast.disconnect(); const ws = this.shaper(c, 3); blast.connect(ws); const bg = this.gain(c, 0.55); ws.connect(bg); bg.connect(dry);
+    // barrel body: swept low-pass noise, a little longer
+    this.burst(c, dry, t, { type: 'lowpass', f: P.body * (0.9 + v * 0.1), f2: P.body * 0.25, q: 1.2, vol: 0.9 * P.vol, tau: P.tau * 3, attack: 0.0008, sweep: P.tau * 2 });
+    // chest thump
+    this.thump(c, dry, t, P.thump * 1.8, P.thump * 0.6, P.tau * 2.4, 0.9 * P.vol);
+    // supersonic crack: an N-wave just ahead of the blast
+    if (P.crack) { this.burst(c, dry, t, { type: 'highpass', f: 3500, vol: 0.9 * P.crack, tau: 0.0015, attack: 0.0002 }); }
+    // action: bolt carrier / slide clatter (small metal partials)
+    if (P.mech) { const mg = this.gain(c, 0.12); mg.connect(dry); this.modal(c, mg, t + 0.035 + v * 0.004, 1800 + v * 150, [1, 2.4, 3.9, 5.6], [0.012, 0.009, 0.007, 0.005], [1, 0.7, 0.5, 0.3]); }
+    // the field answers: slap-back off buildings and hills
+    this.tail(c, dry, bus, 'field', P.wet);
+    return P.tau * 20 + P.wet * 1.8 + 0.15;
+  },
+  R: {
+    explosion(c, out, v) { const bus = this.gain(c, 1), t = 0.002; bus.connect(out);
+      const crack = this.burst(c, bus, t, { type: 'highpass', f: 900, vol: 1.1, tau: 0.012 }); const ws = this.shaper(c, 4); crack.disconnect(); crack.connect(ws); ws.connect(bus);
+      this.burst(c, bus, t, { type: 'lowpass', f: 2400, f2: 120, q: 0.9, vol: 1.3, tau: 0.45 + v * 0.1, attack: 0.004, brown: true, sweep: 0.25 });
+      this.burst(c, bus, t, { type: 'lowpass', f: 600, f2: 60, q: 0.7, vol: 1.0, tau: 0.9, attack: 0.01, brown: true });
+      this.thump(c, bus, t, 90, 26, 0.35, 1.1);
+      const deb = this.gain(c, 0.5); deb.connect(bus); for (let i = 0; i < 90; i++) { const tt = t + 0.15 + Math.pow(Math.random(), 1.6) * 1.6; this.burst(c, deb, tt, { type: 'bandpass', f: 1500 + Math.random() * 4500, q: 2, vol: 0.25 * Math.random() * (1 - (tt - 0.15) / 2), tau: 0.004 + Math.random() * 0.01 }); }
+      this.tail(c, bus, out, 'field', 0.6); return 3.2; },
+    flashbang(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); const b = this.burst(c, bus, 0.002, { type: 'highpass', f: 300, vol: 1.4, tau: 0.03 }); const ws = this.shaper(c, 6); b.disconnect(); b.connect(ws); ws.connect(bus); this.thump(c, bus, 0.002, 140, 40, 0.12, 0.8); const ring = this.gain(c, 0.08); ring.connect(out); this.modal(c, ring, 0.05, 3800, [1, 1.003], [1.2, 1.1], [1, 0.8]); this.tail(c, bus, out, 'field', 0.5); return 2.2; },
+    glass(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); for (let i = 0; i < 14; i++) { const tt = 0.002 + Math.random() * 0.25; this.modal(c, bus, tt, 2500 + Math.random() * 5000, [1, 2.7, 5.1], [0.05, 0.03, 0.02], [0.3, 0.2, 0.1], 0.6 * Math.random()); } this.burst(c, bus, 0.002, { type: 'highpass', f: 3000, vol: 0.6, tau: 0.02 }); const fire = this.gain(c, 0.35); fire.connect(out); this.burst(c, fire, 0.05, { type: 'bandpass', f: 500, f2: 1600, q: 0.6, vol: 0.8, tau: 0.35, attack: 0.05, brown: true }); return 1.4; },
+    // melee
+    swingLight(c, out, v) { const s = this.src(c, 0, 0.4), bp = this.filt(c, 'bandpass', 500, 2.2), g = this.gain(c, 0); s.connect(bp); bp.connect(g); g.connect(out); const p = bp.frequency; p.setValueAtTime(420, 0); p.linearRampToValueAtTime(1500 + v * 200, 0.11); p.linearRampToValueAtTime(600, 0.24); g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(0.7, 0.1); g.gain.linearRampToValueAtTime(0, 0.26); return 0.32; },
+    swingHeavy(c, out, v) { const s = this.src(c, 0, 0.6), bp = this.filt(c, 'bandpass', 300, 1.6), g = this.gain(c, 0); s.connect(bp); bp.connect(g); g.connect(out); const p = bp.frequency; p.setValueAtTime(240, 0); p.linearRampToValueAtTime(900 + v * 100, 0.2); p.linearRampToValueAtTime(320, 0.42); g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(0.85, 0.18); g.gain.linearRampToValueAtTime(0, 0.45); const lo = this.gain(c, 0.4); lo.connect(out); this.burst(c, lo, 0.12, { type: 'lowpass', f: 220, vol: 0.6, tau: 0.12, attack: 0.06, brown: true }); return 0.55; },
+    metal(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); const f0 = 620 + v * 140 + Math.random() * 120; this.burst(c, bus, 0.001, { type: 'highpass', f: 2500, vol: 0.9, tau: 0.004 });
+      this.modal(c, bus, 0.001, f0, [1, 2.32, 4.25, 6.63, 9.38, 12.1], [0.55, 0.32, 0.2, 0.12, 0.08, 0.05], [0.9, 0.7, 0.5, 0.35, 0.25, 0.15], 0.5); this.tail(c, bus, out, 'stone', 0.25); return 2.2; },
+    block(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); this.thump(c, bus, 0.001, 220, 110, 0.03, 0.9); this.burst(c, bus, 0.001, { type: 'bandpass', f: 900, q: 1.2, vol: 0.9, tau: 0.03 }); this.modal(c, bus, 0.001, 420 + v * 60, [1, 2.1, 3.7, 5.2], [0.35, 0.22, 0.12, 0.08], [0.8, 0.5, 0.3, 0.2], 0.4); return 1.4; },
+    flesh(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); this.thump(c, bus, 0.001, 130 + v * 10, 55, 0.03, 1);
+      const sq = this.burst(c, bus, 0.004, { type: 'bandpass', f: 1400, f2: 380, q: 4, vol: 1.1, tau: 0.05, sweep: 0.04 }); this.burst(c, bus, 0.001, { type: 'lowpass', f: 1200, vol: 0.7, tau: 0.02 });
+      for (let i = 0; i < 4; i++) this.burst(c, bus, 0.02 + Math.random() * 0.08, { type: 'bandpass', f: 600 + Math.random() * 900, q: 9, vol: 0.25, tau: 0.012 }); return 0.4; },
+    fleshHeavy(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); this.R.flesh.call(this, c, bus, v); for (let i = 0; i < 3; i++) this.burst(c, bus, 0.01 + i * 0.012 + Math.random() * 0.01, { type: 'highpass', f: 2200, vol: 0.55, tau: 0.004 }); this.thump(c, bus, 0.001, 90, 40, 0.06, 0.8); return 0.55; },
+    gore(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); for (let i = 0; i < 9; i++) this.burst(c, bus, Math.random() * 0.3, { type: 'bandpass', f: 300 + Math.random() * 900, f2: 200, q: 6, vol: 0.4, tau: 0.03 + Math.random() * 0.04 }); this.burst(c, bus, 0.001, { type: 'highpass', f: 1800, vol: 0.6, tau: 0.006 }); this.thump(c, bus, 0.05, 110, 50, 0.05, 0.6); return 0.7; },
+    // voices
+    moan(c, out, v) { const f0 = 68 + v * 9 + Math.random() * 18, d = 0.9 + Math.random() * 0.9; this.voice(c, out, 0, d, { f0, f1: f0 * (0.72 + Math.random() * 0.2), jitter: 0.06, sub: 0.6, rough: 0.5, roughF: 22 + Math.random() * 14, breath: 0.22, dist: 2.2, vol: 0.6, attack: 0.18, glide: 0.85, lp: 2800, formants: [[540 + Math.random() * 120, 5, 1], [980 + Math.random() * 200, 7, 0.6], [2350, 9, 0.25]] }); return d + 0.3; },
+    snarl(c, out, v) { const f0 = 140 + v * 20, d = 0.45; this.voice(c, out, 0, d, { f0, f1: f0 * 0.7, jitter: 0.1, sub: 0.4, rough: 0.8, roughF: 45, breath: 0.6, dist: 5, vol: 0.7, attack: 0.03, formants: [[780, 4, 1], [1250, 6, 0.7], [2600, 8, 0.35]] }); this.burst(c, out, d * 0.8, { type: 'highpass', f: 3000, vol: 0.4, tau: 0.004 }); /* teeth */ return d + 0.2; },
+    death(c, out, v) { const f0 = 110 + v * 15, d = 1.1; this.voice(c, out, 0, d, { f0, f1: f0 * 0.45, jitter: 0.08, sub: 0.7, rough: 0.6, roughF: 18, breath: 0.3, dist: 2, vol: 0.55, attack: 0.04, glide: 0.7, lp: 3000, formants: [[620, 5, 1], [1050, 7, 0.6], [2400, 9, 0.25]] });
+      for (let i = 0; i < 12; i++) this.burst(c, out, 0.35 + Math.random() * 0.7, { type: 'bandpass', f: 250 + Math.random() * 500, q: 12, vol: 0.18, tau: 0.02 }); /* gurgle */ return d + 0.3; },
+    scream(c, out, v) { const f0 = 520 + v * 60, d = 1.4; this.voice(c, out, 0, d, { f0, f1: f0 * 1.35, jitter: 0.05, rough: 0.35, roughF: 60, breath: 0.5, dist: 6, vol: 0.55, attack: 0.08, vib: 7, formants: [[400, 5, 0.8], [2200, 6, 1], [3100, 8, 0.6]] }); return d + 0.3; },
+    roar(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); const d = 1.9; for (let i = 0; i < 3; i++) this.voice(c, bus, 0.01 * i, d, { f0: 52 + i * 7 + v * 4, f1: 40 + i * 5, jitter: 0.08, sub: 0.9, rough: 0.7, roughF: 26 + i * 4, breath: 0.35, dist: 6, vol: 0.45, attack: 0.15, lp: 2400, formants: [[480, 4, 1], [820, 5, 0.7], [2200, 8, 0.3]] });
+      this.burst(c, bus, 0.05, { type: 'lowpass', f: 300, vol: 0.6, tau: 0.7, attack: 0.2, brown: true }); this.tail(c, bus, out, 'field', 0.55); return 3.6; },
+    grunt(c, out, v) { const f0 = 105 + v * 12, d = 0.26; this.voice(c, out, 0, d, { f0, f1: f0 * 0.8, jitter: 0.04, sub: 0.2, rough: 0.2, breath: 0.5, dist: 1.5, vol: 0.6, attack: 0.02, formants: [[640, 6, 1], [1150, 8, 0.6], [2500, 10, 0.25]] }); const ar = this.gain(c, 0.12); ar.connect(out); this.modal(c, ar, 0.005, 1500 + v * 200, [1, 2.4, 4.1], [0.08, 0.05, 0.03]); return 0.5; },
+    effort(c, out, v) { const f0 = 120 + v * 10, d = 0.18; this.voice(c, out, 0, d, { f0, f1: f0 * 1.1, jitter: 0.03, breath: 0.7, vol: 0.35, attack: 0.02, formants: [[700, 6, 1], [1200, 8, 0.5], [2600, 10, 0.2]] }); return 0.3; },
+    bark(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); const n = 1 + (v % 2); for (let k = 0; k < n; k++) { const t = k * 0.22, f0 = 380 + v * 30; this.voice(c, bus, t, 0.13, { f0, f1: f0 * 0.6, jitter: 0.05, rough: 0.3, roughF: 70, breath: 0.4, dist: 3, vol: 0.7, attack: 0.008, formants: [[900, 4, 1], [1700, 6, 0.6], [3000, 8, 0.3]] }); } this.tail(c, bus, out, 'field', 0.3); return 0.4 + n * 0.22 + 0.5; },
+    growl(c, out, v) { this.voice(c, out, 0, 0.7, { f0: 95 + v * 8, f1: 85, jitter: 0.08, rough: 0.9, roughF: 32, breath: 0.6, dist: 3, vol: 0.5, attack: 0.08, formants: [[500, 4, 1], [1000, 6, 0.5], [2500, 8, 0.2]] }); return 0.9; },
+    whine(c, out, v) { this.voice(c, out, 0, 0.6, { f0: 700 + v * 40, f1: 950, jitter: 0.02, breath: 0.3, vol: 0.3, attack: 0.05, vib: 9, formants: [[800, 3, 0.6], [2000, 5, 1], [3200, 8, 0.4]] }); return 0.8; },
+    // foley: footsteps
+    stepDirt(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); this.burst(c, bus, 0.001, { type: 'lowpass', f: 260, vol: 0.8, tau: 0.018, brown: true }); for (let i = 0; i < 14; i++) this.burst(c, bus, 0.004 + Math.random() * 0.05, { type: 'bandpass', f: 1400 + Math.random() * 2600, q: 1.5, vol: 0.18 * Math.random(), tau: 0.003 }); return 0.18; },
+    stepWood(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); this.thump(c, bus, 0.001, 140, 90, 0.02, 0.8); const r = this.gain(c, 0.5); r.connect(bus); this.modal(c, r, 0.001, 190 + v * 25, [1, 2.3, 3.6], [0.06, 0.04, 0.025], [0.8, 0.4, 0.2]); this.burst(c, bus, 0.001, { type: 'bandpass', f: 1800, q: 1, vol: 0.25, tau: 0.005 }); if (v === 3) { const cr = this.osc(c, 'sawtooth', 160, 0.06, 0.25), bp = this.filt(c, 'bandpass', 900, 8), g = this.env(this.gain(c, 0), 0.06, 0.08, 0.04, 0.08); cr.frequency.linearRampToValueAtTime(110, 0.3); cr.connect(bp); bp.connect(g); g.connect(bus); } return 0.4; },
+    stepStone(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); this.burst(c, bus, 0.001, { type: 'lowpass', f: 400, vol: 0.6, tau: 0.012 }); this.burst(c, bus, 0.001, { type: 'highpass', f: 2500, vol: 0.35, tau: 0.006 }); for (let i = 0; i < 4; i++) this.burst(c, bus, 0.01 + Math.random() * 0.03, { type: 'bandpass', f: 3000 + Math.random() * 3000, q: 3, vol: 0.12, tau: 0.003 }); this.tail(c, bus, out, 'stone', 0.25); return 0.5; },
+    armour(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); for (let i = 0; i < 5; i++) this.modal(c, bus, 0.002 + Math.random() * 0.04, 2400 + Math.random() * 3000, [1, 2.6, 4.3], [0.04, 0.025, 0.015], [0.5, 0.3, 0.15], 0.35 * Math.random()); this.burst(c, bus, 0.001, { type: 'bandpass', f: 4000, q: 0.8, vol: 0.12, tau: 0.03 }); return 0.25; },
+    land(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); this.thump(c, bus, 0.001, 110, 45, 0.05, 1); this.burst(c, bus, 0.001, { type: 'lowpass', f: 700, vol: 0.9, tau: 0.04, brown: true }); this.R.armour.call(this, c, bus, v); for (let i = 0; i < 12; i++) this.burst(c, bus, 0.01 + Math.random() * 0.15, { type: 'bandpass', f: 1500 + Math.random() * 3000, q: 1.5, vol: 0.15 * Math.random(), tau: 0.004 }); return 0.5; },
+    roll(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); const s = this.src(c, 0, 0.5), bp = this.filt(c, 'bandpass', 600, 0.8), g = this.gain(c, 0); s.connect(bp); bp.connect(g); g.connect(bus); bp.frequency.setValueAtTime(400, 0); bp.frequency.linearRampToValueAtTime(1600, 0.2); bp.frequency.linearRampToValueAtTime(500, 0.4); g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(0.5, 0.1); g.gain.linearRampToValueAtTime(0, 0.42); this.R.armour.call(this, c, bus, v); this.thump(c, bus, 0.25, 100, 50, 0.05, 0.6); return 0.6; },
+    // weapons foley
+    magOut(c, out, v) { this.modal(c, out, 0.001, 2100 + v * 100, [1, 2.2, 3.4], [0.02, 0.015, 0.01], [1, 0.6, 0.3], 0.5); this.burst(c, out, 0.01, { type: 'bandpass', f: 1600, q: 1, vol: 0.3, tau: 0.04 }); return 0.25; },
+    magIn(c, out, v) { this.burst(c, out, 0.001, { type: 'bandpass', f: 1200, q: 1, vol: 0.25, tau: 0.03 }); this.modal(c, out, 0.06, 1500 + v * 100, [1, 2.5, 3.9, 6.1], [0.03, 0.02, 0.012, 0.008], [1, 0.7, 0.4, 0.2], 0.7); this.thump(c, out, 0.06, 300, 150, 0.01, 0.4); return 0.3; },
+    charge(c, out, v) { const s = this.src(c, 0, 0.2), bp = this.filt(c, 'bandpass', 2800, 2), g = this.env(this.gain(c, 0), 0.0, 0.25, 0.02, 0.04); s.connect(bp); bp.connect(g); g.connect(out); this.modal(c, out, 0.13, 1700 + v * 80, [1, 2.3, 3.8, 5.5], [0.03, 0.02, 0.015, 0.01], [1, 0.8, 0.5, 0.3], 0.8); this.thump(c, out, 0.13, 380, 200, 0.01, 0.4); return 0.35; },
+    pumpRack(c, out, v) { this.burst(c, out, 0.001, { type: 'bandpass', f: 1900, q: 1.5, vol: 0.4, tau: 0.04 }); this.modal(c, out, 0.06, 1100 + v * 60, [1, 2.2, 3.5], [0.03, 0.02, 0.012], [1, 0.6, 0.3], 0.8); this.burst(c, out, 0.16, { type: 'bandpass', f: 2100, q: 1.5, vol: 0.4, tau: 0.04 }); this.modal(c, out, 0.22, 1250 + v * 60, [1, 2.4, 3.9], [0.035, 0.02, 0.012], [1, 0.6, 0.3], 0.9); this.thump(c, out, 0.22, 260, 140, 0.015, 0.5); return 0.45; },
+    shell(c, out, v) { this.burst(c, out, 0.001, { type: 'bandpass', f: 1500, q: 1, vol: 0.3, tau: 0.02 }); this.thump(c, out, 0.03, 420, 260, 0.01, 0.4); this.modal(c, out, 0.03, 900, [1, 2.7], [0.015, 0.01], [0.6, 0.3], 0.5); return 0.2; },
+    boltCycle(c, out, v) { this.modal(c, out, 0.001, 1900, [1, 2.6, 4.1], [0.02, 0.015, 0.01], [1, 0.6, 0.3], 0.6); this.burst(c, out, 0.03, { type: 'bandpass', f: 3000, q: 2, vol: 0.3, tau: 0.05 }); this.burst(c, out, 0.16, { type: 'bandpass', f: 2600, q: 2, vol: 0.3, tau: 0.04 }); this.modal(c, out, 0.22, 1600, [1, 2.4, 3.7], [0.025, 0.02, 0.012], [1, 0.7, 0.4], 0.7); return 0.4; },
+    dryFire(c, out, v) { this.modal(c, out, 0.001, 3100 + v * 200, [1, 2.4], [0.012, 0.008], [1, 0.5], 0.5); return 0.08; },
+    ping(c, out, v) { this.modal(c, out, 0.001, 2620 + v * 20, [1, 2.76, 5.4, 8.9], [0.6, 0.35, 0.2, 0.1], [1, 0.5, 0.3, 0.1], 0.35); this.R.casing.call(this, c, out, v); return 1.0; },
+    casing(c, out, v) { let tt = 0.05, a = 0.25; for (let i = 0; i < 4; i++) { this.modal(c, out, tt, 3800 + v * 400 + Math.random() * 300, [1, 2.76, 5.4], [0.05 * a * 4, 0.03, 0.015], [1, 0.5, 0.25], a); tt += 0.09 * Math.pow(0.6, i) + 0.02; a *= 0.55; } return 0.6; },
+    // bows & launchers
+    bow(c, out, v) { this.playArr(c, out, 0.001, this.pluck(98 + v * 6, 0.6, 0.996, 0.55), 1.3); const s = this.src(c, 0, 0.3), bp = this.filt(c, 'bandpass', 1200, 1.5), g = this.env(this.gain(c, 0), 0.0, 0.1, 0.03, 0.05); s.connect(bp); bp.connect(g); g.connect(out); this.thump(c, out, 0.001, 160, 80, 0.02, 0.4); return 0.5; },
+    crossbow(c, out, v) { this.playArr(c, out, 0.001, this.pluck(140 + v * 8, 0.3, 0.985, 0.4), 0.7); this.thump(c, out, 0.001, 180, 70, 0.03, 0.8); this.modal(c, out, 0.001, 800, [1, 2.4, 3.9], [0.05, 0.03, 0.02], [0.6, 0.4, 0.2], 0.4); return 0.4; },
+    launcherGL(c, out, v) { this.thump(c, out, 0.001, 140, 55, 0.05, 1); this.burst(c, out, 0.001, { type: 'lowpass', f: 900, vol: 0.8, tau: 0.04, brown: true }); this.modal(c, out, 0.001, 260, [1, 2.1], [0.08, 0.05], [0.5, 0.2], 0.4); return 0.6; },
+    launcherRL(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); this.thump(c, bus, 0.001, 120, 45, 0.06, 1); const s = this.src(c, 0, 1.2), bp = this.filt(c, 'bandpass', 500, 0.7), g = this.gain(c, 0); s.connect(bp); bp.connect(g); g.connect(bus); bp.frequency.linearRampToValueAtTime(2600, 0.6); g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(0.8, 0.04); g.gain.setTargetAtTime(0.00001, 0.2, 0.3); this.tail(c, bus, out, 'field', 0.5); return 2.0; },
+    // world
+    coin(c, out, v) { for (let i = 0; i < 2 + v; i++) this.modal(c, out, i * (0.05 + Math.random() * 0.04), 3400 + Math.random() * 1400, [1, 2.76, 5.4, 8.9], [0.18, 0.1, 0.06, 0.03], [1, 0.6, 0.3, 0.15], 0.3); return 0.7; },
+    pouch(c, out, v) { this.burst(c, out, 0.001, { type: 'bandpass', f: 1200, q: 0.7, vol: 0.4, tau: 0.05 }); for (let i = 0; i < 6; i++) this.modal(c, out, 0.02 + Math.random() * 0.12, 2200 + Math.random() * 1600, [1, 2.5], [0.03, 0.02], [1, 0.4], 0.2); return 0.35; },
+    chains(c, out, v) { for (let i = 0; i < 26; i++) { const t = i * 0.085 + Math.random() * 0.02; this.modal(c, out, t, 1300 + Math.random() * 1200, [1, 2.3, 3.9], [0.03, 0.02, 0.01], [1, 0.5, 0.25], 0.22); } const s = this.src(c, 0, 2.4, true), lp = this.filt(c, 'lowpass', 160, 0.8), g = this.env(this.gain(c, 0), 0, 0.9, 0.3, 1.2); s.connect(lp); lp.connect(g); g.connect(out); this.modal(c, out, 2.2, 95, [1, 1.9, 2.8, 4.1], [0.8, 0.5, 0.3, 0.2], [1, 0.6, 0.4, 0.2], 0.7); this.thump(c, out, 2.2, 80, 35, 0.12, 1); return 3.6; },
+    trapSnap(c, out, v) { this.modal(c, out, 0.001, 900, [1, 2.4, 3.9, 6.2], [0.25, 0.15, 0.1, 0.06], [1, 0.6, 0.4, 0.2], 0.7); this.burst(c, out, 0.001, { type: 'highpass', f: 2000, vol: 0.9, tau: 0.008 }); this.thump(c, out, 0.001, 200, 90, 0.02, 0.7); return 1.2; },
+    fire(c, out, v) { const bus = this.gain(c, 1); bus.connect(out); const s = this.src(c, 0, 2.5, true), lp = this.filt(c, 'lowpass', 500, 0.6), g = this.gain(c, 0.5); s.connect(lp); lp.connect(g); g.connect(bus); for (let i = 0; i < 70; i++) this.burst(c, bus, Math.random() * 2.4, { type: 'bandpass', f: 1500 + Math.random() * 5000, q: 2, vol: Math.random() * 0.4, tau: 0.002 + Math.random() * 0.006 }); return 2.5; },
+  },
+  EST: { bow: 0.8, explosion: 2.8, roar: 3.0, chains: 3.4, moan: 2.2, death: 1.6, scream: 1.8, metal: 2.4, fire: 2.6, flashbang: 2.4, launcherRL: 2.2, block: 1.6, glass: 1.6, bark: 1.8, ping: 1.2, trapSnap: 1.4, growl: 1.0, whine: 0.9 },
+  /* name -> [recipe, variations] */
+  LIST() {
+    const L = { explosion: ['explosion', 2], flashbang: ['flashbang', 2], glass: ['glass', 2], swingLight: ['swingLight', 3], swingHeavy: ['swingHeavy', 3], metal: ['metal', 3], block: ['block', 3], flesh: ['flesh', 4], fleshHeavy: ['fleshHeavy', 3], gore: ['gore', 3],
+      moan: ['moan', 4], snarl: ['snarl', 3], death: ['death', 3], scream: ['scream', 2], roar: ['roar', 2], grunt: ['grunt', 3], effort: ['effort', 2], bark: ['bark', 3], growl: ['growl', 2], whine: ['whine', 1],
+      stepDirt: ['stepDirt', 4], stepWood: ['stepWood', 4], stepStone: ['stepStone', 3], armour: ['armour', 3], land: ['land', 2], roll: ['roll', 2],
+      magOut: ['magOut', 2], magIn: ['magIn', 2], charge: ['charge', 2], pumpRack: ['pumpRack', 2], shell: ['shell', 2], boltCycle: ['boltCycle', 2], dryFire: ['dryFire', 2], ping: ['ping', 1], casing: ['casing', 3],
+      bow: ['bow', 2], crossbow: ['crossbow', 2], launcherGL: ['launcherGL', 2], launcherRL: ['launcherRL', 2], coin: ['coin', 3], pouch: ['pouch', 2], chains: ['chains', 1], trapSnap: ['trapSnap', 2], fire: ['fire', 1] };
+    for (const k in this.GUNS) L['gun_' + k] = ['gun:' + k, k === 'minigun' || k === 'smg' || k === 'lmg' ? 3 : 2];
+    return L;
+  },
+
+  /* ---------------------------------------------------------------- build the bank (async, during loading) */
+  async build(progress) {
+    if (this.ready || this.building || !window.OfflineAudioContext) return; this.building = true;
+    const L = this.LIST(), keys = Object.keys(L); let done = 0;
+    for (const name of keys) {
+      const [rec, n] = L[name]; this.bank[name] = [];
+      for (let v = 0; v < n; v++) {
+        try {
+          const est = rec.startsWith('gun:') ? 2.1 : (this.EST[rec] || 1.2), c = new OfflineAudioContext(1, Math.floor(this.SR * est), this.SR), out = this.gain(c, 1), lim = c.createDynamicsCompressor(); lim.threshold.value = -3; lim.ratio.value = 12; lim.attack.value = 0.001; lim.release.value = 0.1; out.connect(lim); lim.connect(c.destination);
+          const dur = rec.startsWith('gun:') ? this.gun(c, out, v, this.GUNS[rec.slice(4)]) : this.R[rec].call(this, c, out, v);
+          const buf = await c.startRendering(); this.bank[name].push(this.trim(buf, Math.min(est, dur + 0.3)));
+        } catch (e) { console.warn('sfx', name, e); }
+      }
+      done++; if (progress) progress(done / keys.length); if (done % 6 === 0) await new Promise((r) => setTimeout(r, 0));
+    }
+    this.ready = true; this.building = false;
+  },
+  /* cut silence off the end and normalise peak so each family sits at a consistent level */
+  trim(buf, maxSec) {
+    const d = buf.getChannelData(0); let end = Math.min(d.length, Math.floor(maxSec * this.SR)); while (end > 100 && Math.abs(d[end - 1]) < 0.0012) end--; let peak = 0; for (let i = 0; i < end; i++) peak = Math.max(peak, Math.abs(d[i]));
+    const out = new AudioBuffer({ length: Math.max(1, end), numberOfChannels: 1, sampleRate: this.SR }), o = out.getChannelData(0), k = peak > 0 ? 0.9 / peak : 1, fade = Math.min(400, end);
+    for (let i = 0; i < end; i++) o[i] = d[i] * k * (i > end - fade ? (end - i) / fade : 1); return out;
+  },
+
+  /* ---------------------------------------------------------------- playback */
+  LIMITS: { moan: 4, snarl: 3, death: 4, flesh: 6, metal: 4, stepDirt: 2, stepWood: 2, stepStone: 2, armour: 2, casing: 3, explosion: 4 },
+  has(name) { return this.ready && this.bank[name] && this.bank[name].length; },
+  play(A, name, o = {}) {
+    if (!this.has(name)) return null; const c = A.ctx, now = c.currentTime;
+    const live = (this.voices[name] = (this.voices[name] || []).filter((s) => s.end > now)); if (live.length >= (this.LIMITS[name] || 8)) return null;
+    const list = this.bank[name], buf = list[Math.floor(Math.random() * list.length)];
+    const s = c.createBufferSource(); s.buffer = buf; s.playbackRate.value = (o.rate || 1) * (1 + (Math.random() - 0.5) * (o.vary ?? 0.07));
+    // position: pan with screen offset, roll off with distance, darken distant sounds
+    let vol = o.vol ?? 1, pan = 0, far = 0;
+    if (o.x !== undefined && IF.game && IF.game.run) { const run = IF.game.run, cx = run.camX + (IF.VIEW_W || IF.W) / 2, dx = o.x - cx; pan = Math.max(-0.85, Math.min(0.85, dx / 800)); far = Math.min(1, Math.abs(dx) / 1600); vol *= 1 / (1 + Math.abs(dx) / 1100); }
+    const g = c.createGain(); g.gain.value = vol; let node = s;
+    if (far > 0.15) { const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 18000 - far * 14000; s.connect(lp); node = lp; }
+    node.connect(g); let tail = g;
+    if (c.createStereoPanner) { const p = c.createStereoPanner(); p.pan.value = pan; g.connect(p); tail = p; }
+    tail.connect(o.bus || A.sfxBus); if (A.space && (o.room ?? 0.25) > 0) { const sg = c.createGain(); sg.gain.value = o.room ?? 0.25; tail.connect(sg); sg.connect(A.space); }
+    s.start(now + (o.delay || 0)); live.push({ end: now + (o.delay || 0) + buf.duration / s.playbackRate.value }); return s;
+  },
 };
 
 /* ==== core/save.js ==== */
@@ -5968,8 +6234,8 @@ IF.combat = {
     e.hp -= dmg; e.hitFlash = e.boss ? 0.05 : 0.1; e.lastHitDir = o.dir;
     if (!deflect) IF.gore.onHit(e, o, dmg, e.hp <= 0);
     // feedback
-    if (deflect) { IF.fx.sparks(o.x, o.y, -o.dir, 5); IF.audio.hit('metal'); }
-    else { IF.fx.blood(o.x, o.y, o.dir, o.melee ? (o.heavy ? 14 : 8) : 4, e.def.blood); IF.audio.hit('flesh', crit); }
+    if (deflect) { IF.fx.sparks(o.x, o.y, -o.dir, 5); IF.audio.from(o.x).hit('metal'); }
+    else { IF.fx.blood(o.x, o.y, o.dir, o.melee ? (o.heavy ? 14 : 8) : 4, e.def.blood); IF.audio.from(o.x).hit('flesh', crit); }
     IF.fx.text(o.x, o.y - 20, crit ? dmg + '!' : dmg, crit ? '#ffcf3a' : o.head ? '#ff9a6a' : deflect ? '#9aa4ad' : '#ffffff', crit || o.head ? 24 : 17, crit || o.head);
     if (o.head && !e.headT) { e.headT = 1; IF.fx.text(o.x, o.y - 48, 'HEADSHOT', '#ff7a4a', 14); setTimeout(() => (e.headT = 0), 600); }
     if (crit && pl.st.critExplode && !o.explosive) this.explode(o.x, o.y, 70, dmg * 0.4, 'player', { ws, noChain: true, color: '#a36bff' });
@@ -5992,7 +6258,7 @@ IF.combat = {
 
   /* Area damage; owner 'player' damages enemies, 'enemy' damages the knight. */
   explode(x, y, r, dmg, owner, o = {}) {
-    IF.fx.explosion(x, y, r); IF.audio.explosion(r / 150);
+    IF.fx.explosion(x, y, r); IF.audio.from(x).explosion(r / 150);
     const run = IF.game.run;
     if (owner === 'player') {
       for (const e of run.enemies) {
@@ -6105,7 +6371,7 @@ IF.tac = {
           tr.armed = false; tr.shutT = 0; tr.victim = e;
           IF.combat.hitEnemy(e, { ws: this.ws(run, tr.dmg, { bleed: true, knock: 0 }), dir: 0, x: tr.x, y: IF.GROUND - 30, heavy: true, stagger: 0.6 });
           if (!e.dead) e.trapped = e.boss ? 0.8 : 3.5;
-          IF.fx.blood(tr.x, IF.GROUND - 20, 0, 10); IF.fx.sparks(tr.x, IF.GROUND - 10, 0, 6); IF.audio.hit && IF.audio.hit('metal', true); IF.fx.addShake(3);
+          IF.fx.blood(tr.x, IF.GROUND - 20, 0, 10); IF.fx.sparks(tr.x, IF.GROUND - 10, 0, 6); IF.audio.from(tr.x).trap(); IF.fx.addShake(3);
           break;
         }
       } else tr.shutT += dt;
@@ -6120,13 +6386,13 @@ IF.tac = {
     if (g.type === 'frag') { IF.combat.explode(g.x, g.y - 10, 175, g.dmg, 'player', { ws: this.ws(run, g.dmg, {}) }); IF.fx.decal(g.x, IF.GROUND, 'scorch', 70); IF.fx.addShake(10); }
     else if (g.type === 'stun') {
       IF.fx.ring(g.x, g.y - 20, 300, 'rgba(255,255,255,0.9)', 0.5); IF.fx.spawn({ x: g.x, y: g.y - 30, life: 0.25, size: 260, color: 'rgba(255,255,240,0.9)', type: 'glow', add: true });
-      IF.audio.explosion && IF.audio.explosion(0.4); run.flashT = 0.35; IF.fx.addShake(4);
+      IF.audio.from(g.x).flash(); run.flashT = 0.35; IF.fx.addShake(4);
       for (const e of run.enemies) { if (e.dead) continue; const d = Math.abs(e.x - g.x); if (d > 280) continue; if (e.boss) { e.stagger(1.6, Math.sign(e.x - g.x)); e.vuln = Math.max(e.vuln || 0, 2.5); } else e.stun(3); }
       if (Math.abs(run.player.x - g.x) < 140) run.player.flashT = 0.2;
     } else if (g.type === 'molotov') {
       run.hazards.push({ type: 'fire', x: g.x, w: 230, t: 6, dmg: g.dmg, owner: 'player' });
       for (let k = 0; k < 24; k++) IF.fx.spawn({ x: g.x + (Math.random() - 0.5) * 120, y: IF.GROUND - 10, vx: (Math.random() - 0.5) * 200, vy: -100 - Math.random() * 200, life: 0.6, size: 6 + Math.random() * 8, color: Math.random() < 0.5 ? '#ff8a20' : '#ffd040', type: 'fire', add: true, grow: -8, drag: 0.95 });
-      IF.fx.sparks(g.x, g.y, 0, 6, '#cfe8ff'); IF.audio.explosion && IF.audio.explosion(0.25); IF.fx.decal(g.x, IF.GROUND, 'scorch', 110);
+      IF.fx.sparks(g.x, g.y, 0, 6, '#cfe8ff'); IF.audio.from(g.x).molotov(); IF.fx.decal(g.x, IF.GROUND, 'scorch', 110);
     }
   },
   /* fire pools: burn every zombie standing in them; the knight takes a little if he wades in */
@@ -6242,7 +6508,7 @@ IF.Sentry = class Sentry {
       this.cd = 1 / 7; this.ammo--; this.flashT = 0.05;
       const ang = this.facing > 0 ? this.aim : Math.PI - this.aim;
       IF.combat.fire({ crouch: false, vx: 0 }, { ws: this.ws, def: this.ws.def }, mx + Math.cos(ang) * 30, my + Math.sin(ang) * 30, ang);
-      IF.fx.muzzle(mx + Math.cos(ang) * 34, my + Math.sin(ang) * 34, ang, false); if (Math.random() < 0.6) IF.audio.shot('smg');
+      IF.fx.muzzle(mx + Math.cos(ang) * 34, my + Math.sin(ang) * 34, ang, false); if (Math.random() < 0.6) IF.audio.from(this.x).shot('smg');
     }
   }
   draw2d(ctx) {
@@ -6298,7 +6564,7 @@ IF.companions = {
   newRun(run) {
     this.cleanup();
     const d = this.data(); run.allies = run.allies || [];
-    d.active.forEach((id, i) => { const def = IF.COMPANION[id]; if (def) { const c = new IF.Companion(run, def, d.owned[id].lvl, i); run.allies.push(c); this.live.push(c); } });
+    d.active.forEach((id, i) => { const def = IF.COMPANION[id]; if (def && d.owned[id]) { const c = new IF.Companion(run, def, d.owned[id].lvl, i); run.allies.push(c); this.live.push(c); } });
   },
   onSection(run) { for (const a of run.allies) if (a.isCompanion) { a.x = run.player.x - 80 - a.slot * 60; a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.35); if (a.down) { a.down = false; a.hp = a.maxHp * 0.5; } } },
   command(run) { const d = this.data(); d.order = d.order === 'hold' ? 'follow' : 'hold'; for (const a of run.allies) if (a.isCompanion) a.holdX = run.player.x - 40 - a.slot * 50; IF.fx.text(run.player.x, run.player.y - 190, d.order === 'hold' ? 'COMPANIONS: HOLD' : 'COMPANIONS: FOLLOW', '#d8b25a', 15); IF.audio.ui('hover'); },
@@ -6352,7 +6618,7 @@ IF.Companion = class Companion {
     if (this.down || this.dead) return;
     let dmg = o.dmg * (this.def.id === 'godric' ? 0.6 : 1); this.hp -= dmg; this.flashT = 0.12; this.vx += Math.sign(this.x - (o.x ?? this.x)) * 120;
     IF.fx.blood(this.x, this.y - this.h * 0.6, Math.sign(this.x - (o.x ?? this.x)), 3);
-    if (this.hp <= 0) { this.hp = 0; this.down = true; this.downT = 12; this.state = 'down'; IF.fx.text(this.x, this.y - this.h - 20, this.def.name + ' is down!', '#ff8a6a', 14); if (this.kind === 'dog') IF.audio.hurt && IF.audio.hurt(); }
+    if (this.hp <= 0) { this.hp = 0; this.down = true; this.downT = 12; this.state = 'down'; IF.fx.text(this.x, this.y - this.h - 20, this.def.name + ' is down!', '#ff8a6a', 14); if (this.kind === 'dog') IF.audio.from(this.x).dog('whine'); else IF.audio.hurt(); }
   }
   nearestEnemy(maxD) {
     let best = null, bd = maxD;
@@ -6396,7 +6662,7 @@ IF.Companion = class Companion {
       if (this.cd <= 0) {
         this.cd = 1 / def.rate * (0.85 + Math.random() * 0.3); const ang = this.facing > 0 ? this.aim : Math.PI - this.aim;
         IF.combat.fire({ crouch: false, vx: 0 }, { ws: this.ws, def: this.ws.def }, mx + Math.cos(ang) * 40, my + Math.sin(ang) * 40, ang);
-        IF.fx.muzzle(mx + Math.cos(ang) * 46, my + Math.sin(ang) * 46, ang, def.id === 'hale'); IF.audio.shot(this.wi.def.cls); this.kick = 1;
+        IF.fx.muzzle(mx + Math.cos(ang) * 46, my + Math.sin(ang) * 46, ang, def.id === 'hale'); IF.audio.from(this.x).shot(this.wi.def.cls); this.kick = 1;
         if (def.id === 'hale') setTimeout(() => IF.audio.bolt(), 400);
       }
     } else {
@@ -6413,8 +6679,8 @@ IF.Companion = class Companion {
     if (def.id === 'kira') { this.bites++; if (this.bites % 3 === 0) ws.def = Object.assign({}, ws.def, { bleedBase: true }); }
     IF.combat.hitEnemy(e, { ws, mult, dir: this.facing, x: e.x - this.facing * 10, y: e.y - e.h * (this.kind === 'dog' ? 0.35 : 0.6), melee: true, heavy: heavy || def.id === 'godric' || def.id === 'bran', stagger: def.id === 'bran' || def.id === 'godric' ? 1 : 0.3 });
     if (heavy) { IF.fx.ring(e.x, e.y - 60, 140, 'rgba(255,210,120,0.8)', 0.4); IF.fx.addShake(5); const other = run.enemies.find((o) => !o.dead && o !== e && Math.abs(o.x - e.x) < 120); if (other) IF.combat.hitEnemy(other, { ws, mult: 1.6, dir: this.facing, x: other.x, y: other.y - 80, melee: true, heavy: true }); }
-    if (this.kind === 'dog') { IF.audio.hit('flesh'); if (def.id === 'rex' && !e.boss && !e.dead && Math.random() < 0.3) { e.trapped = 1.5; IF.fx.text(e.x, e.y - e.h - 10, 'PINNED', '#d8b25a', 12); } if (def.id === 'bran' && !e.boss) IF.combat.knockback(e, this.facing * 300, 1.2); }
-    else IF.audio.swing && IF.audio.swing(1);
+    if (this.kind === 'dog') { IF.audio.from(e.x).hit('flesh'); IF.audio.from(this.x).dog(Math.random() < 0.5 ? 'growl' : 'bark'); if (def.id === 'rex' && !e.boss && !e.dead && Math.random() < 0.3) { e.trapped = 1.5; IF.fx.text(e.x, e.y - e.h - 10, 'PINNED', '#d8b25a', 12); } if (def.id === 'bran' && !e.boss) IF.combat.knockback(e, this.facing * 300, 1.2); }
+    else IF.audio.from(this.x).swing(def.id === 'godric' ? 2 : 1);
   }
   moveTo(tx, dt, k = 1, back) {
     const dx = tx - this.x, sp = this.def.speed * k;
@@ -7092,7 +7358,7 @@ IF.Enemy = class Enemy {
   die(o) {
     if (this.dead) return; this.dead = true; this.deadT = 0; this.state = 'dead'; this.hp = 0;
     this.deathDir = (o && o.dir) || -this.facing || 1; this.vx = this.deathDir * (o && o.heavy ? 380 : 160); this.vy = o && o.heavy ? -260 : -80;
-    IF.audio.zombieDeath(); IF.fx.blood(this.x, this.y - this.h * 0.5, this.deathDir, this.boss ? 40 : 14, this.def.blood);
+    IF.audio.from(this.x).zombieDeath(); IF.fx.blood(this.x, this.y - this.h * 0.5, this.deathDir, this.boss ? 40 : 14, this.def.blood);
     this.run.onKill(this);
     IF.gore.onDeath(this, o || {});
     if (this.def.explode && !this.exploded) { this.exploded = true; IF.combat.explode(this.x, this.y - 50, this.def.explode, this.dmg * 0.6, 'enemy', { source: this }); this.gibbed = true; }
@@ -7109,7 +7375,7 @@ IF.Enemy = class Enemy {
     if (this.dead) { this.deadT += dt; this.vx *= Math.pow(0.02, dt); return; }
     const dx = pl.x - this.x, adx = Math.abs(dx);
     // groans
-    this.groanT -= dt; if (this.groanT <= 0) { this.groanT = 4 + Math.random() * 8; if (adx < 900) IF.audio.groan(this.def.heavy ? 0.7 : this.id === 'runner' ? 1.3 : 1); }
+    this.groanT -= dt; if (this.groanT <= 0) { this.groanT = 4 + Math.random() * 8; if (adx < 900) IF.audio.from(this.x).groan(this.def.heavy ? 0.7 : this.id === 'runner' ? 1.3 : 1); }
     if (this.state === 'rise') { this.vx = 0; if (this.stateT > 0.9) { this.state = 'chase'; this.stateT = 0; } return; }
     if (this.state === 'stagger') { this.vx = IF.util.approach(this.vx, 0, 1400 * dt); if (this.stateT > this.staggerT) { this.state = 'chase'; this.stateT = 0; this.cd = Math.max(this.cd, 0.3); } return; }
     this.vx = IF.util.approach(this.vx, 0, (this.boss ? 2600 : 1600) * dt); // friction on knockback
@@ -7123,7 +7389,7 @@ IF.Enemy = class Enemy {
         let target = this.speed * this.facing;
         if (this.def.screamer) { // keep distance; scream to summon
           if (adx < 320) target = -this.speed * this.facing * 0.8; else if (adx < 460) target = 0;
-          this.special -= dt; if (this.special <= 0 && adx < 900) { this.special = 7 + Math.random() * 3; this.state = 'scream'; this.stateT = 0; IF.audio.scream(); return; }
+          this.special -= dt; if (this.special <= 0 && adx < 900) { this.special = 7 + Math.random() * 3; this.state = 'scream'; this.stateT = 0; IF.audio.from(this.x).scream(); return; }
         }
         if (this.def.military && adx > 260 && adx < 650) { this.special -= dt; if (this.special <= 0) { this.special = 6 + Math.random() * 4; this.state = 'throw'; this.stateT = 0; return; } }
         if (this.def.mutant && adx < 420 && adx > 140 && this.cd <= 0 && Math.random() < dt * 1.5) { this.state = 'leap'; this.stateT = 0; this.vy = -720; this.vx = this.facing * Math.min(650, adx * 2); this.cd = 1.5; return; }
@@ -7144,7 +7410,7 @@ IF.Enemy = class Enemy {
         if (this.def.explode) { this.swell = this.stateT / wu; if (Math.floor(this.stateT * 10) % 2 === 0) IF.fx.spawn({ x: this.x, y: this.y - 80, life: 0.1, size: 40, color: 'rgba(160,255,60,0.4)', type: 'glow', add: true }); }
         if (this.stateT >= wu) {
           if (this.def.explode) { this.exploded = true; this.die({ dir: this.facing }); this.gibbed = true; IF.combat.explode(this.x, this.y - 50, this.def.explode, this.dmg, 'enemy', { source: this }); return; }
-          this.state = 'active'; this.stateT = 0; IF.audio.zombieAttack(); this.didHit = false;
+          this.state = 'active'; this.stateT = 0; IF.audio.from(this.x).zombieAttack(); this.didHit = false;
           if (this.id === 'runner' || this.elite) this.vx = this.facing * 420;
         }
         break;
@@ -7201,12 +7467,12 @@ IF.Enemy = class Enemy {
     const a = this.atk, t = this.stateT;
     switch (a.kind) {
       case 'sweep':
-        if (t > a.wind && !a.done) { a.done = true; IF.audio.swing(2.2); this.vx = this.facing * 300; const hdx = (pl.x - this.x) * this.facing; if (hdx > -60 && hdx < 230 * this.scale / 2 + 60 && pl.y > this.y - this.h - 20) pl.takeDamage({ x: this.x, dmg: this.dmg, heavy: true, attacker: this }); IF.fx.addShake(6); }
+        if (t > a.wind && !a.done) { a.done = true; IF.audio.from(this.x).swing(2.2); this.vx = this.facing * 300; const hdx = (pl.x - this.x) * this.facing; if (hdx > -60 && hdx < 230 * this.scale / 2 + 60 && pl.y > this.y - this.h - 20) pl.takeDamage({ x: this.x, dmg: this.dmg, heavy: true, attacker: this }); IF.fx.addShake(6); }
         if (t > a.wind + 0.6) this.endAttack(0.6);
         break;
       case 'slam':
         if (t > a.wind && !a.done) {
-          a.done = true; IF.fx.addShake(18); IF.audio.explosion(1.2); const sx = this.x + this.facing * 90;
+          a.done = true; IF.fx.addShake(18); IF.audio.from(this.x).explosion(1.2); const sx = this.x + this.facing * 90;
           IF.fx.dust(sx, IF.GROUND, 20); IF.fx.ring(sx, IF.GROUND, 120, 'rgba(255,200,120,0.6)');
           if (Math.abs(pl.x - sx) < 130 && pl.y > IF.GROUND - 90) pl.takeDamage({ x: this.x, dmg: this.dmg * 1.4, heavy: true, attacker: this });
           this.run.shockwaves.push({ x: sx, dir: 1, speed: 620, t: 1.4, dmg: this.dmg * 0.6, hit: false }, { x: sx, dir: -1, speed: 620, t: 1.4, dmg: this.dmg * 0.6, hit: false });
@@ -7215,7 +7481,7 @@ IF.Enemy = class Enemy {
         if (t > a.wind + (B.vulnAfter === 'slam' ? 2.0 : 0.8)) this.endAttack(0.4);
         break;
       case 'charge':
-        if (t > a.wind && !a.go) { a.go = true; a.dir = this.facing; IF.audio.roar(); }
+        if (t > a.wind && !a.go) { a.go = true; a.dir = this.facing; IF.audio.from(this.x).roar(); }
         if (a.go && !a.stop) {
           this.x += a.dir * 760 * dt; if (Math.random() < 0.6) IF.fx.dust(this.x, IF.GROUND, 2);
           if (!a.hit && Math.abs(pl.x - this.x) < this.w / 2 + 20 && pl.y > this.y - this.h) { a.hit = true; pl.takeDamage({ x: this.x - a.dir * 50, dmg: this.dmg * 1.2, heavy: true, attacker: this }); }
@@ -7225,7 +7491,7 @@ IF.Enemy = class Enemy {
         if (a.stop && t > a.stopT + 0.7) this.endAttack(0.4);
         break;
       case 'leap':
-        if (t > a.wind && !a.go) { a.go = true; a.tx = pl.x; this.vy = -1100; a.vx = (a.tx - this.x) / 0.9; IF.audio.roar(); }
+        if (t > a.wind && !a.go) { a.go = true; a.tx = pl.x; this.vy = -1100; a.vx = (a.tx - this.x) / 0.9; IF.audio.from(this.x).roar(); }
         if (a.go && !a.landed) { this.x += a.vx * dt; if (this.vy >= 0 && this.y >= IF.GROUND && t > a.wind + 0.2) { a.landed = true; a.landT = t; IF.fx.addShake(20); IF.audio.explosion(1.3); IF.fx.dust(this.x, IF.GROUND, 24); IF.fx.ring(this.x, IF.GROUND, 170, 'rgba(255,190,120,0.7)'); if (Math.abs(pl.x - this.x) < 175 && pl.y > IF.GROUND - 100) pl.takeDamage({ x: this.x, dmg: this.dmg * 1.5, heavy: true, attacker: this }); if (B.vulnAfter === 'leap') this.vuln = 2.4; } }
         if (a.landed && t > a.landT + (B.vulnAfter === 'leap' ? 2.0 : 0.6)) this.endAttack(0.4);
         break;
@@ -7238,15 +7504,15 @@ IF.Enemy = class Enemy {
         if (t > a.wind + 0.8) this.endAttack(0.5);
         break;
       case 'toxic':
-        if (t > a.wind && !a.done) { a.done = true; for (let i = 0; i < 4; i++) { const d = Math.abs(pl.x - this.x) + (i - 1.5) * 140; IF.combat.enemyShot(this.x + this.facing * 40, this.y - this.h * 0.75, this.facing > 0 ? -0.7 : Math.PI + 0.7, Math.max(250, Math.min(1000, d * 1.05 + 60)), this.dmg * 0.5, 'spit'); } IF.audio.zombieAttack(); }
+        if (t > a.wind && !a.done) { a.done = true; for (let i = 0; i < 4; i++) { const d = Math.abs(pl.x - this.x) + (i - 1.5) * 140; IF.combat.enemyShot(this.x + this.facing * 40, this.y - this.h * 0.75, this.facing > 0 ? -0.7 : Math.PI + 0.7, Math.max(250, Math.min(1000, d * 1.05 + 60)), this.dmg * 0.5, 'spit'); } IF.audio.from(this.x).zombieAttack(); }
         if (t > a.wind + 0.8) this.endAttack(0.5);
         break;
       case 'summon': case 'summon_crawlers':
-        if (t > a.wind && !a.done) { a.done = true; IF.audio.scream(); const kind = a.kind === 'summon_crawlers' ? 'crawler' : (B.id === 'commander' || B.id === 'general') ? 'military' : 'walker'; for (let i = 0; i < 3 + this.phaseIdx; i++) this.run.spawnEnemy(kind, this.x + (i % 2 ? 1 : -1) * (150 + i * 70), { rise: true, hpMult: 0.7 }); }
+        if (t > a.wind && !a.done) { a.done = true; IF.audio.from(this.x).scream(); const kind = a.kind === 'summon_crawlers' ? 'crawler' : (B.id === 'commander' || B.id === 'general') ? 'military' : 'walker'; for (let i = 0; i < 3 + this.phaseIdx; i++) this.run.spawnEnemy(kind, this.x + (i % 2 ? 1 : -1) * (150 + i * 70), { rise: true, hpMult: 0.7 }); }
         if (t > a.wind + 1.0) this.endAttack(0.5);
         break;
       case 'roar':
-        if (t > a.wind && !a.done) { a.done = true; IF.audio.roar(); IF.fx.ring(this.x, this.y - this.h * 0.6, 420, 'rgba(255,90,60,0.8)', 0.8); IF.fx.addShake(16); this.enraged = this.phaseIdx >= 2; if (Math.abs(pl.x - this.x) < 380) { pl.vx = Math.sign(pl.x - this.x) * 700; pl.vy = -300; } }
+        if (t > a.wind && !a.done) { a.done = true; IF.audio.from(this.x).roar(); IF.fx.ring(this.x, this.y - this.h * 0.6, 420, 'rgba(255,90,60,0.8)', 0.8); IF.fx.addShake(16); this.enraged = this.phaseIdx >= 2; if (Math.abs(pl.x - this.x) < 380) { pl.vx = Math.sign(pl.x - this.x) * 700; pl.vy = -300; } }
         if (t > a.wind + 1.0) this.endAttack(0.3);
         break;
       default: this.endAttack(0.3);
@@ -7520,7 +7786,7 @@ IF.world = {
   },
   damageProp(run, p, dmg) {
     if (!p.destructible || p.hp <= 0) return;
-    p.hp -= dmg; IF.fx.sparks(p.x + p.w / 2, p.y + p.h / 2, 1, 3, '#d0b080'); IF.audio.hit('metal');
+    p.hp -= dmg; IF.fx.sparks(p.x + p.w / 2, p.y + p.h / 2, 1, 3, '#d0b080'); IF.audio.from(p.x + p.w / 2).hit(p.type === 'crate' || p.type === 'cart' || p.type === 'barricade' ? 'block' : 'metal');
     if (p.hp <= 0) {
       if (p.egg) IF.eggs.reward(run, p.egg, p.x + p.w / 2, p.y);
       if (p.explosive) { setTimeout(() => IF.combat.explode(p.x + p.w / 2, p.y + p.h / 2, 170, 110 + run.section * 8, 'player', { noSelf: false, burn: true }), 60); }
@@ -7905,6 +8171,7 @@ IF.game = {
     for (let i = 0; i < steps.length; i++) { IF.ui.setLoading(steps[i][0], i / steps.length); await frame(); try { steps[i][1](); } catch (e) { console.error(e); } }
     while (performance.now() - t0 < 1600) { IF.ui.setLoading('Ready', Math.min(1, (performance.now() - t0) / 1600)); await frame(); }
     this.resize(); this.loaded = true; IF.ui.setLoading(null, 1);
+    setTimeout(() => IF.sfx.build(), 300); // render the sound bank in the background (live synthesis covers the first seconds)
     requestAnimationFrame((t) => this.loop(t));
   },
   resize() {
@@ -7959,6 +8226,7 @@ IF.game = {
     const realDt = (now - (this.last || now)) / 1000;
     let dt = Math.min(0.05, realDt); this.last = now;
     if (this.state === 'playing' && IF.r3.ok && !document.hidden && realDt < 1) IF.r3.autoTune(realDt);
+    if (this.run && IF.audio.ready) { const W = this.run.world, sp = W.home ? (W.floor === 'basement' ? 'stone' : 'wood') : W.biome.indoor ? 'stone' : 'field'; if (sp !== IF.audio.spaceKind) IF.audio.setSpace(sp); }
     this.fpsAcc += dt; this.fpsN++; if (this.fpsAcc > 0.5) { this.fps = this.fpsN / this.fpsAcc; this.fpsAcc = 0; this.fpsN = 0; }
     const t0 = performance.now();
     IF.input.update(now);

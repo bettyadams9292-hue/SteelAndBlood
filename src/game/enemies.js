@@ -43,7 +43,7 @@ IF.Enemy = class Enemy {
   die(o) {
     if (this.dead) return; this.dead = true; this.deadT = 0; this.state = 'dead'; this.hp = 0;
     this.deathDir = (o && o.dir) || -this.facing || 1; this.vx = this.deathDir * (o && o.heavy ? 380 : 160); this.vy = o && o.heavy ? -260 : -80;
-    IF.audio.zombieDeath(); IF.fx.blood(this.x, this.y - this.h * 0.5, this.deathDir, this.boss ? 40 : 14, this.def.blood);
+    IF.audio.from(this.x).zombieDeath(); IF.fx.blood(this.x, this.y - this.h * 0.5, this.deathDir, this.boss ? 40 : 14, this.def.blood);
     this.run.onKill(this);
     IF.gore.onDeath(this, o || {});
     if (this.def.explode && !this.exploded) { this.exploded = true; IF.combat.explode(this.x, this.y - 50, this.def.explode, this.dmg * 0.6, 'enemy', { source: this }); this.gibbed = true; }
@@ -60,7 +60,7 @@ IF.Enemy = class Enemy {
     if (this.dead) { this.deadT += dt; this.vx *= Math.pow(0.02, dt); return; }
     const dx = pl.x - this.x, adx = Math.abs(dx);
     // groans
-    this.groanT -= dt; if (this.groanT <= 0) { this.groanT = 4 + Math.random() * 8; if (adx < 900) IF.audio.groan(this.def.heavy ? 0.7 : this.id === 'runner' ? 1.3 : 1); }
+    this.groanT -= dt; if (this.groanT <= 0) { this.groanT = 4 + Math.random() * 8; if (adx < 900) IF.audio.from(this.x).groan(this.def.heavy ? 0.7 : this.id === 'runner' ? 1.3 : 1); }
     if (this.state === 'rise') { this.vx = 0; if (this.stateT > 0.9) { this.state = 'chase'; this.stateT = 0; } return; }
     if (this.state === 'stagger') { this.vx = IF.util.approach(this.vx, 0, 1400 * dt); if (this.stateT > this.staggerT) { this.state = 'chase'; this.stateT = 0; this.cd = Math.max(this.cd, 0.3); } return; }
     this.vx = IF.util.approach(this.vx, 0, (this.boss ? 2600 : 1600) * dt); // friction on knockback
@@ -74,7 +74,7 @@ IF.Enemy = class Enemy {
         let target = this.speed * this.facing;
         if (this.def.screamer) { // keep distance; scream to summon
           if (adx < 320) target = -this.speed * this.facing * 0.8; else if (adx < 460) target = 0;
-          this.special -= dt; if (this.special <= 0 && adx < 900) { this.special = 7 + Math.random() * 3; this.state = 'scream'; this.stateT = 0; IF.audio.scream(); return; }
+          this.special -= dt; if (this.special <= 0 && adx < 900) { this.special = 7 + Math.random() * 3; this.state = 'scream'; this.stateT = 0; IF.audio.from(this.x).scream(); return; }
         }
         if (this.def.military && adx > 260 && adx < 650) { this.special -= dt; if (this.special <= 0) { this.special = 6 + Math.random() * 4; this.state = 'throw'; this.stateT = 0; return; } }
         if (this.def.mutant && adx < 420 && adx > 140 && this.cd <= 0 && Math.random() < dt * 1.5) { this.state = 'leap'; this.stateT = 0; this.vy = -720; this.vx = this.facing * Math.min(650, adx * 2); this.cd = 1.5; return; }
@@ -95,7 +95,7 @@ IF.Enemy = class Enemy {
         if (this.def.explode) { this.swell = this.stateT / wu; if (Math.floor(this.stateT * 10) % 2 === 0) IF.fx.spawn({ x: this.x, y: this.y - 80, life: 0.1, size: 40, color: 'rgba(160,255,60,0.4)', type: 'glow', add: true }); }
         if (this.stateT >= wu) {
           if (this.def.explode) { this.exploded = true; this.die({ dir: this.facing }); this.gibbed = true; IF.combat.explode(this.x, this.y - 50, this.def.explode, this.dmg, 'enemy', { source: this }); return; }
-          this.state = 'active'; this.stateT = 0; IF.audio.zombieAttack(); this.didHit = false;
+          this.state = 'active'; this.stateT = 0; IF.audio.from(this.x).zombieAttack(); this.didHit = false;
           if (this.id === 'runner' || this.elite) this.vx = this.facing * 420;
         }
         break;
@@ -152,12 +152,12 @@ IF.Enemy = class Enemy {
     const a = this.atk, t = this.stateT;
     switch (a.kind) {
       case 'sweep':
-        if (t > a.wind && !a.done) { a.done = true; IF.audio.swing(2.2); this.vx = this.facing * 300; const hdx = (pl.x - this.x) * this.facing; if (hdx > -60 && hdx < 230 * this.scale / 2 + 60 && pl.y > this.y - this.h - 20) pl.takeDamage({ x: this.x, dmg: this.dmg, heavy: true, attacker: this }); IF.fx.addShake(6); }
+        if (t > a.wind && !a.done) { a.done = true; IF.audio.from(this.x).swing(2.2); this.vx = this.facing * 300; const hdx = (pl.x - this.x) * this.facing; if (hdx > -60 && hdx < 230 * this.scale / 2 + 60 && pl.y > this.y - this.h - 20) pl.takeDamage({ x: this.x, dmg: this.dmg, heavy: true, attacker: this }); IF.fx.addShake(6); }
         if (t > a.wind + 0.6) this.endAttack(0.6);
         break;
       case 'slam':
         if (t > a.wind && !a.done) {
-          a.done = true; IF.fx.addShake(18); IF.audio.explosion(1.2); const sx = this.x + this.facing * 90;
+          a.done = true; IF.fx.addShake(18); IF.audio.from(this.x).explosion(1.2); const sx = this.x + this.facing * 90;
           IF.fx.dust(sx, IF.GROUND, 20); IF.fx.ring(sx, IF.GROUND, 120, 'rgba(255,200,120,0.6)');
           if (Math.abs(pl.x - sx) < 130 && pl.y > IF.GROUND - 90) pl.takeDamage({ x: this.x, dmg: this.dmg * 1.4, heavy: true, attacker: this });
           this.run.shockwaves.push({ x: sx, dir: 1, speed: 620, t: 1.4, dmg: this.dmg * 0.6, hit: false }, { x: sx, dir: -1, speed: 620, t: 1.4, dmg: this.dmg * 0.6, hit: false });
@@ -166,7 +166,7 @@ IF.Enemy = class Enemy {
         if (t > a.wind + (B.vulnAfter === 'slam' ? 2.0 : 0.8)) this.endAttack(0.4);
         break;
       case 'charge':
-        if (t > a.wind && !a.go) { a.go = true; a.dir = this.facing; IF.audio.roar(); }
+        if (t > a.wind && !a.go) { a.go = true; a.dir = this.facing; IF.audio.from(this.x).roar(); }
         if (a.go && !a.stop) {
           this.x += a.dir * 760 * dt; if (Math.random() < 0.6) IF.fx.dust(this.x, IF.GROUND, 2);
           if (!a.hit && Math.abs(pl.x - this.x) < this.w / 2 + 20 && pl.y > this.y - this.h) { a.hit = true; pl.takeDamage({ x: this.x - a.dir * 50, dmg: this.dmg * 1.2, heavy: true, attacker: this }); }
@@ -176,7 +176,7 @@ IF.Enemy = class Enemy {
         if (a.stop && t > a.stopT + 0.7) this.endAttack(0.4);
         break;
       case 'leap':
-        if (t > a.wind && !a.go) { a.go = true; a.tx = pl.x; this.vy = -1100; a.vx = (a.tx - this.x) / 0.9; IF.audio.roar(); }
+        if (t > a.wind && !a.go) { a.go = true; a.tx = pl.x; this.vy = -1100; a.vx = (a.tx - this.x) / 0.9; IF.audio.from(this.x).roar(); }
         if (a.go && !a.landed) { this.x += a.vx * dt; if (this.vy >= 0 && this.y >= IF.GROUND && t > a.wind + 0.2) { a.landed = true; a.landT = t; IF.fx.addShake(20); IF.audio.explosion(1.3); IF.fx.dust(this.x, IF.GROUND, 24); IF.fx.ring(this.x, IF.GROUND, 170, 'rgba(255,190,120,0.7)'); if (Math.abs(pl.x - this.x) < 175 && pl.y > IF.GROUND - 100) pl.takeDamage({ x: this.x, dmg: this.dmg * 1.5, heavy: true, attacker: this }); if (B.vulnAfter === 'leap') this.vuln = 2.4; } }
         if (a.landed && t > a.landT + (B.vulnAfter === 'leap' ? 2.0 : 0.6)) this.endAttack(0.4);
         break;
@@ -189,15 +189,15 @@ IF.Enemy = class Enemy {
         if (t > a.wind + 0.8) this.endAttack(0.5);
         break;
       case 'toxic':
-        if (t > a.wind && !a.done) { a.done = true; for (let i = 0; i < 4; i++) { const d = Math.abs(pl.x - this.x) + (i - 1.5) * 140; IF.combat.enemyShot(this.x + this.facing * 40, this.y - this.h * 0.75, this.facing > 0 ? -0.7 : Math.PI + 0.7, Math.max(250, Math.min(1000, d * 1.05 + 60)), this.dmg * 0.5, 'spit'); } IF.audio.zombieAttack(); }
+        if (t > a.wind && !a.done) { a.done = true; for (let i = 0; i < 4; i++) { const d = Math.abs(pl.x - this.x) + (i - 1.5) * 140; IF.combat.enemyShot(this.x + this.facing * 40, this.y - this.h * 0.75, this.facing > 0 ? -0.7 : Math.PI + 0.7, Math.max(250, Math.min(1000, d * 1.05 + 60)), this.dmg * 0.5, 'spit'); } IF.audio.from(this.x).zombieAttack(); }
         if (t > a.wind + 0.8) this.endAttack(0.5);
         break;
       case 'summon': case 'summon_crawlers':
-        if (t > a.wind && !a.done) { a.done = true; IF.audio.scream(); const kind = a.kind === 'summon_crawlers' ? 'crawler' : (B.id === 'commander' || B.id === 'general') ? 'military' : 'walker'; for (let i = 0; i < 3 + this.phaseIdx; i++) this.run.spawnEnemy(kind, this.x + (i % 2 ? 1 : -1) * (150 + i * 70), { rise: true, hpMult: 0.7 }); }
+        if (t > a.wind && !a.done) { a.done = true; IF.audio.from(this.x).scream(); const kind = a.kind === 'summon_crawlers' ? 'crawler' : (B.id === 'commander' || B.id === 'general') ? 'military' : 'walker'; for (let i = 0; i < 3 + this.phaseIdx; i++) this.run.spawnEnemy(kind, this.x + (i % 2 ? 1 : -1) * (150 + i * 70), { rise: true, hpMult: 0.7 }); }
         if (t > a.wind + 1.0) this.endAttack(0.5);
         break;
       case 'roar':
-        if (t > a.wind && !a.done) { a.done = true; IF.audio.roar(); IF.fx.ring(this.x, this.y - this.h * 0.6, 420, 'rgba(255,90,60,0.8)', 0.8); IF.fx.addShake(16); this.enraged = this.phaseIdx >= 2; if (Math.abs(pl.x - this.x) < 380) { pl.vx = Math.sign(pl.x - this.x) * 700; pl.vy = -300; } }
+        if (t > a.wind && !a.done) { a.done = true; IF.audio.from(this.x).roar(); IF.fx.ring(this.x, this.y - this.h * 0.6, 420, 'rgba(255,90,60,0.8)', 0.8); IF.fx.addShake(16); this.enraged = this.phaseIdx >= 2; if (Math.abs(pl.x - this.x) < 380) { pl.vx = Math.sign(pl.x - this.x) * 700; pl.vy = -300; } }
         if (t > a.wind + 1.0) this.endAttack(0.3);
         break;
       default: this.endAttack(0.3);

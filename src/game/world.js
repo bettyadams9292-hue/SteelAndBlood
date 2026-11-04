@@ -70,7 +70,7 @@ IF.world = {
   },
   damageProp(run, p, dmg) {
     if (!p.destructible || p.hp <= 0) return;
-    p.hp -= dmg; IF.fx.sparks(p.x + p.w / 2, p.y + p.h / 2, 1, 3, '#d0b080'); IF.audio.hit('metal');
+    p.hp -= dmg; IF.fx.sparks(p.x + p.w / 2, p.y + p.h / 2, 1, 3, '#d0b080'); IF.audio.from(p.x + p.w / 2).hit(p.type === 'crate' || p.type === 'cart' || p.type === 'barricade' ? 'block' : 'metal');
     if (p.hp <= 0) {
       if (p.egg) IF.eggs.reward(run, p.egg, p.x + p.w / 2, p.y);
       if (p.explosive) { setTimeout(() => IF.combat.explode(p.x + p.w / 2, p.y + p.h / 2, 170, 110 + run.section * 8, 'player', { noSelf: false, burn: true }), 60); }

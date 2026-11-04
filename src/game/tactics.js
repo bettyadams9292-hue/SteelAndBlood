@@ -78,7 +78,7 @@ IF.tac = {
           tr.armed = false; tr.shutT = 0; tr.victim = e;
           IF.combat.hitEnemy(e, { ws: this.ws(run, tr.dmg, { bleed: true, knock: 0 }), dir: 0, x: tr.x, y: IF.GROUND - 30, heavy: true, stagger: 0.6 });
           if (!e.dead) e.trapped = e.boss ? 0.8 : 3.5;
-          IF.fx.blood(tr.x, IF.GROUND - 20, 0, 10); IF.fx.sparks(tr.x, IF.GROUND - 10, 0, 6); IF.audio.hit && IF.audio.hit('metal', true); IF.fx.addShake(3);
+          IF.fx.blood(tr.x, IF.GROUND - 20, 0, 10); IF.fx.sparks(tr.x, IF.GROUND - 10, 0, 6); IF.audio.from(tr.x).trap(); IF.fx.addShake(3);
           break;
         }
       } else tr.shutT += dt;
@@ -93,13 +93,13 @@ IF.tac = {
     if (g.type === 'frag') { IF.combat.explode(g.x, g.y - 10, 175, g.dmg, 'player', { ws: this.ws(run, g.dmg, {}) }); IF.fx.decal(g.x, IF.GROUND, 'scorch', 70); IF.fx.addShake(10); }
     else if (g.type === 'stun') {
       IF.fx.ring(g.x, g.y - 20, 300, 'rgba(255,255,255,0.9)', 0.5); IF.fx.spawn({ x: g.x, y: g.y - 30, life: 0.25, size: 260, color: 'rgba(255,255,240,0.9)', type: 'glow', add: true });
-      IF.audio.explosion && IF.audio.explosion(0.4); run.flashT = 0.35; IF.fx.addShake(4);
+      IF.audio.from(g.x).flash(); run.flashT = 0.35; IF.fx.addShake(4);
       for (const e of run.enemies) { if (e.dead) continue; const d = Math.abs(e.x - g.x); if (d > 280) continue; if (e.boss) { e.stagger(1.6, Math.sign(e.x - g.x)); e.vuln = Math.max(e.vuln || 0, 2.5); } else e.stun(3); }
       if (Math.abs(run.player.x - g.x) < 140) run.player.flashT = 0.2;
     } else if (g.type === 'molotov') {
       run.hazards.push({ type: 'fire', x: g.x, w: 230, t: 6, dmg: g.dmg, owner: 'player' });
       for (let k = 0; k < 24; k++) IF.fx.spawn({ x: g.x + (Math.random() - 0.5) * 120, y: IF.GROUND - 10, vx: (Math.random() - 0.5) * 200, vy: -100 - Math.random() * 200, life: 0.6, size: 6 + Math.random() * 8, color: Math.random() < 0.5 ? '#ff8a20' : '#ffd040', type: 'fire', add: true, grow: -8, drag: 0.95 });
-      IF.fx.sparks(g.x, g.y, 0, 6, '#cfe8ff'); IF.audio.explosion && IF.audio.explosion(0.25); IF.fx.decal(g.x, IF.GROUND, 'scorch', 110);
+      IF.fx.sparks(g.x, g.y, 0, 6, '#cfe8ff'); IF.audio.from(g.x).molotov(); IF.fx.decal(g.x, IF.GROUND, 'scorch', 110);
     }
   },
   /* fire pools: burn every zombie standing in them; the knight takes a little if he wades in */
@@ -215,7 +215,7 @@ IF.Sentry = class Sentry {
       this.cd = 1 / 7; this.ammo--; this.flashT = 0.05;
       const ang = this.facing > 0 ? this.aim : Math.PI - this.aim;
       IF.combat.fire({ crouch: false, vx: 0 }, { ws: this.ws, def: this.ws.def }, mx + Math.cos(ang) * 30, my + Math.sin(ang) * 30, ang);
-      IF.fx.muzzle(mx + Math.cos(ang) * 34, my + Math.sin(ang) * 34, ang, false); if (Math.random() < 0.6) IF.audio.shot('smg');
+      IF.fx.muzzle(mx + Math.cos(ang) * 34, my + Math.sin(ang) * 34, ang, false); if (Math.random() < 0.6) IF.audio.from(this.x).shot('smg');
     }
   }
   draw2d(ctx) {

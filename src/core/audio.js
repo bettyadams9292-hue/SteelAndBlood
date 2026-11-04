@@ -24,10 +24,28 @@ IF.audio = {
       this.verbSend.connect(this.verb); this.verb.connect(this.comp);
       const len = this.ctx.sampleRate * 2; this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noiseBuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      this.ready = true; this.applyVolumes();
+      // per-space reverb send (open field / stone interior / timber house) used by the sound bank
+      this.space = this.ctx.createConvolver(); this.spaceOut = this.ctx.createGain(); this.spaceOut.gain.value = 0.55; this.space.connect(this.spaceOut); this.spaceOut.connect(this.sfxBus);
+      this.ambience();
+      this.ready = true; this.applyVolumes(); this.setSpace(this.spaceKind || 'field');
       this.music.timer = setInterval(() => this._schedule(), 50);
     } catch (e) { console.warn('Audio unavailable', e); }
   },
+  /* the room the sounds are in: picks the reverb, footstep surface and wind level */
+  setSpace(kind) { this.spaceKind = kind; if (!this.ready || !IF.sfx) return; try { this.space.buffer = IF.sfx.ir(kind === 'wood' ? 'wood' : kind === 'stone' ? 'stone' : 'field'); } catch (e) { /* bank IRs need AudioBuffer support */ } if (this.windG) this.windG.gain.setTargetAtTime(kind === 'field' ? 0.07 : 0.012, this.ctx.currentTime, 1.5); },
+  /* ambience bed: gusting wind — brown noise through a slowly wandering low-pass, always running under everything */
+  ambience() {
+    const c = this.ctx, n = c.sampleRate * 6, b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0); let l = 0; for (let i = 0; i < n; i++) { l = (l + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = l * 3.5; }
+    for (let i = 0; i < 2000; i++) { d[i] *= i / 2000; d[n - 1 - i] *= i / 2000; }
+    const s = c.createBufferSource(); s.buffer = b; s.loop = true; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500; lp.Q.value = 2;
+    const lfo = c.createOscillator(); lfo.frequency.value = 0.07; const lg = c.createGain(); lg.gain.value = 320; lfo.connect(lg); lg.connect(lp.frequency);
+    const lfo2 = c.createOscillator(); lfo2.frequency.value = 0.13; const lg2 = c.createGain(); lg2.gain.value = 0.03; this.windG = c.createGain(); this.windG.gain.value = 0.06; lfo2.connect(lg2); lg2.connect(this.windG.gain);
+    s.connect(lp); lp.connect(this.windG); this.windG.connect(this.sfxBus); s.start(); lfo.start(); lfo2.start();
+  },
+  /* where the next sound comes from (lane x); used for stereo position and distance roll-off */
+  from(x) { this._x = x; return this; },
+  _take() { const x = this._x; this._x = undefined; return x; },
+  _bank(name, o = {}) { if (!this.ready || !IF.sfx || !IF.sfx.has(name)) return false; const x = this._x; o.x = o.x ?? x; IF.sfx.play(this, name, o); return true; },
   _impulse(sec, decay) {
     const rate = this.ctx.sampleRate, len = rate * sec, buf = this.ctx.createBuffer(2, len, rate);
     for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay); }
@@ -71,6 +89,9 @@ IF.audio = {
   },
   shot(cls) {
     if (!this.ready) return; const c = this.ctx, t = c.currentTime;
+    { const x = this._take(), named = { bow: 'bow', crossbow: 'crossbow', gl: 'launcherGL', rl: 'launcherRL' }[cls] || 'gun_' + cls, key = this.GUN_VOICE[cls] || named !== 'gun_' + cls ? named : 'gun_pistol';
+      if (cls === 'minigun' && !this._ok('mini', 30)) return;
+      if (IF.sfx && IF.sfx.has(key)) { IF.sfx.play(this, key, { x, vol: cls === 'minigun' || cls === 'smg' ? 0.8 : 1, room: 0.18 }); if (cls === 'pump') IF.sfx.play(this, 'pumpRack', { x, delay: 0.3, vol: 0.7, room: 0.1 }); if (cls === 'dbshotgun' || cls === 'revolver') {} return; } }
     if (cls === 'bow') { this._tone(t, 0.18, { type: 'triangle', f: 220, f2: 90, vol: 0.35 }); this._noise(t, 0.12, { f: 2400, f2: 600, vol: 0.2 }); return; }
     if (cls === 'crossbow') { this._tone(t, 0.12, { type: 'square', f: 160, f2: 60, vol: 0.25 }); this._noise(t, 0.1, { f: 1500, vol: 0.35, q: 3 }); return; }
     if (cls === 'gl') { this._tone(t, 0.25, { type: 'sine', f: 120, f2: 40, vol: 0.7 }); this._noise(t, 0.2, { type: 'lowpass', f: 900, vol: 0.4 }); return; }
@@ -85,17 +106,26 @@ IF.audio = {
   _mech(t, n) { for (let i = 0; i < n; i++) { this._noise(t + i * 0.09, 0.05, { type: 'bandpass', f: 2600 + i * 500, q: 6, vol: 0.32 }); this._tone(t + i * 0.09, 0.04, { type: 'square', f: 900 + i * 200, f2: 500, vol: 0.06 }); } },
   reload(cls, phase) {
     if (!this.ready) return; const t = this.ctx.currentTime;
+    if (IF.sfx && IF.sfx.has('magIn')) { const sh = /shotgun|pump/.test(cls), o = { vol: 0.55, room: 0.08 };
+      if (phase === 'start') { if (cls === 'sniper') IF.sfx.play(this, 'boltCycle', o); else if (sh) IF.sfx.play(this, 'shell', o); else if (cls === 'bow' || cls === 'crossbow') IF.sfx.play(this, 'pouch', o); else IF.sfx.play(this, 'magOut', o); }
+      else { if (sh) { IF.sfx.play(this, 'shell', o); IF.sfx.play(this, 'pumpRack', Object.assign({ delay: 0.15 }, o)); } else if (cls === 'sniper') IF.sfx.play(this, 'boltCycle', o); else if (cls === 'bow' || cls === 'crossbow') IF.sfx.play(this, 'pouch', o); else { IF.sfx.play(this, 'magIn', o); IF.sfx.play(this, 'charge', Object.assign({ delay: 0.22 }, o)); } }
+      return; }
     if (phase === 'start') this._mech(t, cls === 'lmg' || cls === 'minigun' ? 3 : 1);
     else this._mech(t, 2);
   },
-  casing() { if (!this.ready || !this._ok('casing', 45)) return; const t = this.ctx.currentTime + 0.25 + Math.random() * 0.15; this._tone(t, 0.08, { f: 4200 + Math.random() * 1500, vol: 0.05 }); this._tone(t + 0.07, 0.06, { f: 5200 + Math.random() * 900, vol: 0.03 }); },
-  empty() { if (!this.ready || !this._ok('empty', 140)) return; this._mech(this.ctx.currentTime, 1); },
+  casing() { if (!this.ready || !this._ok('casing', 45)) return; if (this._bank('casing', { vol: 0.28, delay: 0.18, room: 0.05 })) return; const t = this.ctx.currentTime + 0.25 + Math.random() * 0.15; this._tone(t, 0.08, { f: 4200 + Math.random() * 1500, vol: 0.05 }); this._tone(t + 0.07, 0.06, { f: 5200 + Math.random() * 900, vol: 0.03 }); },
+  empty() { if (!this.ready || !this._ok('empty', 140)) return; if (this._bank('dryFire', { vol: 0.5, room: 0 })) return; this._mech(this.ctx.currentTime, 1); },
   swing(weight) {
     if (!this.ready) return; const t = this.ctx.currentTime, w = weight || 1;
+    if (this._bank(w > 1.3 ? 'swingHeavy' : 'swingLight', { vol: 0.55 + Math.min(0.3, w * 0.12), rate: 1.1 - Math.min(0.25, w * 0.08), room: 0.1 })) { if (w > 1.3 && Math.random() < 0.6) this._bank('effort', { vol: 0.35, room: 0.1 }); return; }
     this._noise(t, 0.14 + 0.1 * w, { type: 'bandpass', f: 1800 / w, f2: 500 / w, q: 1.5, vol: 0.32, attack: 0.03 });
   },
   hit(kind, crit) {
-    if (!this.ready || !this._ok('hit', 22)) return; const t = this.ctx.currentTime;
+    if (!this.ready || !this._ok('hit', 22)) { this._take(); return; } const t = this.ctx.currentTime;
+    if (IF.sfx && IF.sfx.has('flesh')) { const x = this._take();
+      if (kind === 'metal') IF.sfx.play(this, 'metal', { x, vol: 0.6, room: 0.35 }); else if (kind === 'block') IF.sfx.play(this, 'block', { x, vol: 0.75, room: 0.25 });
+      else { IF.sfx.play(this, crit ? 'fleshHeavy' : 'flesh', { x, vol: crit ? 0.95 : 0.75, room: 0.1 }); if (crit) IF.sfx.play(this, 'gore', { x, vol: 0.5, room: 0.1 }); }
+      return; }
     if (kind === 'metal' || kind === 'block') {
       this._tone(t, 0.35, { type: 'triangle', f: 1300, vol: 0.18, verb: 0.3 }); this._tone(t, 0.3, { type: 'triangle', f: 1870, vol: 0.12 });
       this._noise(t, 0.08, { type: 'highpass', f: 3000, vol: 0.3 });
@@ -106,13 +136,15 @@ IF.audio = {
     if (crit) this._tone(t, 0.25, { type: 'square', f: 1600, f2: 2600, vol: 0.06 });
   },
   explosion(size) {
-    if (!this.ready || !this._ok('expl', 60)) return; const t = this.ctx.currentTime, s = size || 1;
+    if (!this.ready || !this._ok('expl', 60)) { this._take(); return; } const t = this.ctx.currentTime, s = size || 1;
+    if (this._bank('explosion', { vol: Math.min(1.2, 0.45 + s * 0.6), rate: 1.12 - Math.min(0.3, s * 0.15), room: 0.3 })) { this._take(); return; }
     this._noise(t, 1.2 * s, { type: 'lowpass', f: 1600, f2: 80, vol: 0.95, attack: 0.002, verb: 0.5 });
     this._tone(t, 0.7 * s, { type: 'sine', f: 90, f2: 28, vol: 0.9 });
     this._noise(t, 0.2, { type: 'highpass', f: 2000, vol: 0.4 });
   },
   groan(pitch) {
-    if (!this.ready || !this._ok('groan', 380)) return; const c = this.ctx, t = c.currentTime, dur = 0.7 + Math.random() * 0.8;
+    if (!this.ready || !this._ok('groan', 380)) { this._take(); return; }
+    if (this._bank('moan', { vol: 0.42, rate: pitch || 1, vary: 0.12, room: 0.3 })) { this._take(); return; } const c = this.ctx, t = c.currentTime, dur = 0.7 + Math.random() * 0.8;
     const f0 = (70 + Math.random() * 50) * (pitch || 1);
     const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * (0.75 + Math.random() * 0.4), t + dur);
     const lfo = c.createOscillator(); lfo.frequency.value = 5 + Math.random() * 4; const lg = c.createGain(); lg.gain.value = f0 * 0.06; lfo.connect(lg); lg.connect(o.frequency);
@@ -122,29 +154,36 @@ IF.audio = {
     o.connect(f1); o.connect(f2); f1.connect(g); f2.connect(g); g.connect(this.sfxBus); const s = c.createGain(); s.gain.value = 0.4; g.connect(s); s.connect(this.verbSend);
     o.start(t); lfo.start(t); o.stop(t + dur + 0.1); lfo.stop(t + dur + 0.1);
   },
-  zombieAttack() { if (!this.ready || !this._ok('zatk', 120)) return; const t = this.ctx.currentTime; this._noise(t, 0.3, { type: 'bandpass', f: 700, f2: 300, q: 3, vol: 0.4 }); this._tone(t, 0.25, { type: 'sawtooth', f: 180, f2: 90, vol: 0.12 }); },
-  zombieDeath() { if (!this.ready || !this._ok('zdie', 70)) return; const t = this.ctx.currentTime; this._tone(t, 0.5, { type: 'sawtooth', f: 140, f2: 50, vol: 0.12 }); this._noise(t, 0.25, { type: 'lowpass', f: 600, vol: 0.35 }); },
-  scream() { if (!this.ready) return; const t = this.ctx.currentTime; for (let i = 0; i < 3; i++) this._tone(t, 1.3, { type: 'sawtooth', f: 700 + i * 230, f2: 1400 + i * 300, vol: 0.07, verb: 0.6, detune: i * 15 }); this._noise(t, 1.2, { type: 'bandpass', f: 2500, q: 2, vol: 0.2 }); },
-  roar() { if (!this.ready) return; const t = this.ctx.currentTime; this._tone(t, 1.6, { type: 'sawtooth', f: 70, f2: 45, vol: 0.4, verb: 0.6 }); this._noise(t, 1.5, { type: 'lowpass', f: 700, f2: 200, vol: 0.6, attack: 0.1, verb: 0.6 }); },
+  zombieAttack() { if (!this.ready || !this._ok('zatk', 120)) { this._take(); return; } if (this._bank('snarl', { vol: 0.55, vary: 0.15, room: 0.15 })) { this._take(); return; } const t = this.ctx.currentTime; this._noise(t, 0.3, { type: 'bandpass', f: 700, f2: 300, q: 3, vol: 0.4 }); this._tone(t, 0.25, { type: 'sawtooth', f: 180, f2: 90, vol: 0.12 }); },
+  zombieDeath() { if (!this.ready || !this._ok('zdie', 70)) { this._take(); return; } if (this._bank('death', { vol: 0.55, vary: 0.15, room: 0.2 })) { this._take(); return; } const t = this.ctx.currentTime; this._tone(t, 0.5, { type: 'sawtooth', f: 140, f2: 50, vol: 0.12 }); this._noise(t, 0.25, { type: 'lowpass', f: 600, vol: 0.35 }); },
+  scream() { if (!this.ready) return; if (this._bank('scream', { vol: 0.6, room: 0.5 })) { this._take(); return; } const t = this.ctx.currentTime; for (let i = 0; i < 3; i++) this._tone(t, 1.3, { type: 'sawtooth', f: 700 + i * 230, f2: 1400 + i * 300, vol: 0.07, verb: 0.6, detune: i * 15 }); this._noise(t, 1.2, { type: 'bandpass', f: 2500, q: 2, vol: 0.2 }); },
+  roar() { if (!this.ready) return; if (this._bank('roar', { vol: 1, room: 0.45 })) { this._take(); return; } const t = this.ctx.currentTime; this._tone(t, 1.6, { type: 'sawtooth', f: 70, f2: 45, vol: 0.4, verb: 0.6 }); this._noise(t, 1.5, { type: 'lowpass', f: 700, f2: 200, vol: 0.6, attack: 0.1, verb: 0.6 }); },
   step(armourTier) {
     if (!this.ready || !this._ok('step', 120)) return; const t = this.ctx.currentTime;
+    { const sp = this.spaceKind, run = IF.game && IF.game.run, surf = sp === 'wood' ? (run && run.world.floor === 'basement' ? 'stepStone' : 'stepWood') : sp === 'stone' ? 'stepStone' : 'stepDirt';
+      if (this._bank(surf, { vol: 0.42, room: 0.15 })) { if (armourTier > 0 || Math.random() < 0.5) this._bank('armour', { vol: 0.12 + armourTier * 0.04, room: 0.05 }); return; } }
     this._noise(t, 0.07, { type: 'lowpass', f: 500, vol: 0.18 });
     this._tone(t, 0.09, { type: 'triangle', f: 2200 + Math.random() * 600, vol: 0.025 + armourTier * 0.004 });
   },
-  land() { if (!this.ready) return; const t = this.ctx.currentTime; this._noise(t, 0.15, { type: 'lowpass', f: 400, vol: 0.4 }); this._tone(t, 0.15, { type: 'triangle', f: 1900, vol: 0.05 }); },
-  jump() { if (!this.ready) return; const t = this.ctx.currentTime; this._noise(t, 0.12, { type: 'bandpass', f: 900, f2: 1600, vol: 0.12 }); },
-  dodge() { if (!this.ready) return; const t = this.ctx.currentTime; this._noise(t, 0.3, { type: 'bandpass', f: 600, f2: 2000, q: 1, vol: 0.28, attack: 0.04 }); },
-  hurt() { if (!this.ready || !this._ok('hurt', 150)) return; const t = this.ctx.currentTime; this._tone(t, 0.3, { type: 'sawtooth', f: 220, f2: 110, vol: 0.14 }); this._noise(t, 0.15, { type: 'lowpass', f: 700, vol: 0.35 }); this._tone(t, 0.25, { type: 'triangle', f: 1500, vol: 0.06 }); },
-  pickup() { if (!this.ready || !this._ok('pick', 60)) return; const t = this.ctx.currentTime; this._tone(t, 0.12, { type: 'triangle', f: 880, vol: 0.12 }); this._tone(t + 0.06, 0.15, { type: 'triangle', f: 1320, vol: 0.1 }); },
-  coin() { if (!this.ready || !this._ok('coin', 50)) return; const t = this.ctx.currentTime; this._tone(t, 0.1, { type: 'square', f: 1975, vol: 0.04 }); this._tone(t + 0.05, 0.18, { type: 'square', f: 2637, vol: 0.04 }); },
-  ping() { if (!this.ready) return; const t = this.ctx.currentTime; this._tone(t + 0.05, 0.35, { type: 'sine', f: 2650, f2: 2500, vol: 0.12 }); this._tone(t + 0.05, 0.3, { type: 'sine', f: 4100, vol: 0.05 }); },
-  bolt() { if (!this.ready) return; const t = this.ctx.currentTime; this._noise(t, 0.05, { type: 'highpass', f: 2500, vol: 0.15 }); this._noise(t + 0.18, 0.06, { type: 'bandpass', f: 1800, vol: 0.18 }); },
+  land() { if (!this.ready) return; if (this._bank('land', { vol: 0.7, room: 0.15 })) return; const t = this.ctx.currentTime; this._noise(t, 0.15, { type: 'lowpass', f: 400, vol: 0.4 }); this._tone(t, 0.15, { type: 'triangle', f: 1900, vol: 0.05 }); },
+  jump() { if (!this.ready) return; if (this._bank('effort', { vol: 0.3, room: 0.05 })) { this._bank('armour', { vol: 0.15 }); return; } const t = this.ctx.currentTime; this._noise(t, 0.12, { type: 'bandpass', f: 900, f2: 1600, vol: 0.12 }); },
+  dodge() { if (!this.ready) return; if (this._bank('roll', { vol: 0.7, room: 0.1 })) return; const t = this.ctx.currentTime; this._noise(t, 0.3, { type: 'bandpass', f: 600, f2: 2000, q: 1, vol: 0.28, attack: 0.04 }); },
+  hurt() { if (!this.ready || !this._ok('hurt', 150)) return; if (this._bank('grunt', { vol: 0.65, room: 0.1 })) return; const t = this.ctx.currentTime; this._tone(t, 0.3, { type: 'sawtooth', f: 220, f2: 110, vol: 0.14 }); this._noise(t, 0.15, { type: 'lowpass', f: 700, vol: 0.35 }); this._tone(t, 0.25, { type: 'triangle', f: 1500, vol: 0.06 }); },
+  pickup() { if (!this.ready || !this._ok('pick', 60)) return; if (this._bank('pouch', { vol: 0.6, room: 0.05 })) return; const t = this.ctx.currentTime; this._tone(t, 0.12, { type: 'triangle', f: 880, vol: 0.12 }); this._tone(t + 0.06, 0.15, { type: 'triangle', f: 1320, vol: 0.1 }); },
+  coin() { if (!this.ready || !this._ok('coin', 50)) return; if (this._bank('coin', { vol: 0.35, room: 0.05 })) return; const t = this.ctx.currentTime; this._tone(t, 0.1, { type: 'square', f: 1975, vol: 0.04 }); this._tone(t + 0.05, 0.18, { type: 'square', f: 2637, vol: 0.04 }); },
+  ping() { if (!this.ready) return; if (this._bank('ping', { vol: 0.5, delay: 0.04, room: 0.1 })) return; const t = this.ctx.currentTime; this._tone(t + 0.05, 0.35, { type: 'sine', f: 2650, f2: 2500, vol: 0.12 }); this._tone(t + 0.05, 0.3, { type: 'sine', f: 4100, vol: 0.05 }); },
+  bolt() { if (!this.ready) return; if (this._bank('boltCycle', { vol: 0.55, room: 0.05 })) return; const t = this.ctx.currentTime; this._noise(t, 0.05, { type: 'highpass', f: 2500, vol: 0.15 }); this._noise(t + 0.18, 0.06, { type: 'bandpass', f: 1800, vol: 0.18 }); },
   gate() { // portcullis: deep rumble, ratcheting chain clanks, a final iron thud
-    if (!this.ready) return; const t = this.ctx.currentTime;
+    if (!this.ready) return; const t = this.ctx.currentTime; if (this._bank('chains', { vol: 0.9, room: 0.4 })) return;
     this._noise(t, 2.2, { type: 'lowpass', f: 180, vol: 0.35 });
     for (let i = 0; i < 14; i++) this._tone(t + i * 0.13, 0.05, { type: 'square', f: 140 + (i % 3) * 30, vol: 0.05 });
     this._tone(t + 2.0, 0.5, { type: 'sine', f: 70, f2: 40, vol: 0.3 });
   },
+  /* companion hounds */
+  dog(kind) { if (!this.ready || !this._ok('dog' + kind, kind === 'bark' ? 700 : 400)) { this._take(); return; } this._bank(kind, { vol: kind === 'bark' ? 0.5 : 0.4, vary: 0.1, room: 0.2 }); this._take(); },
+  trap() { this._bank('trapSnap', { vol: 0.9, room: 0.2 }); this._take(); },
+  molotov() { this._bank('glass', { vol: 0.8, room: 0.2 }); this._take(); },
+  flash() { this._bank('flashbang', { vol: 1, room: 0.3 }); this._take(); },
   ui(kind) {
     if (!this.ready) return; const t = this.ctx.currentTime;
     if (kind === 'hover') { if (this._ok('hover', 50)) this._tone(t, 0.05, { type: 'triangle', f: 1400, vol: 0.03 }); }

@@ -188,6 +188,7 @@ IF.game = {
     for (let i = 0; i < steps.length; i++) { IF.ui.setLoading(steps[i][0], i / steps.length); await frame(); try { steps[i][1](); } catch (e) { console.error(e); } }
     while (performance.now() - t0 < 1600) { IF.ui.setLoading('Ready', Math.min(1, (performance.now() - t0) / 1600)); await frame(); }
     this.resize(); this.loaded = true; IF.ui.setLoading(null, 1);
+    setTimeout(() => IF.sfx.build(), 300); // render the sound bank in the background (live synthesis covers the first seconds)
     requestAnimationFrame((t) => this.loop(t));
   },
   resize() {
@@ -242,6 +243,7 @@ IF.game = {
     const realDt = (now - (this.last || now)) / 1000;
     let dt = Math.min(0.05, realDt); this.last = now;
     if (this.state === 'playing' && IF.r3.ok && !document.hidden && realDt < 1) IF.r3.autoTune(realDt);
+    if (this.run && IF.audio.ready) { const W = this.run.world, sp = W.home ? (W.floor === 'basement' ? 'stone' : 'wood') : W.biome.indoor ? 'stone' : 'field'; if (sp !== IF.audio.spaceKind) IF.audio.setSpace(sp); }
     this.fpsAcc += dt; this.fpsN++; if (this.fpsAcc > 0.5) { this.fps = this.fpsN / this.fpsAcc; this.fpsAcc = 0; this.fpsN = 0; }
     const t0 = performance.now();
     IF.input.update(now);

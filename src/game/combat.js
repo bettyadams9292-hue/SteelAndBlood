@@ -103,8 +103,8 @@ IF.combat = {
     e.hp -= dmg; e.hitFlash = e.boss ? 0.05 : 0.1; e.lastHitDir = o.dir;
     if (!deflect) IF.gore.onHit(e, o, dmg, e.hp <= 0);
     // feedback
-    if (deflect) { IF.fx.sparks(o.x, o.y, -o.dir, 5); IF.audio.hit('metal'); }
-    else { IF.fx.blood(o.x, o.y, o.dir, o.melee ? (o.heavy ? 14 : 8) : 4, e.def.blood); IF.audio.hit('flesh', crit); }
+    if (deflect) { IF.fx.sparks(o.x, o.y, -o.dir, 5); IF.audio.from(o.x).hit('metal'); }
+    else { IF.fx.blood(o.x, o.y, o.dir, o.melee ? (o.heavy ? 14 : 8) : 4, e.def.blood); IF.audio.from(o.x).hit('flesh', crit); }
     IF.fx.text(o.x, o.y - 20, crit ? dmg + '!' : dmg, crit ? '#ffcf3a' : o.head ? '#ff9a6a' : deflect ? '#9aa4ad' : '#ffffff', crit || o.head ? 24 : 17, crit || o.head);
     if (o.head && !e.headT) { e.headT = 1; IF.fx.text(o.x, o.y - 48, 'HEADSHOT', '#ff7a4a', 14); setTimeout(() => (e.headT = 0), 600); }
     if (crit && pl.st.critExplode && !o.explosive) this.explode(o.x, o.y, 70, dmg * 0.4, 'player', { ws, noChain: true, color: '#a36bff' });
@@ -127,7 +127,7 @@ IF.combat = {
 
   /* Area damage; owner 'player' damages enemies, 'enemy' damages the knight. */
   explode(x, y, r, dmg, owner, o = {}) {
-    IF.fx.explosion(x, y, r); IF.audio.explosion(r / 150);
+    IF.fx.explosion(x, y, r); IF.audio.from(x).explosion(r / 150);
     const run = IF.game.run;
     if (owner === 'player') {
       for (const e of run.enemies) {

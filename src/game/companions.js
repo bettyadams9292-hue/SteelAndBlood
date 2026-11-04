@@ -42,7 +42,7 @@ IF.companions = {
   newRun(run) {
     this.cleanup();
     const d = this.data(); run.allies = run.allies || [];
-    d.active.forEach((id, i) => { const def = IF.COMPANION[id]; if (def) { const c = new IF.Companion(run, def, d.owned[id].lvl, i); run.allies.push(c); this.live.push(c); } });
+    d.active.forEach((id, i) => { const def = IF.COMPANION[id]; if (def && d.owned[id]) { const c = new IF.Companion(run, def, d.owned[id].lvl, i); run.allies.push(c); this.live.push(c); } });
   },
   onSection(run) { for (const a of run.allies) if (a.isCompanion) { a.x = run.player.x - 80 - a.slot * 60; a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.35); if (a.down) { a.down = false; a.hp = a.maxHp * 0.5; } } },
   command(run) { const d = this.data(); d.order = d.order === 'hold' ? 'follow' : 'hold'; for (const a of run.allies) if (a.isCompanion) a.holdX = run.player.x - 40 - a.slot * 50; IF.fx.text(run.player.x, run.player.y - 190, d.order === 'hold' ? 'COMPANIONS: HOLD' : 'COMPANIONS: FOLLOW', '#d8b25a', 15); IF.audio.ui('hover'); },
@@ -96,7 +96,7 @@ IF.Companion = class Companion {
     if (this.down || this.dead) return;
     let dmg = o.dmg * (this.def.id === 'godric' ? 0.6 : 1); this.hp -= dmg; this.flashT = 0.12; this.vx += Math.sign(this.x - (o.x ?? this.x)) * 120;
     IF.fx.blood(this.x, this.y - this.h * 0.6, Math.sign(this.x - (o.x ?? this.x)), 3);
-    if (this.hp <= 0) { this.hp = 0; this.down = true; this.downT = 12; this.state = 'down'; IF.fx.text(this.x, this.y - this.h - 20, this.def.name + ' is down!', '#ff8a6a', 14); if (this.kind === 'dog') IF.audio.hurt && IF.audio.hurt(); }
+    if (this.hp <= 0) { this.hp = 0; this.down = true; this.downT = 12; this.state = 'down'; IF.fx.text(this.x, this.y - this.h - 20, this.def.name + ' is down!', '#ff8a6a', 14); if (this.kind === 'dog') IF.audio.from(this.x).dog('whine'); else IF.audio.hurt(); }
   }
   nearestEnemy(maxD) {
     let best = null, bd = maxD;
@@ -140,7 +140,7 @@ IF.Companion = class Companion {
       if (this.cd <= 0) {
         this.cd = 1 / def.rate * (0.85 + Math.random() * 0.3); const ang = this.facing > 0 ? this.aim : Math.PI - this.aim;
         IF.combat.fire({ crouch: false, vx: 0 }, { ws: this.ws, def: this.ws.def }, mx + Math.cos(ang) * 40, my + Math.sin(ang) * 40, ang);
-        IF.fx.muzzle(mx + Math.cos(ang) * 46, my + Math.sin(ang) * 46, ang, def.id === 'hale'); IF.audio.shot(this.wi.def.cls); this.kick = 1;
+        IF.fx.muzzle(mx + Math.cos(ang) * 46, my + Math.sin(ang) * 46, ang, def.id === 'hale'); IF.audio.from(this.x).shot(this.wi.def.cls); this.kick = 1;
         if (def.id === 'hale') setTimeout(() => IF.audio.bolt(), 400);
       }
     } else {
@@ -157,8 +157,8 @@ IF.Companion = class Companion {
     if (def.id === 'kira') { this.bites++; if (this.bites % 3 === 0) ws.def = Object.assign({}, ws.def, { bleedBase: true }); }
     IF.combat.hitEnemy(e, { ws, mult, dir: this.facing, x: e.x - this.facing * 10, y: e.y - e.h * (this.kind === 'dog' ? 0.35 : 0.6), melee: true, heavy: heavy || def.id === 'godric' || def.id === 'bran', stagger: def.id === 'bran' || def.id === 'godric' ? 1 : 0.3 });
     if (heavy) { IF.fx.ring(e.x, e.y - 60, 140, 'rgba(255,210,120,0.8)', 0.4); IF.fx.addShake(5); const other = run.enemies.find((o) => !o.dead && o !== e && Math.abs(o.x - e.x) < 120); if (other) IF.combat.hitEnemy(other, { ws, mult: 1.6, dir: this.facing, x: other.x, y: other.y - 80, melee: true, heavy: true }); }
-    if (this.kind === 'dog') { IF.audio.hit('flesh'); if (def.id === 'rex' && !e.boss && !e.dead && Math.random() < 0.3) { e.trapped = 1.5; IF.fx.text(e.x, e.y - e.h - 10, 'PINNED', '#d8b25a', 12); } if (def.id === 'bran' && !e.boss) IF.combat.knockback(e, this.facing * 300, 1.2); }
-    else IF.audio.swing && IF.audio.swing(1);
+    if (this.kind === 'dog') { IF.audio.from(e.x).hit('flesh'); IF.audio.from(this.x).dog(Math.random() < 0.5 ? 'growl' : 'bark'); if (def.id === 'rex' && !e.boss && !e.dead && Math.random() < 0.3) { e.trapped = 1.5; IF.fx.text(e.x, e.y - e.h - 10, 'PINNED', '#d8b25a', 12); } if (def.id === 'bran' && !e.boss) IF.combat.knockback(e, this.facing * 300, 1.2); }
+    else IF.audio.from(this.x).swing(def.id === 'godric' ? 2 : 1);
   }
   moveTo(tx, dt, k = 1, back) {
     const dx = tx - this.x, sp = this.def.speed * k;
