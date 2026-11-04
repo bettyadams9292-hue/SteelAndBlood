@@ -212,3 +212,95 @@ def pass2():
     r['boots'] = armour_boots()
     bigger_chips()
     return r
+
+# ------------------------------------------------------------------ pass 3: cape weathering + modern rifle
+def cape_weather(mat):
+    """Grime, soot and old blood on the ivory cape (object-space: soot rises from the hem, blood flecks)."""
+    mat.use_nodes = True; t = mat.node_tree
+    b = next((n for n in t.nodes if n.bl_idname == 'ShaderNodeBsdfPrincipled'), None)
+    if not b or mat.get('sb_weathered') or not b.inputs['Base Color'].links: return False
+    src = b.inputs['Base Color'].links[0].from_socket
+    tc = K._n(t, 'ShaderNodeTexCoord', -1500, -1300); sep = K._n(t, 'ShaderNodeSeparateXYZ', -1300, -1300); K._L(t, tc, 'Object', sep, 'Vector')
+    n = K._n(t, 'ShaderNodeTexNoise', -1300, -1500, Scale=6.0, Detail=12.0, Roughness=0.7); K._L(t, tc, 'Object', n, 'Vector')
+    h = K._n(t, 'ShaderNodeMapRange', -1100, -1300); h.inputs['From Min'].default_value = 0.85; h.inputs['From Max'].default_value = 0.2; K._L(t, sep, 'Z', h, 'Value')
+    m = K._n(t, 'ShaderNodeMath', -900, -1350, operation='MULTIPLY'); K._L(t, h, 'Result', m, 0); K._L(t, n, 'Fac', m, 1)
+    soot = K._n(t, 'ShaderNodeMix', -600, -1200, data_type='RGBA'); K._L(t, m, 0, soot, 'Factor')
+    t.links.new(src, soot.inputs[6]); soot.inputs[7].default_value = (0.09, 0.07, 0.05, 1)
+    v = K._n(t, 'ShaderNodeTexVoronoi', -1300, -1700, Scale=22.0); K._L(t, tc, 'Object', v, 'Vector')
+    bl = K._ramp(t, -1100, -1700, [(0.0, (1, 1, 1, 1)), (0.07, (0, 0, 0, 1))]); K._L(t, v, 'Distance', bl, 'Fac')
+    bn = K._n(t, 'ShaderNodeTexNoise', -1300, -1900, Scale=3.0); K._L(t, tc, 'Object', bn, 'Vector')
+    bm2 = K._n(t, 'ShaderNodeMath', -900, -1750, operation='MULTIPLY'); K._L(t, bl, 'Color', bm2, 0); K._L(t, bn, 'Fac', bm2, 1)
+    blood = K._n(t, 'ShaderNodeMix', -400, -1300, data_type='RGBA'); K._L(t, bm2, 0, blood, 'Factor')
+    t.links.new(soot.outputs[2], blood.inputs[6]); blood.inputs[7].default_value = (0.14, 0.008, 0.006, 1)
+    for l in list(b.inputs['Base Color'].links): t.links.remove(l)
+    t.links.new(blood.outputs[2], b.inputs['Base Color']); mat['sb_weathered'] = 1
+    return True
+
+def _box(bm, c, s, rot=None):
+    r = bmesh.ops.create_cube(bm, size=1.0)
+    for v in r['verts']:
+        v.co = Vector((v.co.x * s[0], v.co.y * s[1], v.co.z * s[2]))
+        if rot: v.co = rot @ v.co
+        v.co += Vector(c)
+    return r['verts']
+
+def _cyl(bm, c, r, L, seg=16, axis='Y'):
+    res = bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=r, radius2=r, depth=L)
+    R = Matrix.Rotation(math.radians(90), 3, 'X') if axis == 'Y' else Matrix.Identity(3)
+    for v in res['verts']: v.co = R @ v.co + Vector(c)
+    return res['verts']
+
+def build_rifle(name='TemplarRifle'):
+    """Modern assault rifle in the 'Templar armoury' style of the reference boards: black receiver, rail and optic,
+    ivory/gold furniture panels with a red cross. Built along -Y (muzzle forward), origin at the pistol grip."""
+    if D.objects.get(name): D.objects.remove(D.objects[name], do_unlink=True)
+    me = D.meshes.new(name); bm = bmesh.new()
+    parts = []  # (verts, material index)
+    def add(vs, mi): parts.append((vs, mi))
+    BLACK, IVORY, GOLD, RED = 0, 1, 2, 3
+    add(_box(bm, (0, -0.10, 0.05), (0.036, 0.30, 0.07)), BLACK)                 # upper/lower receiver
+    add(_box(bm, (0, -0.10, 0.09), (0.022, 0.30, 0.012)), BLACK)                # top rail
+    for k in range(10): add(_box(bm, (0, -0.24 + k * 0.03, 0.098), (0.026, 0.008, 0.006)), BLACK)  # rail teeth
+    add(_box(bm, (0, -0.37, 0.05), (0.05, 0.24, 0.06)), IVORY)                  # handguard
+    for s in (-1, 1): add(_box(bm, (0.026 * s, -0.37, 0.05), (0.004, 0.2, 0.012)), GOLD)  # gold side strips
+    add(_box(bm, (0.027, -0.37, 0.05), (0.004, 0.012, 0.045)), RED)             # red cross on handguard
+    add(_box(bm, (0.027, -0.37, 0.05), (0.004, 0.04, 0.012)), RED)
+    add(_cyl(bm, (0, -0.62, 0.052), 0.011, 0.26), BLACK)                        # barrel
+    add(_cyl(bm, (0, -0.77, 0.052), 0.017, 0.07, seg=8), BLACK)                 # muzzle brake
+    add(_box(bm, (0, -0.04, -0.04), (0.03, 0.06, 0.14), Matrix.Rotation(math.radians(-15), 3, 'X')), BLACK)  # magazine
+    add(_box(bm, (0, 0.06, -0.035), (0.028, 0.04, 0.09), Matrix.Rotation(math.radians(18), 3, 'X')), BLACK)   # pistol grip
+    add(_box(bm, (0, 0.0, 0.0), (0.012, 0.06, 0.01)), GOLD)                     # trigger guard
+    add(_box(bm, (0, 0.22, 0.055), (0.05, 0.16, 0.06)), IVORY)                  # stock
+    add(_box(bm, (0, 0.31, 0.045), (0.054, 0.02, 0.09)), BLACK)                 # butt pad
+    add(_box(bm, (0.026, 0.22, 0.055), (0.004, 0.10, 0.008)), GOLD)
+    add(_cyl(bm, (0, -0.10, 0.13), 0.02, 0.12), BLACK)                          # optic tube
+    add(_cyl(bm, (0, -0.10, 0.13), 0.022, 0.02), GOLD)                          # optic ring
+    bm.to_mesh(me)
+    # material indices per part
+    bm.free(); bm = bmesh.new(); bm.from_mesh(me)
+    bm.verts.ensure_lookup_table(); idx = 0; vmat = {}
+    for vs, mi in parts:
+        for _ in vs: vmat[idx] = mi; idx += 1
+    for f in bm.faces: f.material_index = vmat.get(f.verts[0].index, 0)
+    bm.to_mesh(me); bm.free()
+    for mn in ('GunMetal', 'ArmorPlate', 'Gold', 'RedPaint'): me.materials.append(D.materials[mn])
+    o = D.objects.new(name, me); D.collections['Knight'].objects.link(o)
+    bv = o.modifiers.new('Bevel', 'BEVEL'); bv.width = 0.0025; bv.segments = 2; bv.limit_method = 'ANGLE'
+    o.modifiers.new('WN', 'WEIGHTED_NORMAL')
+    return o
+
+def swap_to_rifle(rifle):
+    """Hold the rifle in the left hand where the SMG was; hide the SMG (kept in the file for loadout swaps)."""
+    smg = D.objects.get('SMG'); grip = D.objects.get('GripPoint_L')
+    if grip: rifle.matrix_world = Matrix.Translation(grip.matrix_world.translation)
+    rig = D.objects['RIG_Knight']; pb = rig.pose.bones['hand_l']; mw = rifle.matrix_world.copy()
+    rifle.parent = rig; rifle.parent_type = 'BONE'; rifle.parent_bone = 'hand_l'
+    rifle.matrix_parent_inverse = (rig.matrix_world @ pb.matrix @ Matrix.Translation((0, pb.bone.length, 0))).inverted(); rifle.matrix_world = mw
+    if smg:
+        for o in [smg] + list(smg.children_recursive): o.hide_render = True; o.hide_viewport = True
+    return True
+
+def pass3():
+    r = {'cape': cape_weather(D.materials['CapeWool']) if 'CapeWool' in D.materials else None}
+    rf = build_rifle(); r['rifle'] = swap_to_rifle(rf); r['rifle_faces'] = len(rf.data.polygons)
+    return r
