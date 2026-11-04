@@ -29,9 +29,10 @@ def import_knight(out_dir):
     done = MATS.apply_skeletal(skm)
     return {'mesh': sk, 'mats': done, 'anims': [p for p in paths if '_Knight_' in p], 'deleted_auto_mats': _cleanup_imported_materials(paths)}
 
-def import_props(out_dir):
+def import_props(out_dir, only=None):
     res = {}
     for name, fn in list(sb_props.WEAPONS.items()) + list(sb_props.ENV.items()):
+        if only and name not in only: continue
         m = fn(); used = {k: sb_props.MATS.get(k, (0.5, 0.5, 0.5, 0, 0.8)) for k in m.parts}
         sbkit.write_gltf(out_dir + '/' + name + '.gltf', {name: m}, used, name=name)
         dest = ROOT + ('/Weapons' if name.startswith(('SM_Wpn', 'SM_Shield')) else '/Environments/RuinedCastle')

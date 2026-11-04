@@ -265,7 +265,7 @@ def ground_tile(seed=8, size=8.0, n=24):
             y = (0.06*math.sin(x*1.3+seed)*math.cos(z*1.7) + 0.03*math.sin(x*4.1+z*3.3) + r.uniform(-0.012, 0.012))*max(0.0, edge)
             row.append((x, y, z))
         rows.append(row)
-    m.grid('M_Stone', rows, None, flip=True)
+    m.grid('M_Stone', rows, None)
     return m
 
 WEAPONS = {'SM_Wpn_Longsword': longsword, 'SM_Wpn_WarHammer': warhammer, 'SM_Wpn_BattleAxe': battleaxe,

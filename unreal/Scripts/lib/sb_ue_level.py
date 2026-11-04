@@ -63,21 +63,21 @@ def knight(loc, yaw=-90.0, anim='A_Knight_Idle', t=0.0, weapon='SM_Wpn_Longsword
     return a
 
 def lighting():
-    sun = spawn(unreal.DirectionalLight, (0, 0, 2000), (-7.0, 150.0, 0), 'Sun_Dusk', 'Lighting')
+    sun = spawn(unreal.DirectionalLight, (0, 2600, 900), (-7.0, 150.0, 0), 'Sun_Dusk', 'Lighting')
     lc = sun.light_component
     lc.set_intensity(9.0); lc.set_light_color(unreal.LinearColor(1.0, 0.62, 0.42, 1))
     sp(lc, 'atmosphere_sun_light', True); sp(lc, 'cast_shadows', True)
-    sp(lc, 'light_source_angle', 1.2)
-    moon = spawn(unreal.DirectionalLight, (0, 0, 2100), (-38.0, -60.0, 0), 'Moon_Rim', 'Lighting')
+    sp(lc, 'light_source_angle', 1.2); sp(lc, 'forward_shading_priority', 1)
+    moon = spawn(unreal.DirectionalLight, (200, 2600, 900), (-38.0, -60.0, 0), 'Moon_Rim', 'Lighting')
     ml = moon.light_component
     ml.set_intensity(1.6); ml.set_light_color(unreal.LinearColor(0.55, 0.65, 1.0, 1))
     sp(ml, 'atmosphere_sun_light', False); sp(ml, 'atmosphere_sun_light_index', 1)
     sp(ml, 'forward_shading_priority', 0)
-    spawn(unreal.SkyAtmosphere, (0, 0, 0), label='SkyAtmosphere', folder='Lighting')
-    sky = spawn(unreal.SkyLight, (0, 0, 300), label='SkyLight', folder='Lighting')
+    spawn(unreal.SkyAtmosphere, (400, 2600, 0), label='SkyAtmosphere', folder='Lighting')
+    sky = spawn(unreal.SkyLight, (600, 2600, 900), label='SkyLight', folder='Lighting')
     sc = sky.light_component; sp(sc, 'real_time_capture', True); sc.set_intensity(1.2)
     sc.set_light_color(unreal.LinearColor(0.75, 0.8, 1.0, 1))
-    fog = spawn(unreal.ExponentialHeightFog, (0, 0, -50), label='HeightFog', folder='Lighting')
+    fog = spawn(unreal.ExponentialHeightFog, (800, 2600, -50), label='HeightFog', folder='Lighting')
     fc = fog.component
     sp(fc, 'fog_density', 0.035); sp(fc, 'fog_height_falloff', 0.35)
     sp(fc, 'fog_inscattering_luminance', unreal.LinearColor(0.32, 0.30, 0.34, 1))
@@ -86,10 +86,10 @@ def lighting():
     sp(fc, 'volumetric_fog_extinction_scale', 1.6)
     sp(fc, 'start_distance', 300.0)
     try:
-        spawn(unreal.VolumetricCloud, (0, 0, 0), label='Clouds', folder='Lighting')
+        spawn(unreal.VolumetricCloud, (1000, 2600, 0), label='Clouds', folder='Lighting')
     except Exception:
         pass
-    ppv = spawn(unreal.PostProcessVolume, (0, 0, 0), label='PostProcess_Grade', folder='Lighting')
+    ppv = spawn(unreal.PostProcessVolume, (1200, 2600, 0), label='PostProcess_Grade', folder='Lighting')
     sp(ppv, 'unbound', True)
     s = ppv.get_editor_property('settings')
     def ov(k, v):
@@ -151,7 +151,7 @@ def dress():
     put(sm('SM_Wpn_Halberd', WPN), (-230, -90, -40), pitch=0, roll=12, yaw=20, scale=1.0, folder='Environment/Props')
     put(sm('SM_Shield_Heater', WPN), (240, -60, 28), yaw=35, pitch=0, roll=-70, folder='Environment/Props')
 
-def camera(x=0.0, y=1180.0, z=175.0, fl=32.0, label='GameplayCamera_2_5D'):
+def camera(x=0.0, y=760.0, z=165.0, fl=30.0, label='GameplayCamera_2_5D'):
     cam = spawn(unreal.CineCameraActor, (x, y, z), (-3.0, -90.0, 0), label, 'Cameras')
     cc = cam.get_cine_camera_component()
     cc.set_editor_property('current_focal_length', fl)
@@ -169,7 +169,7 @@ def build():
     lighting(); dress()
     k = knight((0, 0, 0), -90.0, 'A_Knight_Attack_Overhead', 0.30)
     cam = camera()
-    detail = camera(40, 360, 130, 40.0, 'DetailCamera_Knight')
+    detail = camera(60, 330, 105, 30.0, 'DetailCamera_Knight')
     LES.save_current_level()
     return {'actors': len(ES.get_all_level_actors()), 'camera': cam.get_actor_label(), 'warn': WARN}
 
@@ -179,6 +179,6 @@ def lineup():
     out = []
     for i, (an, t) in enumerate(poses):
         out.append(knight((-2400 - i*170, 150, 0), -90.0, an, t, label='Pose_%d' % i).get_actor_label())
-    camera(-2825, 800, 120, 35.0, 'LineupCamera')
+    camera(-2825, 820, 110, 35.0, 'LineupCamera')
     LES.save_current_level()
     return out
