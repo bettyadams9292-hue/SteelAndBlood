@@ -33,8 +33,7 @@ def spawn(cls, loc, rot=(0, 0, 0), label=None, folder=None):
 
 def ensure_weapon_socket():
     sk = unreal.load_asset(KN + 'SK_HeroKnight')
-    for s in sk.get_editor_property('sockets') if sk.get_editor_property('sockets') else []:
-        if str(s.socket_name) == 'weapon_r': return sk
+    if sk.find_socket('weapon_r'): return sk
     sock = unreal.SkeletalMeshSocket(sk)
     sock.set_editor_property('socket_name', 'weapon_r'); sock.set_editor_property('bone_name', 'hand_r')
     sock.set_editor_property('relative_location', unreal.Vector(-0.5, 1.5, -6.5))
