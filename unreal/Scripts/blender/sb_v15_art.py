@@ -48,6 +48,7 @@ def battle_enamel(mat, ivory=(0.80, 0.74, 0.62), iron=(0.045, 0.042, 0.04)):
     metal.inputs['Base Color'].default_value = (*iron, 1); metal.inputs['Metallic'].default_value = 1.0
     sN = N(t, 'ShaderNodeTexNoise', -800, -900, Scale=120.0, Detail=8.0); L(t, tc, 'Object', sN, 'Vector')
     sr = R(t, -600, -900, [(0.4, (0.3, 0.3, 0.3, 1)), (0.65, (0.65, 0.65, 0.65, 1))]); L(t, sN, 'Fac', sr, 'Fac'); L(t, sr, 'Color', metal, 'Roughness')
+    L(t, paint, 0, mix, 1); L(t, metal, 0, mix, 2)
     bump = N(t, 'ShaderNodeBump', 500, -650, Strength=0.45, Distance=0.0015); L(t, inv, 'Color', bump, 'Height')
     L(t, bump, 'Normal', paint, 'Normal'); L(t, bump, 'Normal', metal, 'Normal')
 
