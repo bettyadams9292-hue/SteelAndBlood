@@ -111,6 +111,7 @@ INSTANCES = {
     'MIH_Gold':      {'BaseColor': (0.85, 0.60, 0.26, 1), 'Metallic': 1.0, 'Roughness': 0.26, 'ScratchAmount': 0.25, 'DentGrime': 0.7, 'FiligreeAmount': 0.9, 'GrimeColor': (0.22, 0.13, 0.05, 1), 'ScratchColor': (1.0, 0.8, 0.45, 1)},
     'MIH_Crimson':   {'BaseColor': (0.62, 0.025, 0.03, 1), 'Metallic': 0.0, 'Roughness': 0.42, 'ScratchAmount': 0.2, 'DentGrime': 0.12, 'FiligreeAmount': 0.0, 'GrimeColor': (0.35, 0.02, 0.02, 1)},
     'MIH_Wool':      {'BaseColor': (0.70, 0.66, 0.56, 1), 'Metallic': 0.0, 'Roughness': 0.92, 'ScratchAmount': 0.0, 'DentGrime': 0.55, 'FiligreeAmount': 0.0, 'DetailNormalStrength': 0.35, 'DetailScale': 9.0, 'GrimeColor': (0.36, 0.30, 0.22, 1)},
+    'MIH_WoolBlack': {'BaseColor': (0.035, 0.032, 0.03, 1), 'Metallic': 0.0, 'Roughness': 0.9, 'ScratchAmount': 0.0, 'DentGrime': 0.4, 'FiligreeAmount': 0.0, 'DetailNormalStrength': 0.35, 'DetailScale': 9.0, 'GrimeColor': (0.10, 0.08, 0.06, 1)},
     'MIH_ClothRed':  {'BaseColor': (0.48, 0.018, 0.022, 1), 'Metallic': 0.0, 'Roughness': 0.88, 'ScratchAmount': 0.0, 'DentGrime': 0.35, 'FiligreeAmount': 0.0, 'DetailNormalStrength': 0.35, 'DetailScale': 9.0, 'GrimeColor': (0.22, 0.02, 0.02, 1)},
     'MIH_DarkSteel': {'BaseColor': (0.09, 0.09, 0.09, 1), 'Metallic': 1.0, 'Roughness': 0.42, 'ScratchAmount': 0.5, 'DentGrime': 0.3, 'FiligreeAmount': 0.0, 'ScratchColor': (0.5, 0.5, 0.5, 1)},
 }
@@ -131,7 +132,7 @@ def build_instances():
 HERO_MAP = {'V16_Ivory': 'MIH_Ivory', 'ArmorPlate': 'MIH_Ivory', 'Armor': 'MIH_Ivory', 'V16_Gold': 'MIH_Gold', 'Gold': 'MIH_Gold',
             'V16_Crimson': 'MIH_Crimson', 'RedPaint': 'MIH_Crimson', 'V16_DarkSteel': 'MIH_DarkSteel', 'GunMetal': 'MIH_DarkSteel',
             'V16_Wool': 'MIH_Wool', 'CapeWool': 'MIH_Wool', 'TabardCloth': 'MIH_Wool', 'TabardClothBack': 'MIH_Wool',
-            'CapeLining': 'MIH_ClothRed', 'V16_CrossCloth': 'MIH_ClothRed'}
+            'CapeLining': 'MIH_ClothRed', 'V16_CrossCloth': 'MIH_ClothRed', 'V16_WoolBlack': 'MIH_WoolBlack'}
 
 def assign_hero(sk_path):
     m = unreal.load_asset(sk_path); new = []; log = []

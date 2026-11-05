@@ -5,8 +5,8 @@ import unreal, importlib
 ORDER_DIR = '/Game/SteelAndBlood/Characters/Order'
 VARIANTS = ('Bascinet', 'Sallet', 'Hooded', 'Vigil')
 # each member gets its own idle so the group reads as individuals
-LINEUP = {'Bascinet': ((180, -120, 0), 0, 'Idle_Ready'), 'Sallet': ((330, -120, 0), 0, 'Idle_Guard'),
-          'Hooded': ((480, -120, 0), 0, 'Idle_AtEase'), 'Vigil': ((620, -150, 0), 0, 'Idle_Vigil')}
+LINEUP = {'Bascinet': ((200, -280, 0), 0, 'Idle_Ready'), 'Sallet': ((360, -280, 0), 0, 'Idle_Guard'),
+          'Hooded': ((520, -280, 0), 0, 'Idle_AtEase'), 'Vigil': ((680, -300, 0), 0, 'Idle_Vigil')}
 
 def _lib_map():
     import sb_ue_hero as H, sb_ue_armor_mat as AM

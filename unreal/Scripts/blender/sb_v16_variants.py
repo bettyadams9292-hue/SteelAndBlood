@@ -232,3 +232,34 @@ def build_all():
         except Exception: res[nm] = 'ERROR ' + traceback.format_exc()[-700:]
     show('greathelm')
     return res
+
+# ------------------------------------------------------------------ livery (rank): knights in white, sergeants in black
+LIVERY_SLOTS = ('TabardCloth', 'TabardClothBack', 'CapeWool', 'V16_Wool')
+
+def mat_wool_black():
+    m = D.materials.get('V16_WoolBlack')
+    if m: return m
+    m = A.mat_wool('V16_WoolBlack', col=(0.035, 0.032, 0.03))
+    return m
+
+def livery(kind='white'):
+    """swap cloth on tabards, cape and hood/mantle; originals are remembered on the object for restoring"""
+    black = mat_wool_black(); n = 0
+    for o in D.objects:
+        if o.type != 'MESH': continue
+        for i, sl in enumerate(o.material_slots):
+            orig = o.get('sb_liv_%d' % i)
+            if kind == 'white':
+                if orig and orig in D.materials: o.data.materials[i] = D.materials[orig]; del o['sb_liv_%d' % i]; n += 1
+            else:
+                if sl.material and sl.material.name in LIVERY_SLOTS:
+                    o['sb_liv_%d' % i] = sl.material.name; o.data.materials[i] = black; n += 1
+    return n
+
+def hide_hem_trims():
+    """the *_Trim curves trace the hem as it was before tear_hem() ragged it -> floating wires; hide them"""
+    n = 0
+    for nm in ('Cape_Trim', 'TabardFront_Trim', 'TabardBack_Trim'):
+        o = D.objects.get(nm)
+        if o: o.hide_render = True; o.hide_viewport = True; n += 1
+    return n
