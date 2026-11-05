@@ -1121,6 +1121,7 @@ def _export_baked_finish(gm, imgs, path=None):
     gm.parent = r; am = gm.modifiers.new('Armature', 'ARMATURE'); am.object = r
     bpy.ops.object.select_all(action='DESELECT'); gm.select_set(True); r.select_set(True); bpy.context.view_layer.objects.active = r
     for tr in r.animation_data.nla_tracks: tr.mute = False
+    r.data.pose_position = 'POSE'; bpy.context.view_layer.update()
     bpy.ops.export_scene.gltf(filepath=path, use_selection=True, export_format='GLTF_SEPARATE', export_animations=True,
                               export_animation_mode='ACTIONS', export_skins=True, export_apply=False, export_yup=True,
                               export_texcoords=True, export_normals=True, export_tangents=True, export_materials='EXPORT')

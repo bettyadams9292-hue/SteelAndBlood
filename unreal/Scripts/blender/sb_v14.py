@@ -390,6 +390,8 @@ def export_game_mesh(rig, path, sub_levels=0, curve_res=4, decimate=0.5):
     bpy.ops.object.select_all(action='DESELECT'); gm.select_set(True); rig.select_set(True); bpy.context.view_layer.objects.active = rig
     # make every action exportable
     for tr in rig.animation_data.nla_tracks: tr.mute = False
+    # the exporter bakes actions by evaluating the pose: in REST position every frame would be the rest pose
+    rig.data.pose_position = 'POSE'; bpy.context.view_layer.update()
     bpy.ops.export_scene.gltf(filepath=path, use_selection=True, export_format='GLTF_SEPARATE', export_animations=True,
                               export_animation_mode='ACTIONS', export_skins=True, export_apply=False, export_yup=True,
                               export_texcoords=True, export_normals=True, export_materials='EXPORT')
