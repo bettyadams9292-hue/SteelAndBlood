@@ -573,3 +573,233 @@ def build_limbs():
         decal('V16_PoleynCross_' + sd, cross_pattee_outline(), pc, Vector((s * 0.25, -1.0, 0.05)), Vector((0, 0, 1)), 0.028, M['red'], pol, 0.0022, 0.001, 'calf_' + sd)
     r.data.pose_position = 'POSE'
     return len([o for o in D.objects if o.name.startswith('V16_')])
+
+# ------------------------------------------------------------------ great helm
+HY = -0.016  # helm centre line y
+
+def helm_section(z, th, keel=True):
+    """closed superellipse section; th=0 is front"""
+    zz = z
+    a = lerp_tab([(1.552, 0.132), (1.60, 0.127), (1.70, 0.124), (1.80, 0.120), (1.845, 0.110), (1.865, 0.080), (1.878, 0.030)], zz)
+    bf = lerp_tab([(1.552, 0.150), (1.60, 0.143), (1.70, 0.141), (1.80, 0.134), (1.845, 0.120), (1.865, 0.085), (1.878, 0.032)], zz)
+    bb = lerp_tab([(1.552, 0.140), (1.60, 0.130), (1.70, 0.128), (1.80, 0.124), (1.845, 0.112), (1.865, 0.080), (1.878, 0.030)], zz)
+    s, c = math.sin(th), math.cos(th)
+    n = 2.5
+    x = a * sgnpow(s, 2.0 / n); b = bf if c > 0 else bb; y = b * sgnpow(c, 2.0 / n)
+    if keel and c > 0: y += 0.010 * math.exp(-(x / 0.018) ** 2) * min(1.0, max(0.0, (1.86 - zz) / 0.05))
+    return Vector((x, HY - y, zz))
+
+# slit layout (front, in x/z)
+EYE_Z = (1.722, 1.744); EYE_X = 0.096
+SLOT_X = 0.0115; SLOT_Z = (1.615, 1.722)
+
+def _in_slit(p):
+    if p.y > HY - 0.05: return False
+    if EYE_Z[0] < p.z < EYE_Z[1] and abs(p.x) < EYE_X: return True
+    if SLOT_Z[0] < p.z < SLOT_Z[1] and abs(p.x) < SLOT_X: return True
+    # breaths: two columns of small slots on the right cheek
+    for cx in (-0.058, -0.074):
+        for k in range(5):
+            cz = 1.632 + k * 0.016
+            if abs(p.x - cx) < 0.0042 and abs(p.z - cz) < 0.0055: return True
+    return False
+
+def build_helm():
+    r = rig(); r.data.pose_position = 'REST'; bpy.context.view_layer.update()
+    for o in [o for o in D.objects if o.name.startswith('V16_Helm')]: D.objects.remove(o, do_unlink=True)
+    M = {'ivory': D.materials['V16_Ivory'], 'gold': D.materials['V16_Gold'], 'red': D.materials['V16_Crimson'], 'dark': D.materials['V16_DarkSteel']}
+    void = D.materials.get('Void') or M['dark']
+    hidden = 0
+    for o in D.objects:
+        if o.parent_type == 'BONE' and o.parent_bone == 'head' and not o.name.startswith(('V16_', 'Eye')):
+            o.hide_render = True; o.hide_viewport = True; hidden += 1
+    # shell: dense grid so the slits have clean edges
+    zs = [1.552 + (1.878 - 1.552) * (i / 90) ** 1.0 for i in range(91)]
+    nc = 160
+    rows = [[helm_section(z, 2 * math.pi * j / nc) for j in range(nc)] for z in zs]
+    me = D.meshes.new('V16_Helm'); bm = bmesh.new()
+    V = [[bm.verts.new(p) for p in row] for row in rows]
+    for i in range(len(rows) - 1):
+        for j in range(nc):
+            j2 = (j + 1) % nc
+            q = (V[i][j], V[i][j2], V[i + 1][j2], V[i + 1][j])
+            cen = sum((v.co for v in q), Vector()) / 4
+            if _in_slit(cen): continue
+            f = bm.faces.new(q); f.smooth = True
+            # gold: bottom band, brow band, ring around slits, crown band
+            gold = cen.z < 1.565 or 1.787 < cen.z < 1.799 or 1.838 < cen.z < 1.846
+            if not gold and cen.y < HY - 0.05:
+                if (EYE_Z[0] - 0.009 < cen.z < EYE_Z[1] + 0.009 and abs(cen.x) < EYE_X + 0.009) or (SLOT_Z[0] - 0.009 < cen.z < SLOT_Z[1] and abs(cen.x) < SLOT_X + 0.009):
+                    gold = True
+            f.material_index = 1 if gold else 0
+    # crown cap
+    top = bm.verts.new(Vector((0, HY, 1.880)))
+    for j in range(nc):
+        f = bm.faces.new((V[-1][j], V[-1][(j + 1) % nc], top)); f.smooth = True
+    bm.normal_update()
+    s = sum(f.normal.dot(f.calc_center_median() - Vector((0, HY, 1.70))) for f in bm.faces)
+    if s < 0: bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
+    bm.to_mesh(me); bm.free()
+    me.materials.append(M['ivory']); me.materials.append(M['gold'])
+    o = D.objects.new('V16_Helm', me); coll().objects.link(o)
+    finish_plate(o, 0.005, 0.0012)
+    bind_rigid(o, 'head')
+    # dark liner so the slits read as deep openings
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1.0, location=(0, HY, 1.71))
+    ln = bpy.context.active_object; ln.name = 'V16_HelmLiner'; ln.scale = (0.112, 0.125, 0.15)
+    for c in ln.users_collection: c.objects.unlink(ln)
+    coll().objects.link(ln); ln.data.materials.append(void); bind_rigid(ln, 'head')
+    # piping: bottom rim, brow band, around the eye slit and breath slot (cross outline)
+    bind_rigid(pipe('V16_HelmPipeRim', rows[0], 0.0055, M['gold'], closed=True), 'head')
+    def front_pt(x, z, out=0.002):
+        # project onto the shell surface along -y
+        th = math.asin(max(-1, min(1, sgnpow(x / lerp_tab([(1.552, 0.132), (1.70, 0.124), (1.80, 0.120)], z), 2.5 / 2))))
+        p = helm_section(z, th); return p + Vector((0, -out, 0))
+    ex, ez0, ez1 = EYE_X + 0.003, EYE_Z[0] - 0.003, EYE_Z[1] + 0.003
+    sx, sz0 = SLOT_X + 0.003, SLOT_Z[0] - 0.003
+    outline = []
+    def seg(x0, z0, x1, z1, n=10):
+        for k in range(n): outline.append(front_pt(x0 + (x1 - x0) * k / n, z0 + (z1 - z0) * k / n))
+    seg(-ex, ez1, ex, ez1, 24); seg(ex, ez1, ex, ez0, 3); seg(ex, ez0, sx, ez0, 10); seg(sx, ez0, sx, sz0, 12); seg(sx, sz0, -sx, sz0, 3)
+    seg(-sx, sz0, -sx, ez0, 12); seg(-sx, ez0, -ex, ez0, 10); seg(-ex, ez0, -ex, ez1, 3)
+    bind_rigid(pipe('V16_HelmPipeSlit', outline, 0.0042, M['gold'], closed=True), 'head')
+    # red cross pattee on the brow
+    decal('V16_HelmCrossGold', cross_pattee_outline(waist=0.10, flare=0.33), front_pt(0, 1.815, 0.0), Vector((0, -1, 0.15)), Vector((0, 0, 1)), 0.034, M['gold'], o, 0.0012, 0.0012, 'head')
+    decal('V16_HelmCross', cross_pattee_outline(), front_pt(0, 1.815, 0.0), Vector((0, -1, 0.15)), Vector((0, 0, 1)), 0.030, M['red'], o, 0.0025, 0.0012, 'head')
+    # gold finial
+    bpy.ops.mesh.primitive_cone_add(vertices=24, radius1=0.016, radius2=0.0, depth=0.05, location=(0, HY, 1.902))
+    fi = bpy.context.active_object; fi.name = 'V16_HelmFinial'
+    for c in fi.users_collection: c.objects.unlink(fi)
+    coll().objects.link(fi); fi.data.materials.append(M['gold'])
+    for p in fi.data.polygons: p.use_smooth = True
+    bind_rigid(fi, 'head')
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=0.021, location=(0, HY, 1.878))
+    fb = bpy.context.active_object; fb.name = 'V16_HelmFinialBall'; fb.scale = (1, 1, 0.6)
+    for c in fb.users_collection: c.objects.unlink(fb)
+    coll().objects.link(fb); fb.data.materials.append(M['gold'])
+    for p in fb.data.polygons: p.use_smooth = True
+    bind_rigid(fb, 'head')
+    r.data.pose_position = 'POSE'
+    return {'hidden': hidden}
+
+# ------------------------------------------------------------------ modern assault rifle (Templar armoury pattern)
+def mat_polymer(name='V16_Polymer'):
+    m, t = _new_mat(name)
+    out = _n(t, 'ShaderNodeOutputMaterial', 700, 0); b = _n(t, 'ShaderNodeBsdfPrincipled', 400, 0); _L(t, b, 0, out, 0)
+    tc = _n(t, 'ShaderNodeTexCoord', -700, 0); n = _n(t, 'ShaderNodeTexNoise', -500, 0, Scale=900.0, Detail=2.0); _L(t, tc, 'Object', n, 'Vector')
+    bump = _n(t, 'ShaderNodeBump', 100, -200, Strength=0.08, Distance=0.0005); _L(t, n, 'Fac', bump, 'Height'); _L(t, bump, 'Normal', b, 'Normal')
+    b.inputs['Base Color'].default_value = (0.032, 0.032, 0.03, 1); b.inputs['Roughness'].default_value = 0.62
+    return m
+
+def mat_glass(name='V16_Glass'):
+    m, t = _new_mat(name)
+    out = _n(t, 'ShaderNodeOutputMaterial', 500, 0); b = _n(t, 'ShaderNodeBsdfPrincipled', 200, 0); _L(t, b, 0, out, 0)
+    b.inputs['Base Color'].default_value = (0.55, 0.75, 0.7, 1); b.inputs['Roughness'].default_value = 0.02
+    if 'Transmission Weight' in b.inputs: b.inputs['Transmission Weight'].default_value = 0.9
+    b.inputs['Metallic'].default_value = 0.3
+    return m
+
+def _obj_from_bm(name, bm, mat, root, bevel=0.0015, segs=2):
+    me = D.meshes.new(name); bm.to_mesh(me); bm.free()
+    for p in me.polygons: p.use_smooth = True
+    me.materials.append(mat)
+    o = D.objects.new(name, me); coll().objects.link(o)
+    if bevel:
+        b = o.modifiers.new('Bevel', 'BEVEL'); b.width = bevel; b.segments = segs; b.limit_method = 'ANGLE'; b.angle_limit = math.radians(40); b.harden_normals = True
+    if root is not None: o.parent = root
+    return o
+
+def rbox(name, size, loc, mat, root, rot=(0, 0, 0), bevel=0.0015):
+    bm = bmesh.new(); bmesh.ops.create_cube(bm, size=1.0)
+    M4 = Matrix.Translation(loc) @ Matrix.Rotation(rot[0], 4, 'X') @ Matrix.Rotation(rot[1], 4, 'Y') @ Matrix.Rotation(rot[2], 4, 'Z') @ Matrix.Diagonal((*size, 1))
+    bmesh.ops.transform(bm, matrix=M4, verts=bm.verts)
+    return _obj_from_bm(name, bm, mat, root, bevel)
+
+def rcyl(name, r, length, loc, mat, root, axis='Y', seg=24, bevel=0.0012, r2=None):
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=r, radius2=r if r2 is None else r2, depth=length)
+    rot = {'Y': Matrix.Rotation(math.pi / 2, 4, 'X'), 'X': Matrix.Rotation(math.pi / 2, 4, 'Y'), 'Z': Matrix.Identity(4)}[axis]
+    bmesh.ops.transform(bm, matrix=Matrix.Translation(loc) @ rot, verts=bm.verts)
+    return _obj_from_bm(name, bm, mat, root, bevel)
+
+def cross_plate(name, size, loc, normal_axis, mat, root, depth=0.0012):
+    bm = bmesh.new(); pts = cross_pattee_outline()
+    vs = [bm.verts.new((x * size, y * size, 0)) for x, y in pts]
+    f = bm.faces.new(vs); bmesh.ops.triangulate(bm, faces=[f])
+    ext = bmesh.ops.extrude_face_region(bm, geom=list(bm.faces))
+    for v in [e for e in ext['geom'] if isinstance(e, bmesh.types.BMVert)]: v.co.z += depth
+    R = {'X': Matrix.Rotation(math.pi / 2, 4, 'Y'), '-X': Matrix.Rotation(-math.pi / 2, 4, 'Y'), 'Z': Matrix.Identity(4)}[normal_axis]
+    bmesh.ops.transform(bm, matrix=Matrix.Translation(loc) @ R, verts=bm.verts)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    return _obj_from_bm(name, bm, mat, root, 0.0)
+
+def build_rifle_v16():
+    for o in [o for o in D.objects if o.name.startswith('V16_Rifle')]: D.objects.remove(o, do_unlink=True)
+    M = {'dark': D.materials['V16_DarkSteel'], 'ivory': D.materials['V16_Ivory'], 'gold': D.materials['V16_Gold'], 'red': D.materials['V16_Crimson'],
+         'poly': mat_polymer(), 'glass': mat_glass()}
+    X = math.radians
+    root = rbox('V16_Rifle', (0.034, 0.20, 0.052), (0, -0.065, 0.032), M['dark'], None)       # lower receiver
+    rbox('V16_RifleMagwell', (0.038, 0.062, 0.05), (0, -0.088, -0.006), M['dark'], root)
+    rbox('V16_RifleUpper', (0.031, 0.27, 0.04), (0, -0.09, 0.077), M['dark'], root)
+    rbox('V16_RifleRail', (0.022, 0.42, 0.007), (0, -0.175, 0.1005), M['dark'], root, bevel=0.0008)
+    for k in range(30):
+        rbox('V16_RifleRailT%02d' % k, (0.025, 0.0055, 0.0045), (0, 0.025 - k * 0.0135, 0.1055), M['dark'], root, bevel=0.0006)
+    rbox('V16_RifleEject', (0.003, 0.05, 0.016), (0.0165, -0.06, 0.074), M['poly'], root, bevel=0.0005)
+    rbox('V16_RifleCharging', (0.048, 0.012, 0.008), (0, 0.055, 0.092), M['dark'], root, bevel=0.001)
+    rcyl('V16_RifleFwdAssist', 0.006, 0.02, (0.02, -0.005, 0.08), M['dark'], root, axis='X', seg=12)
+    # ivory handguard: octagonal tube with gold rings and dark M-LOK slots
+    hg = rcyl('V16_RifleHandguard', 0.027, 0.27, (0, -0.345, 0.071), M['ivory'], root, seg=8, bevel=0.0018)
+    for yy in (-0.215, -0.475): rcyl('V16_RifleHGRing%d' % int(-yy * 1000), 0.0285, 0.008, (0, yy, 0.071), M['gold'], root, seg=8)
+    for s in (-1, 1):
+        for k in range(4):
+            rbox('V16_RifleSlot%d_%d' % (s, k), (0.002, 0.030, 0.008), (s * 0.0258, -0.27 - k * 0.048, 0.071), M['poly'], root, bevel=0.0)
+        cross_plate('V16_RifleHGCross%d' % s, 0.017, (s * 0.0262, -0.43, 0.071), 'X' if s > 0 else '-X', M['gold'], root)
+    # barrel, gas block, muzzle brake
+    rcyl('V16_RifleBarrel', 0.0095, 0.13, (0, -0.535, 0.071), M['dark'], root, seg=20)
+    rbox('V16_RifleGasBlock', (0.022, 0.02, 0.022), (0, -0.49, 0.071), M['dark'], root)
+    br = rcyl('V16_RifleBrake', 0.0145, 0.06, (0, -0.628, 0.071), M['dark'], root, seg=24)
+    for k in range(3): rcyl('V16_RifleBrakePort%d' % k, 0.0148, 0.005, (0, -0.612 - k * 0.014, 0.071), M['poly'], root, seg=24, bevel=0)
+    # magazine: curved stack of segments with ribs
+    for k in range(6):
+        a = X(-4 - k * 3.2); z = -0.034 - k * 0.026; y = -0.090 - k * 0.0045 * k
+        rbox('V16_RifleMag%d' % k, (0.030, 0.064, 0.028), (0, y, z), M['poly'], root, rot=(a, 0, 0), bevel=0.0012)
+    rbox('V16_RifleMagBase', (0.034, 0.072, 0.012), (0, -0.090 - 5 * 0.0045 * 5 - 0.004, -0.034 - 6 * 0.026 + 0.006), M['dark'], root, rot=(X(-21), 0, 0))
+    # pistol grip, trigger, guard
+    rbox('V16_RifleGrip', (0.028, 0.042, 0.105), (0, 0.032, -0.036), M['poly'], root, rot=(X(-20), 0, 0), bevel=0.004)
+    rbox('V16_RifleTrigger', (0.006, 0.006, 0.022), (0, -0.02, -0.005), M['gold'], root, rot=(X(-12), 0, 0), bevel=0.001)
+    rbox('V16_RifleGuardB', (0.012, 0.075, 0.004), (0, -0.025, -0.022), M['dark'], root, bevel=0.001)
+    rbox('V16_RifleGuardF', (0.012, 0.004, 0.026), (0, -0.062, -0.009), M['dark'], root, bevel=0.001)
+    # buffer tube + adjustable stock in ivory with gold strip and red cross
+    rcyl('V16_RifleBuffer', 0.0155, 0.17, (0, 0.18, 0.069), M['dark'], root, seg=20)
+    rbox('V16_RifleStock', (0.044, 0.16, 0.06), (0, 0.24, 0.062), M['ivory'], root, bevel=0.004)
+    rbox('V16_RifleStockLow', (0.04, 0.11, 0.05), (0, 0.27, 0.02), M['ivory'], root, rot=(X(14), 0, 0), bevel=0.004)
+    rbox('V16_RifleButt', (0.048, 0.018, 0.118), (0, 0.327, 0.045), M['poly'], root, bevel=0.003)
+    for s in (-1, 1):
+        rbox('V16_RifleStockStrip%d' % s, (0.002, 0.13, 0.006), (s * 0.0225, 0.24, 0.083), M['gold'], root, bevel=0)
+        cross_plate('V16_RifleStockCross%d' % s, 0.016, (s * 0.0225, 0.245, 0.055), 'X' if s > 0 else '-X', M['red'], root)
+    # vertical foregrip
+    rcyl('V16_RifleForegrip', 0.0135, 0.07, (0, -0.39, 0.012), M['poly'], root, axis='Z', seg=16, bevel=0.002)
+    rcyl('V16_RifleForegripCap', 0.015, 0.008, (0, -0.39, -0.024), M['dark'], root, axis='Z', seg=16)
+    # optic: low mount + tube red-dot with gold rings and glass
+    rbox('V16_RifleOpticMount', (0.028, 0.07, 0.012), (0, -0.07, 0.113), M['dark'], root, bevel=0.001)
+    rcyl('V16_RifleOptic', 0.019, 0.085, (0, -0.07, 0.139), M['dark'], root, seg=28)
+    for yy in (-0.105, -0.035): rcyl('V16_RifleOpticRing%d' % int(-yy * 1000), 0.0205, 0.009, (0, yy, 0.139), M['gold'], root, seg=28)
+    rcyl('V16_RifleOpticLensF', 0.0165, 0.002, (0, -0.1135, 0.139), M['glass'], root, seg=28, bevel=0)
+    rcyl('V16_RifleOpticLensB', 0.0165, 0.002, (0, -0.0265, 0.139), M['glass'], root, seg=28, bevel=0)
+    rcyl('V16_RifleOpticTurret', 0.007, 0.012, (0.0, -0.07, 0.162), M['dark'], root, axis='Z', seg=16)
+    rcyl('V16_RifleOpticTurretS', 0.007, 0.012, (0.024, -0.07, 0.139), M['dark'], root, axis='X', seg=16)
+    rcyl('V16_RifleRearSight', 0.006, 0.02, (0, 0.02, 0.115), M['dark'], root, axis='Z', seg=10)
+    return root
+
+def install_rifle():
+    r = rig(); r.data.pose_position = 'REST'; bpy.context.view_layer.update()
+    old = D.objects.get('TemplarRifle')
+    mw = old.matrix_world.copy() if old else Matrix.Identity(4)
+    root = build_rifle_v16()
+    bpy.context.view_layer.update()
+    root.matrix_world = mw
+    bind_rigid(root, 'hand_l')
+    if old:
+        old.hide_render = True; old.hide_viewport = True
+    r.data.pose_position = 'POSE'
+    return len([o for o in D.objects if o.name.startswith('V16_Rifle')])
