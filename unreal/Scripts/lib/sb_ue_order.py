@@ -3,7 +3,10 @@ skeletal meshes, give them the hero armour materials, and stand them in the show
 import unreal, importlib
 
 ORDER_DIR = '/Game/SteelAndBlood/Characters/Order'
-VARIANTS = ('Bascinet', 'Sallet')
+VARIANTS = ('Bascinet', 'Sallet', 'Hooded', 'Vigil')
+# each member gets its own idle so the group reads as individuals
+LINEUP = {'Bascinet': ((180, -120, 0), 0, 'Idle_Ready'), 'Sallet': ((330, -120, 0), 0, 'Idle_Guard'),
+          'Hooded': ((480, -120, 0), 0, 'Idle_AtEase'), 'Vigil': ((620, -150, 0), 0, 'Idle_Vigil')}
 
 def _lib_map():
     import sb_ue_hero as H, sb_ue_armor_mat as AM
@@ -33,9 +36,9 @@ def assign(name):
     sk.set_editor_property('materials', new); unreal.EditorAssetLibrary.save_asset(sk.get_path_name())
     return sk.get_path_name()
 
-def place(name, loc, yaw):
+def place(name, loc, yaw, clip='Idle'):
     sk = next(find(name, 'SkeletalMesh'))
-    idle = next((a for a in find(name, 'AnimSequence') if a.get_name().endswith('Idle')), None)
+    idle = next((a for a in find(name, 'AnimSequence') if a.get_name().endswith(clip)), None)
     sub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     for a in sub.get_all_level_actors():
         if a.get_actor_label() == 'Order_' + name: sub.destroy_actor(a)
@@ -46,3 +49,7 @@ def place(name, loc, yaw):
         c.set_animation_mode(unreal.AnimationMode.ANIMATION_SINGLE_NODE)
         c.set_editor_property('animation_data', unreal.SingleAnimationPlayData(anim_to_play=idle, saved_looping=True, saved_playing=True))
     return act.get_actor_label(), bool(idle)
+
+
+def place_all():
+    return {v: place(v, *LINEUP[v]) for v in VARIANTS}
