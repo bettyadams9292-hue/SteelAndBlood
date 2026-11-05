@@ -239,15 +239,32 @@ def cross_pattee_outline(half=1.0, waist=0.085, flare=0.30, notch=0.045):
             pts.append(R(x, y))
     return pts
 
+
+def cross_quads(half=1.0, waist=0.085, flare=0.30, notch=0.045):
+    """Cross pattee as explicit convex quads (centre + 2 per arm) - no ngon triangulation."""
+    def R(k, x, y):
+        a = k * math.pi / 2; ca, sa = math.cos(a), math.sin(a); return (x * ca - y * sa, x * sa + y * ca)
+    quads = [[(waist, waist), (-waist, waist), (-waist, -waist), (waist, -waist)]]
+    for k in range(4):
+        quads.append([R(k, 0, waist), R(k, waist, waist), R(k, flare, half), R(k, 0, half - notch)])
+        quads.append([R(k, -waist, waist), R(k, 0, waist), R(k, 0, half - notch), R(k, -flare, half)])
+    return quads
+
+def cross_bm(bm, to3d, subdiv=3, **kw):
+    """fill bm with the cross; to3d(x, y) -> Vector. Shared verts are merged."""
+    for q in cross_quads(**kw):
+        vs = [bm.verts.new(to3d(x, y)) for x, y in q]
+        bm.faces.new(vs)
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-6)
+    for _ in range(subdiv):
+        bmesh.ops.subdivide_edges(bm, edges=list(bm.edges), cuts=1, use_grid_fill=True)
+
 def decal(name, outline, center, normal, up, size, mat, target, offset, thick, bone):
     """Flat outline mesh -> subdivided -> shrinkwrapped onto target -> thin solid. Real geometry."""
     n = normal.normalized(); u = (up - n * up.dot(n)).normalized(); r = u.cross(n)
     me = D.meshes.new(name); bm = bmesh.new()
-    vs = [bm.verts.new(center + r * (x * size) + u * (y * size)) for x, y in outline]
-    f = bm.faces.new(vs)
-    bmesh.ops.triangulate(bm, faces=[f], quad_method='BEAUTY', ngon_method='EAR_CLIP')
-    for _ in range(3):
-        bmesh.ops.subdivide_edges(bm, edges=list(bm.edges), cuts=1, use_grid_fill=True)
+    kw = outline if isinstance(outline, dict) else {}
+    cross_bm(bm, lambda x, y: center + r * (x * size) + u * (y * size), 3, **kw)
     for fc in bm.faces: fc.smooth = True
     bm.to_mesh(me); bm.free(); me.materials.append(mat)
     o = D.objects.new(name, me); coll().objects.link(o)
@@ -402,14 +419,14 @@ def pauldrons(M):
         # red cross pattee on the outward face of the dome, with a gold outline under it
         cpos = paul_pt(C, A, E1, E2, 0.16, 34, 0); nrm = (cpos - C).normalized()
         up = A
-        decal('V16_PaulCrossGold_' + sd, cross_pattee_outline(), cpos, nrm, up, 0.075, M['gold'], dome, 0.0012, 0.0012, bone)
-        decal('V16_PaulCross_' + sd, cross_pattee_outline(), cpos, nrm, up, 0.066, M['red'], dome, 0.0026, 0.0012, bone)
+        decal('V16_PaulCrossGold_' + sd, {}, cpos, nrm, up, 0.075, M['gold'], dome, 0.0012, 0.0012, bone)
+        decal('V16_PaulCross_' + sd, {}, cpos, nrm, up, 0.066, M['red'], dome, 0.0026, 0.0012, bone)
     return out
 
 def chest_cross(M, bp):
     c = Vector((0.0, CY - 0.24, 1.315)); n = Vector((0, -1, 0.12)); up = Vector((0, 0, 1))
-    decal('V16_ChestCrossGold', cross_pattee_outline(waist=0.10, flare=0.33), c, n, up, 0.128, M['gold'], bp, 0.0012, 0.0012, 'spine_02')
-    decal('V16_ChestCross', cross_pattee_outline(), c, n, up, 0.115, M['red'], bp, 0.0026, 0.0014, 'spine_02')
+    decal('V16_ChestCrossGold', dict(waist=0.10, flare=0.33), c, n, up, 0.128, M['gold'], bp, 0.0012, 0.0012, 'spine_02')
+    decal('V16_ChestCross', {}, c, n, up, 0.115, M['red'], bp, 0.0026, 0.0014, 'spine_02')
 
 OLD_TORSO = re.compile(r'^(Breastplate|Backplate|Plackart|Gorget\d|Pauldron|PauldronLame|PCross|ChestCross|BPRivet|BPSideRivet|PLRivet|Fauld\d|SealPauldron|PendH|PendLink|PendV)')
 
@@ -469,8 +486,8 @@ def rebuild_crosses():
     for s, sd in ((1, 'l'), (-1, 'r')):
         A, E1, E2 = _paul_frame(s); C = Vector((s * 0.232, CY + 0.004, 1.418)); dome = D.objects['V16_PauldronDome_' + sd]
         cpos = paul_pt(C, A, E1, E2, 0.16, 34, 0); nrm = (cpos - C).normalized()
-        decal('V16_PaulCrossGold_' + sd, cross_pattee_outline(), cpos, nrm, A, 0.078, M['gold'], dome, 0.0012, 0.0012, 'upperarm_' + sd)
-        decal('V16_PaulCross_' + sd, cross_pattee_outline(), cpos, nrm, A, 0.068, M['red'], dome, 0.0026, 0.0012, 'upperarm_' + sd)
+        decal('V16_PaulCrossGold_' + sd, {}, cpos, nrm, A, 0.078, M['gold'], dome, 0.0012, 0.0012, 'upperarm_' + sd)
+        decal('V16_PaulCross_' + sd, {}, cpos, nrm, A, 0.068, M['red'], dome, 0.0026, 0.0012, 'upperarm_' + sd)
     r.data.pose_position = 'POSE'
 
 # ------------------------------------------------------------------ limbs
@@ -571,7 +588,7 @@ def build_limbs():
         strap('V16_StrapGreave_' + sd, 'calf_' + sd, C0, C1, 0.72, 0.0705, 0.0745, F, M)
         # small red cross on each poleyn
         pol = D.objects['V16_Poleyn_' + sd]; pc = kc + Vector((s * 0.25, -1.0, 0.05)).normalized() * 0.06
-        decal('V16_PoleynCross_' + sd, cross_pattee_outline(), pc, Vector((s * 0.25, -1.0, 0.05)), Vector((0, 0, 1)), 0.028, M['red'], pol, 0.0022, 0.001, 'calf_' + sd)
+        decal('V16_PoleynCross_' + sd, {}, pc, Vector((s * 0.25, -1.0, 0.05)), Vector((0, 0, 1)), 0.028, M['red'], pol, 0.0022, 0.001, 'calf_' + sd)
     r.data.pose_position = 'POSE'
     return len([o for o in D.objects if o.name.startswith('V16_')])
 
@@ -665,8 +682,8 @@ def build_helm():
     seg(-sx, sz0, -sx, ez0, 12); seg(-sx, ez0, -ex, ez0, 10); seg(-ex, ez0, -ex, ez1, 3)
     bind_rigid(pipe('V16_HelmPipeSlit', outline, 0.0042, M['gold'], closed=True), 'head')
     # red cross pattee on the brow
-    decal('V16_HelmCrossGold', cross_pattee_outline(waist=0.10, flare=0.33), front_pt(0, 1.815, 0.0), Vector((0, -1, 0.15)), Vector((0, 0, 1)), 0.034, M['gold'], o, 0.0012, 0.0012, 'head')
-    decal('V16_HelmCross', cross_pattee_outline(), front_pt(0, 1.815, 0.0), Vector((0, -1, 0.15)), Vector((0, 0, 1)), 0.030, M['red'], o, 0.0025, 0.0012, 'head')
+    decal('V16_HelmCrossGold', dict(waist=0.10, flare=0.33), front_pt(0, 1.815, 0.0), Vector((0, -1, 0.15)), Vector((0, 0, 1)), 0.034, M['gold'], o, 0.0012, 0.0012, 'head')
+    decal('V16_HelmCross', {}, front_pt(0, 1.815, 0.0), Vector((0, -1, 0.15)), Vector((0, 0, 1)), 0.030, M['red'], o, 0.0025, 0.0012, 'head')
     # gold finial
     bpy.ops.mesh.primitive_cone_add(vertices=24, radius1=0.016, radius2=0.0, depth=0.05, location=(0, HY, 1.902))
     fi = bpy.context.active_object; fi.name = 'V16_HelmFinial'
@@ -724,9 +741,7 @@ def rcyl(name, r, length, loc, mat, root, axis='Y', seg=24, bevel=0.0012, r2=Non
     return _obj_from_bm(name, bm, mat, root, bevel)
 
 def cross_plate(name, size, loc, normal_axis, mat, root, depth=0.0012):
-    bm = bmesh.new(); pts = cross_pattee_outline()
-    vs = [bm.verts.new((x * size, y * size, 0)) for x, y in pts]
-    f = bm.faces.new(vs); bmesh.ops.triangulate(bm, faces=[f])
+    bm = bmesh.new(); cross_bm(bm, lambda x, y: Vector((x * size, y * size, 0)), 0)
     ext = bmesh.ops.extrude_face_region(bm, geom=list(bm.faces))
     for v in [e for e in ext['geom'] if isinstance(e, bmesh.types.BMVert)]: v.co.z += depth
     R = {'X': Matrix.Rotation(math.pi / 2, 4, 'Y'), '-X': Matrix.Rotation(-math.pi / 2, 4, 'Y'), 'Z': Matrix.Identity(4)}[normal_axis]
@@ -861,20 +876,19 @@ def cape_cross():
     cloth_red = D.materials.get('V16_CrossCloth') or D.materials.new('V16_CrossCloth')
     cloth_red.use_nodes = True
     b = next(n for n in cloth_red.node_tree.nodes if n.bl_idname == 'ShaderNodeBsdfPrincipled')
-    b.inputs['Base Color'].default_value = (0.26, 0.012, 0.014, 1); b.inputs['Roughness'].default_value = 0.85
+    b.inputs['Base Color'].default_value = (0.20, 0.007, 0.009, 1); b.inputs['Roughness'].default_value = 0.8
     if 'Sheen Weight' in b.inputs: b.inputs['Sheen Weight'].default_value = 0.4
     out = []
-    for nm, size, mat, off in (('V16_CapeCross', 0.20, cloth_red, 0.004),):
-        c = Vector((0, 0.45, 1.06)); n = Vector((0, 1, 0.05))
+    for nm, size, mat, off in (('V16_CapeCross', 0.17, cloth_red, 0.004),):
+        c = Vector((0, 0.55, 1.10)); n = Vector((0, 1, 0.05))
         me = D.meshes.new(nm); bm = bmesh.new()
         u = Vector((0, 0, 1)); rr = u.cross(n.normalized())
-        vs = [bm.verts.new(c + rr * (x * size) + u * (y * size)) for x, y in cross_pattee_outline()]
-        f = bm.faces.new(vs); bmesh.ops.triangulate(bm, faces=[f])
-        for _ in range(4): bmesh.ops.subdivide_edges(bm, edges=list(bm.edges), cuts=1, use_grid_fill=True)
+        cross_bm(bm, lambda x, y: c + rr * (x * size) + u * (y * size), 4)
         for fc in bm.faces: fc.smooth = True
         bm.to_mesh(me); bm.free(); me.materials.append(mat)
         o = D.objects.new(nm, me); coll().objects.link(o)
-        sw = o.modifiers.new('Wrap', 'SHRINKWRAP'); sw.target = cape; sw.wrap_method = 'NEAREST_SURFACEPOINT'; sw.wrap_mode = 'OUTSIDE_SURFACE'; sw.offset = off
+        sw = o.modifiers.new('Wrap', 'SHRINKWRAP'); sw.target = cape; sw.wrap_method = 'PROJECT'; sw.use_project_y = True
+        sw.use_negative_direction = True; sw.use_positive_direction = False; sw.wrap_mode = 'ON_SURFACE'; sw.offset = off
         s = o.modifiers.new('Thick', 'SOLIDIFY'); s.thickness = 0.0015; s.offset = 1.0
         # deform with the cape: same gradient weights as the cape itself
         for v in me.vertices:
