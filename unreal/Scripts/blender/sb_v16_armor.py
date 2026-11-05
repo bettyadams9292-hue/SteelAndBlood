@@ -803,3 +803,96 @@ def install_rifle():
         old.hide_render = True; old.hide_viewport = True
     r.data.pose_position = 'POSE'
     return len([o for o in D.objects if o.name.startswith('V16_Rifle')])
+
+# ------------------------------------------------------------------ cape: wool, pleats, geometric cross
+def mat_wool(name='V16_Wool', col=(0.74, 0.70, 0.62)):
+    """Heavy off-white wool: twill weave bump, fibre fuzz sheen, grime and wear rising from the hem."""
+    m, t = _new_mat(name)
+    out = _n(t, 'ShaderNodeOutputMaterial', 1000, 0); b = _n(t, 'ShaderNodeBsdfPrincipled', 700, 0); _L(t, b, 0, out, 0)
+    tc = _n(t, 'ShaderNodeTexCoord', -1100, 0)
+    mp = _n(t, 'ShaderNodeMapping', -900, 200); mp.inputs['Rotation'].default_value = (0, 0, 0.785); _L(t, tc, 'Object', mp, 'Vector')
+    wv = _n(t, 'ShaderNodeTexWave', -700, 200, Scale=420.0, Distortion=1.5, Detail=2.0); _L(t, mp, 'Vector', wv, 'Vector')
+    fn = _n(t, 'ShaderNodeTexNoise', -700, -50, Scale=6.0, Detail=10.0, Roughness=0.6); _L(t, tc, 'Object', fn, 'Vector')
+    sep = _n(t, 'ShaderNodeSeparateXYZ', -900, -300); _L(t, tc, 'Object', sep, 'Vector')
+    hem = _n(t, 'ShaderNodeMapRange', -700, -300); hem.inputs['From Min'].default_value = 0.75; hem.inputs['From Max'].default_value = 0.3; _L(t, sep, 'Z', hem, 'Value')
+    g = _n(t, 'ShaderNodeMath', -500, -200, operation='MULTIPLY', use_clamp=True); _L(t, hem, 'Result', g, 0); _L(t, fn, 'Fac', g, 1)
+    g2 = _n(t, 'ShaderNodeMath', -350, -200, operation='MULTIPLY', use_clamp=True); _L(t, g, 0, g2, 0); g2.inputs[1].default_value = 1.6
+    c = _n(t, 'ShaderNodeMix', -150, 0, data_type='RGBA'); _L(t, g2, 0, c, 'Factor'); c.inputs['A'].default_value = (*col, 1); c.inputs['B'].default_value = (0.26, 0.21, 0.16, 1)
+    _L(t, c, 'Result', b, 'Base Color'); b.inputs['Roughness'].default_value = 0.9
+    if 'Sheen Weight' in b.inputs: b.inputs['Sheen Weight'].default_value = 0.5
+    bump = _n(t, 'ShaderNodeBump', 400, -300, Strength=0.25, Distance=0.0008); _L(t, wv, 'Fac', bump, 'Height'); _L(t, bump, 'Normal', b, 'Normal')
+    return m
+
+def cape_upgrade():
+    cape = D.objects.get('Cape')
+    if not cape: return 'no cape'
+    W = mat_wool()
+    for i, sl in enumerate(cape.material_slots):
+        if sl.material and sl.material.name in ('CapeWool',):
+            cape.data.materials[i] = W
+    # pleats: displace along Y with a band texture, strength growing from the shoulders down
+    vg = cape.vertex_groups.get('V16Pleat') or cape.vertex_groups.new(name='V16Pleat')
+    mw = cape.matrix_world
+    for v in cape.data.vertices:
+        z = (mw @ v.co).z; w = max(0.0, min(1.0, (1.46 - z) / 0.45)); w = w * w * (3 - 2 * w)
+        vg.add([v.index], w, 'REPLACE')
+    tex = D.textures.get('V16PleatTex') or D.textures.new('V16PleatTex', 'WOOD')
+    tex.wood_type = 'BANDS'; tex.noise_basis_2 = 'SIN'; tex.turbulence = 2.0
+    dm = cape.modifiers.get('V16Pleats') or cape.modifiers.new('V16Pleats', 'DISPLACE')
+    # wood BANDS = sin(10*(x+y+z)) in texture space; an empty scaled (0.14, 1000, 1000) turns that into vertical pleats ~9 cm apart
+    em = D.objects.get('V16PleatCoords') or D.objects.new('V16PleatCoords', None)
+    if em.name not in bpy.context.scene.collection.objects: bpy.context.scene.collection.objects.link(em)
+    em.location = (0, 0, 0); em.scale = (0.14, 1000.0, 1000.0); em.hide_viewport = True; em.hide_render = True
+    dm.texture = tex; dm.direction = 'Y'; dm.texture_coords = 'OBJECT'; dm.texture_coords_object = em
+    dm.strength = 0.028; dm.mid_level = 0.5; dm.vertex_group = 'V16Pleat'
+    # keep displacement before the rig deformation
+    with bpy.context.temp_override(object=cape):
+        while cape.modifiers.find('V16Pleats') > 0:
+            bpy.ops.object.modifier_move_up(modifier='V16Pleats')
+    return 'ok'
+
+def cape_cross():
+    """Big crimson cross pattee on the back of the cape as real geometry that deforms with the cape."""
+    import sb_v14 as K
+    cape = D.objects['Cape']; r = rig(); r.data.pose_position = 'REST'; bpy.context.view_layer.update()
+    for o in [o for o in D.objects if o.name.startswith('V16_CapeCross')]: D.objects.remove(o, do_unlink=True)
+    red = D.materials['V16_Crimson'] if 'V16_Crimson' in D.materials else mat_crimson()
+    cloth_red = D.materials.get('V16_CrossCloth') or D.materials.new('V16_CrossCloth')
+    cloth_red.use_nodes = True
+    b = next(n for n in cloth_red.node_tree.nodes if n.bl_idname == 'ShaderNodeBsdfPrincipled')
+    b.inputs['Base Color'].default_value = (0.26, 0.012, 0.014, 1); b.inputs['Roughness'].default_value = 0.85
+    if 'Sheen Weight' in b.inputs: b.inputs['Sheen Weight'].default_value = 0.4
+    out = []
+    for nm, size, mat, off in (('V16_CapeCross', 0.20, cloth_red, 0.004),):
+        c = Vector((0, 0.45, 1.06)); n = Vector((0, 1, 0.05))
+        me = D.meshes.new(nm); bm = bmesh.new()
+        u = Vector((0, 0, 1)); rr = u.cross(n.normalized())
+        vs = [bm.verts.new(c + rr * (x * size) + u * (y * size)) for x, y in cross_pattee_outline()]
+        f = bm.faces.new(vs); bmesh.ops.triangulate(bm, faces=[f])
+        for _ in range(4): bmesh.ops.subdivide_edges(bm, edges=list(bm.edges), cuts=1, use_grid_fill=True)
+        for fc in bm.faces: fc.smooth = True
+        bm.to_mesh(me); bm.free(); me.materials.append(mat)
+        o = D.objects.new(nm, me); coll().objects.link(o)
+        sw = o.modifiers.new('Wrap', 'SHRINKWRAP'); sw.target = cape; sw.wrap_method = 'NEAREST_SURFACEPOINT'; sw.wrap_mode = 'OUTSIDE_SURFACE'; sw.offset = off
+        s = o.modifiers.new('Thick', 'SOLIDIFY'); s.thickness = 0.0015; s.offset = 1.0
+        # deform with the cape: same gradient weights as the cape itself
+        for v in me.vertices:
+            for bn, w in K.w_cape(o.matrix_world @ v.co):
+                if w > 1e-4:
+                    g = o.vertex_groups.get(bn) or o.vertex_groups.new(name=bn); g.add([v.index], w, 'REPLACE')
+        am = o.modifiers.new('RigArm', 'ARMATURE'); am.object = r
+        o['sb_grad'] = 'cape'; o.parent = r; o.matrix_parent_inverse = r.matrix_world.inverted()
+        out.append(o.name)
+    r.data.pose_position = 'POSE'
+    return out
+
+# ------------------------------------------------------------------ one-shot driver for the next session
+def run_rest():
+    """helm + rifle + cape, then save. Each step reports its own result/error so one failure doesn't block the rest."""
+    import traceback
+    res = {}
+    for nm, fn in (('helm', build_helm), ('rifle', install_rifle), ('cape', cape_upgrade), ('cape_cross', cape_cross)):
+        try: res[nm] = fn()
+        except Exception: res[nm] = 'ERROR ' + traceback.format_exc()[-800:]
+    bpy.ops.wm.save_mainfile()
+    return res
