@@ -27,7 +27,7 @@ def mat_skin(name='ZMB_Skin'):
     out = n(t, 'ShaderNodeOutputMaterial', 1200, 0); b = n(t, 'ShaderNodeBsdfPrincipled', 900, 0); L(t, b, 0, out, 0)
     tc = n(t, 'ShaderNodeTexCoord', -1200, 0)
     base = n(t, 'ShaderNodeTexNoise', -900, 300, Scale=6.0, Detail=8.0, Roughness=0.6); L(t, tc, 'Object', base, 'Vector')
-    col = A._ramp(t, -650, 300, [(0.3, (0.20, 0.22, 0.17, 1)), (0.55, (0.33, 0.34, 0.27, 1)), (0.8, (0.40, 0.33, 0.30, 1))]); L(t, base, 'Fac', col, 'Fac')
+    col = A._ramp(t, -650, 300, [(0.3, (0.07, 0.08, 0.055, 1)), (0.55, (0.13, 0.135, 0.10, 1)), (0.8, (0.17, 0.12, 0.11, 1))]); L(t, base, 'Fac', col, 'Fac')
     vein = n(t, 'ShaderNodeTexVoronoi', -900, 0, feature='DISTANCE_TO_EDGE', Scale=14.0); L(t, tc, 'Object', vein, 'Vector')
     vr = A._ramp(t, -650, 0, [(0.0, (1, 1, 1, 1)), (0.04, (0, 0, 0, 1))]); L(t, vein, 'Distance', vr, 'Fac')
     c1 = n(t, 'ShaderNodeMix', -400, 200, data_type='RGBA'); L(t, vr, 'Color', c1, 'Factor'); L(t, col, 'Color', c1, 'A'); c1.inputs['B'].default_value = (0.12, 0.08, 0.14, 1)
@@ -222,7 +222,7 @@ def _b(t, L, f=1.0): return math.sin(2 * math.pi * f * t / L)
 def z_idle(t, L):
     b = _b(t, L); tw = max(0.0, _b(t, L, 3.0)) ** 8
     p = {'spine_01': E(x=8 + 2 * b), 'spine_02': E(x=10 - 2 * b, z=4 * b), 'neck_01': E(x=-6), 'head': E(x=10 + 4 * b, y=14 * tw, z=10 * b),
-         'upperarm_l': E(x=-20 + 4 * b, z=6), 'lowerarm_l': E(x=-25), 'upperarm_r': E(x=-28 - 4 * b, z=-8), 'lowerarm_r': E(x=-15),
+         'upperarm_l': E(x=-12 + 4 * b), 'lowerarm_l': E(x=-20), 'upperarm_r': E(x=-16 - 4 * b), 'lowerarm_r': E(x=-12),
          'thigh_l': E(x=-6), 'calf_l': E(x=-10), 'thigh_r': E(x=4, y=4), 'calf_r': E(x=-4)}
     return full(p), {'pelvis': (0, 0, -0.03 - 0.01 * b)}
 
@@ -232,7 +232,7 @@ def z_walk(t, L):
     p = {'thigh_r': E(x=-16 * max(0.0, s) + 10 * max(0.0, -s)), 'calf_r': E(x=-(8 + 26 * max(0.0, math.sin(ph + 0.6)))),
          'thigh_l': E(x=-8 * max(0.0, -s) + 12 * max(0.0, s), z=-6), 'calf_l': E(x=-6), 'foot_l': E(x=10),
          'pelvis': E(z=8 * s, y=6 * c), 'spine_01': E(x=12, z=-6 * s), 'spine_02': E(x=10, y=-5 * c), 'head': E(x=12, z=8 * s, y=6 * c),
-         'upperarm_l': E(x=-62 + 6 * s, z=-6), 'lowerarm_l': E(x=-18), 'upperarm_r': E(x=-70 - 6 * s, z=8), 'lowerarm_r': E(x=-10)}
+         'upperarm_l': E(x=-38 + 5 * s), 'lowerarm_l': E(x=-30), 'upperarm_r': E(x=-44 - 5 * s), 'lowerarm_r': E(x=-22)}
     return full(p), {'pelvis': (0, 0, -0.06 + 0.03 * abs(c))}
 
 def z_attack(t, L):
