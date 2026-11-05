@@ -7,7 +7,9 @@ SK = KN_DIR + '/SK_HeroKnight_v14/SkeletalMeshes/SK_HeroKnight_v14'
 MAP = {'Armor': 'Enamel', 'ArmorPlate': 'Enamel', 'Gold': 'Brass', 'Leather': 'Leather', 'BootLeather': 'Leather', 'SoleLeather': 'Leather',
        'Chainmail': 'Chainmail', 'DarkSteel': 'SteelDark', 'DarkMetal': 'SteelDark', 'GunMetal': 'SteelDark', 'Walnut': 'Walnut',
        'TabardCloth': 'ClothWhite', 'TabardClothBack': 'ClothWhite', 'CapeWool': 'ClothWhite', 'CapeLining': 'ClothRed', 'RedPaint': 'ClothRed',
-       'Bone': 'Bone', 'Wax': 'Bone', 'Parchment': 'ClothWhite', 'Void': 'Visor', 'EyeGlow': 'Ember', 'Blade': 'Steel', 'Stitch': 'Leather'}
+       'Bone': 'Bone', 'Wax': 'Bone', 'Parchment': 'ClothWhite', 'Void': 'Visor', 'EyeGlow': 'Ember', 'Blade': 'Steel', 'Stitch': 'Leather',
+       'V16_Ivory': 'Enamel', 'V16_Gold': 'Brass', 'V16_Crimson': 'ClothRed', 'V16_DarkSteel': 'SteelDark', 'V16_Polymer': 'SteelDark',
+       'V16_Glass': 'Visor', 'V16_Wool': 'ClothWhite', 'V16_CrossCloth': 'ClothRed'}
 
 def ensure_instances(P):
     if P + 'lib' not in sys.path: sys.path.insert(0, P + 'lib')
@@ -42,3 +44,16 @@ def make_playable():
     cdo.get_editor_property('mesh').set_skeletal_mesh_asset(unreal.load_asset(SK))
     unreal.BlueprintEditorLibrary.compile_blueprint(b); unreal.EditorAssetLibrary.save_asset(b.get_path_name())
     return 'ok'
+
+
+def assign_materials():
+    """Run on a later editor tick than import_hero: the glTF/Interchange import finalises asynchronously and
+    overwrites slot materials set during the same tick (seen on v15)."""
+    m = unreal.load_asset(SK); new = []; log = []
+    for s in m.get_editor_property('materials'):
+        n = str(s.material_slot_name).split('.')[0]; k = MAP.get(n)
+        mi = unreal.load_asset('/Game/SteelAndBlood/Materials/Instances/MI_' + k + '_SK') if k else None
+        new.append(unreal.SkeletalMaterial(material_interface=mi or s.material_interface, material_slot_name=s.material_slot_name, uv_channel_data=s.uv_channel_data))
+        log.append((n, (mi or s.material_interface).get_name()))
+    m.set_editor_property('materials', new); unreal.EditorAssetLibrary.save_asset(m.get_path_name())
+    return log
