@@ -69,7 +69,10 @@ def build_master():
     filscale = g.scalar('FiligreeScale', 10.0, 'Detail')
     scol = g.vec('ScratchColor', (0.55, 0.55, 0.56, 1), 'Detail'); gcol = g.vec('GrimeColor', (0.30, 0.25, 0.18, 1), 'Detail')
     # pre-skinned position (cm) -> metres * scale
-    psp = g.n(unreal.MaterialExpressionPreSkinnedPosition); psn = g.n(unreal.MaterialExpressionPreSkinnedNormal)
+    # pre-skinned inputs are vertex-shader only: pass them to the pixel shader through vertex interpolators
+    psp0 = g.n(unreal.MaterialExpressionPreSkinnedPosition); psn0 = g.n(unreal.MaterialExpressionPreSkinnedNormal)
+    psp = g.n(unreal.MaterialExpressionVertexInterpolator); g.c(psp0, '', psp, '')
+    psn = g.n(unreal.MaterialExpressionVertexInterpolator); g.c(psn0, '', psn, '')
     k = g.n(unreal.MaterialExpressionConstant, r=0.01)
     pm = g.mul(g.mul(psp, k), scale)
     pf = g.mul(g.mul(psp, k), filscale)
