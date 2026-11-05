@@ -137,6 +137,10 @@ def build_sallet():
         bv = _shell(P + 'Bevor%d' % k, brows, [m['ivory'], m['gold']], False, lambda i, j, nr, nc, c: 1 if i >= nr - 2 else 0)
         A.finish_plate(bv, 0.0045); A.bind_rigid(bv, 'head' if k == 0 else 'neck_01')
         A.bind_rigid(A.pipe(P + 'BevorPipe%d' % k, brows[-1], 0.0045, m['gold']), 'head' if k == 0 else 'neck_01')
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1.0, location=(0, HY, 1.74))
+    ln = bpy.context.active_object; ln.name = P + 'Liner'; ln.scale = (0.112, 0.124, 0.15)
+    for c in ln.users_collection: c.objects.unlink(ln)
+    A.coll().objects.link(ln); ln.data.materials.append(m['void']); A.bind_rigid(ln, 'head')
     A.decal(P + 'Cross', {}, Vector((0, HY - 0.15, 1.83)), Vector((0, -1, 0.35)), Vector((0, 0, 1)), 0.032, m['red'], sk, 0.0025, 0.0012, 'head')
     r.data.pose_position = 'POSE'
     return P
@@ -144,26 +148,43 @@ def build_sallet():
 # ------------------------------------------------------------------ hooded great helm (wool hood + short mantle)
 def build_hooded():
     P = 'V16H_hooded_'; _clear(P); m = M(); r = A.rig(); r.data.pose_position = 'REST'; bpy.context.view_layer.update()
+    # hood: follows the great helm ~2.5 cm out, rounded crown, slight point at the back (liripipe start)
     rows = []
-    for i in range(46):
-        v = i / 45; z = 1.505 + v * (1.935 - 1.505)
-        k = math.cos(min(1.0, max(0.0, (z - 1.82) / 0.115)) * math.pi / 2)
-        a = (0.150 + 0.05 * max(0.0, (1.56 - z) / 0.055)) * (0.12 + 0.88 * k)
-        bf = (0.165) * (0.12 + 0.88 * k); bb = (0.160 + 0.02 * (1 - k)) * (0.12 + 0.88 * k)
-        rows.append(_ring(z, a, bf, bb, 2.2, 96, yoff=0.02 * (1 - k)))
-    def opening(c):  # face opening shows the great helm's visor and cross
-        return c.y < HY - 0.05 and 1.585 < c.z < 1.845 and abs(c.x) < 0.105 * (1.0 if c.z < 1.80 else max(0.2, (1.845 - c.z) / 0.045))
+    for i in range(50):
+        v = i / 49; z = 1.545 + v * (1.915 - 1.545)
+        k = math.cos(min(1.0, max(0.0, (z - 1.80) / 0.115)) ** 1.3 * math.pi / 2)
+        flare = max(0.0, (1.60 - z) / 0.055) * 0.035
+        a = (0.150 + flare) * (0.10 + 0.90 * k); bf = (0.170 + flare) * (0.10 + 0.90 * k); bb = (0.160 + flare) * (0.10 + 0.90 * k)
+        rows.append(_ring(z, a, bf, bb, 2.1, 96, yoff=0.025 * (1 - k)))
+    def opening(c, g=0.0):
+        hw = 0.100 + g
+        top = 1.835 + g
+        if c.z > top - 0.05: hw *= max(0.0, (top - c.z) / 0.05)
+        return c.y < HY - 0.05 and (1.575 - g) < c.z < top and abs(c.x) < hw
     hd = _shell(P + 'Hood', rows, [m['wool'], m['red']], True,
-                lambda i, j, nr, nc, c: 1 if (c.y < HY - 0.05 and 1.575 < c.z < 1.86 and abs(c.x) < 0.125 and not opening(c)) and (abs(c.x) > 0.095 or c.z > 1.835 or c.z < 1.595) else 0,
-                skip=opening, apex=Vector((0, HY + 0.02, 1.94)))
-    s = hd.modifiers.new('Thick', 'SOLIDIFY'); s.thickness = 0.007; s.offset = 1.0
+                lambda i, j, nr, nc, c: 1 if (opening(c, 0.016) and not opening(c)) or i < 2 else 0,
+                skip=opening, apex=Vector((0, HY + 0.045, 1.925)))
+    s = hd.modifiers.new('Thick', 'SOLIDIFY'); s.thickness = 0.008; s.offset = 1.0
     sub = hd.modifiers.new('Sub', 'SUBSURF'); sub.levels = 1; sub.render_levels = 1
     A.bind_rigid(hd, 'head')
-    # mantle (shoulder cape of the hood) over gorget and pauldron tops
-    mrows = [_ring(1.535 - 0.11 * v, 0.17 + 0.13 * v, 0.175 + 0.05 * v, 0.17 + 0.06 * v, 2.2, 96) for v in [i / 11 for i in range(12)]]
-    mt = _shell(P + 'Mantle', mrows, [m['wool'], m['red']], True, lambda i, j, nr, nc, c: 1 if i >= nr - 2 else 0)
-    s = mt.modifiers.new('Thick', 'SOLIDIFY'); s.thickness = 0.007; s.offset = 1.0
+    # mantle: drapes from the neck over the shoulders, longer at the back, with soft folds
+    mrows = []
+    for i in range(16):
+        v = i / 15; row = []
+        for j in range(120):
+            th = 2 * math.pi * j / 120; sn, cs = math.sin(th), math.cos(th)
+            a = 0.165 + 0.17 * v; bf = 0.175 + 0.05 * v; bb = 0.17 + 0.07 * v
+            x = a * A.sgnpow(sn, 2 / 2.1); y = (bf if cs > 0 else bb) * A.sgnpow(cs, 2 / 2.1)
+            fold = 0.012 * v * math.sin(th * 14)
+            rr = 1.0 + fold / max(0.05, math.hypot(x, y))
+            z = 1.545 - 0.10 * v - 0.06 * v * (x / 0.33) ** 2 - (0.05 * v if cs < 0 else 0.0) * abs(cs)
+            row.append(Vector((x * rr, HY - y * rr + 0.004, z)))
+        mrows.append(row)
+    mt = _shell(P + 'Mantle', mrows, [m['wool'], m['red']], True, lambda i, j, nr, nc, c: 1 if i >= nr - 2 else 0, centre=Vector((0, HY, 1.5)))
+    s = mt.modifiers.new('Thick', 'SOLIDIFY'); s.thickness = 0.008; s.offset = 1.0
+    sub = mt.modifiers.new('Sub', 'SUBSURF'); sub.levels = 1; sub.render_levels = 1
     A.bind_rigid(mt, 'spine_02')
+    A.decal(P + 'Cross', {}, Vector((0, HY + 0.40, 1.47)), Vector((0, 1, 0.6)), Vector((0, -0.4, 1)), 0.06, D.materials.get('V16_CrossCloth') or m['red'], mt, 0.003, 0.0012, 'spine_02')
     r.data.pose_position = 'POSE'
     return P
 
