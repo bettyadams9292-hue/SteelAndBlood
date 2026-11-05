@@ -1,5 +1,7 @@
 ; BP_Zombie (parent Character) - EventGraph (BlueprintTools.write_graph_dsl)
-; vars: IdleAnim/WalkAnim/AttackAnim/HitAnim/DeathAnim (AnimSequence, instance-editable), Health, AttackCD, ActionT (float), Dead (bool), CurAnim (int)
+; vars: IdleAnim/WalkAnim/AttackAnim/HitAnim/DeathAnim (AnimSequence, instance-editable), Health, AttackCD, ActionT, HitDelay (float), Dead (bool), CurAnim (int)
+; v2: claw damage lands 0.45 s into the lunge and only if the hero is still within 200 cm; on death the corpse stops
+;     ticking (followers use IsActorTickEnabled as the 'alive' test), movement is disabled and collision is turned off.
 ; CDO: mesh SK_Zombie_Soldier rel loc (0,0,-96) yaw -90, AlwaysTickPose; walk 160 cm/s, orient-to-movement; AutoPossessAI placed/spawned.
 (event EventBeginPlay
   (Variables|Default|SetHealth 100.0)
@@ -15,6 +17,9 @@
       (Variables|Default|SetCurAnim 9)
       (Components|Animation|PlayAnimation :self mesh :NewAnimToPlay (Variables|Default|GetDeathAnim) :bLooping false)
       (Actor|SetLifeSpan :InLifespan 8.0)
+      (Pawn|Components|CharacterMovement|DisableMovement :self (Variables|Character|GetCharacterMovement))
+      (Collision|SetActorEnableCollision :bNewActorEnableCollision false)
+      (Actor|Tick|SetActorTickEnabled :bEnabled false)
       (else
         (Variables|Default|SetActionT 0.45)
         (Variables|Default|SetCurAnim 3)
@@ -30,6 +35,10 @@
     (bind dist (Math|Vector|VectorLength flat))
     (Variables|Default|SetAttackCD (- (Variables|Default|GetAttackCD) DeltaSeconds))
     (Variables|Default|SetActionT (- (Variables|Default|GetActionT) DeltaSeconds))
+    (if (> (Variables|Default|GetHitDelay) 0.0)
+      (Variables|Default|SetHitDelay (- (Variables|Default|GetHitDelay) DeltaSeconds))
+      (if (and (<= (Variables|Default|GetHitDelay) 0.0) (< dist 200.0))
+        (Game|Damage|ApplyDamage :DamagedActor pawn :BaseDamage 10.0)))
     (bind mesh (Variables|Character|GetMesh))
     (bind ctrl (Pawn|GetController))
     (if (> (Variables|Default|GetActionT) 0.0)
@@ -47,7 +56,7 @@
             (Variables|Default|SetActionT 1.1)
             (Variables|Default|SetCurAnim 2)
             (Components|Animation|PlayAnimation :self mesh :NewAnimToPlay (Variables|Default|GetAttackAnim) :bLooping false)
-            (Game|Damage|ApplyDamage :DamagedActor pawn :BaseDamage 10.0)
+            (Variables|Default|SetHitDelay 0.45)
             (else
               (if (!= (Variables|Default|GetCurAnim) 0)
                 (Variables|Default|SetCurAnim 0)

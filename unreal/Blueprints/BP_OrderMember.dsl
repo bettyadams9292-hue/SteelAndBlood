@@ -1,6 +1,7 @@
 ; BP_OrderMember (parent Character) - EventGraph (BlueprintTools.write_graph_dsl)
 ; vars: IdleAnim, WalkAnim, AttackAnim (AnimSequence, instance-editable), FormOffset (Vector, ed), AttackRange (float, ed),
-;       CurAnim (int), AttackCD, ActionT, NearD (float), Nearest (Actor)
+;       CurAnim (int), AttackCD, ActionT, NearD, HitDelay (float), Nearest, HitTarget (Actor)
+; v2: dead zombies (actor tick disabled) are ignored; damage lands 0.4 s into the swing/burst.
 ; CDO: mesh rel loc (0,0,-96) yaw -90, AlwaysTickPose; walk 420 cm/s, orient-to-movement, yaw rate 540; AutoPossessAI placed/spawned.
 ; Behaviour: nearest BP_Zombie within 5.5 m -> engage (move to it, attack inside AttackRange: ApplyDamage 35, 1.6 s cooldown);
 ;            otherwise hold formation slot (FormOffset from the hero, projected onto the navmesh). Navmesh path following
@@ -12,10 +13,14 @@
   (Variables|Default|SetAttackCD (- (Variables|Default|GetAttackCD) DeltaSeconds))
   (Variables|Default|SetActionT (- (Variables|Default|GetActionT) DeltaSeconds))
   (Variables|Default|SetNearD 99999.0)
+  (if (> (Variables|Default|GetHitDelay) 0.0)
+    (Variables|Default|SetHitDelay (- (Variables|Default|GetHitDelay) DeltaSeconds))
+    (if (<= (Variables|Default|GetHitDelay) 0.0)
+      (Game|Damage|ApplyDamage :DamagedActor (Variables|Default|GetHitTarget) :BaseDamage 35.0)))
   (bind me (Transformation|GetActorLocation))
   (for z (Actor|GetAllActorsOfClass :ActorClass "/Game/SteelAndBlood/Blueprints/BP_Zombie.BP_Zombie_C")
     (bind zd (Math|Vector|VectorLength (- (Transformation|GetActorLocation :self z) me)))
-    (if (< zd (Variables|Default|GetNearD))
+    (if (and (Actor|Tick|IsActorTickEnabled :self z) (< zd (Variables|Default|GetNearD)))
       (Variables|Default|SetNearD zd)
       (Variables|Default|SetNearest z)))
   (bind nearD (Variables|Default|GetNearD))
@@ -41,7 +46,8 @@
     (Variables|Default|SetCurAnim 2)
     (Transformation|SetActorRotation :NewRotation (Math|Rotator|MakeRotfromX flat))
     (Components|Animation|PlayAnimation :self mesh :NewAnimToPlay (Variables|Default|GetAttackAnim) :bLooping false)
-    (Game|Damage|ApplyDamage :DamagedActor nz :BaseDamage 35.0))
+    (Variables|Default|SetHitTarget nz)
+    (Variables|Default|SetHitDelay 0.4))
   (if (> (Variables|Default|GetActionT) 0.0)
     (AI|Navigation|StopMovement :self ctrl)
     (else
