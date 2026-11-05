@@ -1067,3 +1067,64 @@ def export_baked(path=None, res=4096, decimate=0.5):
     D.objects.remove(gm, do_unlink=True)
     r.data.pose_position = 'POSE'
     return {'tris': tris, 'seconds': round(time.time() - t0), 'path': path}
+
+# ------------------------------------------------------------------ stepped bake (one pass per timer tick, status file between passes)
+def export_baked_stepped(res=2048, samples=8, decimate=0.5, status='C:/Users/decca/Pictures/v16_bake_status.json'):
+    """Same as export_baked but split across timer ticks so Blender stays responsive between passes and progress is visible."""
+    import json, time, traceback, os
+    os.makedirs(BAKE_DIR, exist_ok=True)
+    S = {'gm': None, 'imgs': {}, 't0': time.time()}
+    def w(state, **kw): open(status, 'w').write(json.dumps(dict(state=state, t=round(time.time() - S['t0']), **kw)))
+    sc = bpy.context.scene
+    def new_img(nm, non_color):
+        im = D.images.get(nm)
+        if im: D.images.remove(im)
+        im = D.images.new(nm, res, res, alpha=False); 
+        if non_color: im.colorspace_settings.name = 'Non-Color'
+        return im
+    def sel():
+        bpy.ops.object.select_all(action='DESELECT'); S['gm'].select_set(True); bpy.context.view_layer.objects.active = S['gm']
+    def bake(key, nm, non_color, kind, prep=None, post=None):
+        sel(); im = new_img(nm, non_color); _bake_target(S['gm'], im)
+        if prep: prep()
+        try: bpy.ops.object.bake(type=kind)
+        finally:
+            if post: post()
+        im.filepath_raw = BAKE_DIR + nm + '.png'; im.file_format = 'PNG'; im.save(); S['imgs'][key] = im
+    def p_diffuse():
+        b = sc.render.bake; b.use_pass_direct = False; b.use_pass_indirect = False; b.use_pass_color = True
+    steps = [
+        ('join', lambda: S.update(gm=_join_game_mesh(decimate))),
+        ('uv', lambda: _uv(S['gm'])),
+        ('basecolor', lambda: bake('base', 'T_Knight_BaseColor', False, 'DIFFUSE', p_diffuse)),
+        ('roughness', lambda: bake('rough', 'T_Knight_Roughness', True, 'ROUGHNESS')),
+        ('normal', lambda: bake('normal', 'T_Knight_Normal', True, 'NORMAL')),
+        ('metallic', lambda: bake('metal', 'T_Knight_Metallic', True, 'EMIT', lambda: _metal_to_emit(S['gm'], True), lambda: _metal_to_emit(S['gm'], False))),
+        ('export', lambda: S.update(out=_export_baked_finish(S['gm'], S['imgs']))),
+    ]
+    sc.render.engine = 'CYCLES'; sc.cycles.samples = samples; sc.render.bake.margin = 6; sc.render.bake.normal_space = 'TANGENT'
+    q = list(steps)
+    def tick():
+        if not q:
+            w('done', out=S.get('out')); return None
+        nm, fn = q.pop(0); w('running', step=nm)
+        try: fn()
+        except Exception:
+            w('error', step=nm, tb=traceback.format_exc()[-1500:]); return None
+        return 0.2
+    w('queued'); bpy.app.timers.register(tick, first_interval=0.5)
+    return 'scheduled'
+
+def _export_baked_finish(gm, imgs, path=None):
+    r = rig(); path = path or BAKE_DIR + 'SK_HeroKnight_v14.gltf'
+    apply_baked_material(gm, imgs)
+    gm.parent = r; am = gm.modifiers.new('Armature', 'ARMATURE'); am.object = r
+    bpy.ops.object.select_all(action='DESELECT'); gm.select_set(True); r.select_set(True); bpy.context.view_layer.objects.active = r
+    for tr in r.animation_data.nla_tracks: tr.mute = False
+    bpy.ops.export_scene.gltf(filepath=path, use_selection=True, export_format='GLTF_SEPARATE', export_animations=True,
+                              export_animation_mode='ACTIONS', export_skins=True, export_apply=False, export_yup=True,
+                              export_texcoords=True, export_normals=True, export_tangents=True, export_materials='EXPORT')
+    for tr in r.animation_data.nla_tracks: tr.mute = True
+    tris = sum(len(p.vertices) - 2 for p in gm.data.polygons)
+    D.objects.remove(gm, do_unlink=True); r.data.pose_position = 'POSE'
+    return {'tris': tris, 'path': path}
