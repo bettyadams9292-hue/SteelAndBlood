@@ -3,9 +3,9 @@ skeletal meshes, give them the hero armour materials, and stand them in the show
 import unreal, importlib
 
 ORDER_DIR = '/Game/SteelAndBlood/Characters/Order'
-VARIANTS = ('Bascinet', 'Sallet', 'Hooded', 'Vigil')
+VARIANTS = ('Sgt_Bascinet', 'Sgt_Sallet', 'Hooded', 'Vigil')   # Sgt_* = sergeants (black livery), imported fresh to avoid slot-order drift
 # each member gets its own idle so the group reads as individuals
-LINEUP = {'Bascinet': ((200, -280, 0), 0, 'Idle_Ready'), 'Sallet': ((360, -280, 0), 0, 'Idle_Guard'),
+LINEUP = {'Sgt_Bascinet': ((200, -280, 0), 0, 'Idle_Ready'), 'Sgt_Sallet': ((360, -280, 0), 0, 'Idle_Guard'),
           'Hooded': ((520, -280, 0), 0, 'Idle_AtEase'), 'Vigil': ((680, -300, 0), 0, 'Idle_Vigil')}
 
 def _lib_map():
@@ -40,8 +40,9 @@ def place(name, loc, yaw, clip='Idle'):
     sk = next(find(name, 'SkeletalMesh'))
     idle = next((a for a in find(name, 'AnimSequence') if a.get_name().endswith(clip)), None)
     sub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    legacy = 'Order_' + name.replace('Sgt_', '')
     for a in sub.get_all_level_actors():
-        if a.get_actor_label() == 'Order_' + name: sub.destroy_actor(a)
+        if a.get_actor_label() in ('Order_' + name, legacy): sub.destroy_actor(a)
     act = sub.spawn_actor_from_class(unreal.SkeletalMeshActor, unreal.Vector(*loc), unreal.Rotator(0, 0, yaw))
     act.set_actor_label('Order_' + name)
     c = act.skeletal_mesh_component; c.set_skinned_asset_and_update(sk)
@@ -53,3 +54,22 @@ def place(name, loc, yaw, clip='Idle'):
 
 def place_all():
     return {v: place(v, *LINEUP[v]) for v in VARIANTS}
+
+
+def sk_path(name):
+    return next(find(name, 'SkeletalMesh')).get_path_name()
+
+def finalize():
+    """materials (library + hero armour set), placement with own idles, always-tick, save"""
+    import sb_ue_armor_mat as AM; importlib.reload(AM)
+    out = {}
+    for v in VARIANTS:
+        assign(v); AM.assign_hero(sk_path(v)); out[v] = place(v, *LINEUP[v])
+    sub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    for a in sub.get_all_level_actors():
+        if a.get_actor_label().startswith('Order_'):
+            c = a.skeletal_mesh_component
+            c.set_editor_property('animation_mode', unreal.AnimationMode.ANIMATION_SINGLE_NODE)
+            c.set_editor_property('visibility_based_anim_tick_option', unreal.VisibilityBasedAnimTickOption.ALWAYS_TICK_POSE_AND_REFRESH_BONES)
+    unreal.EditorLevelLibrary.save_current_level()
+    return out
