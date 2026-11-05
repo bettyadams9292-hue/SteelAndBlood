@@ -45,11 +45,11 @@ def mat_camo(name='ZMB_Camo'):
     out = n(t, 'ShaderNodeOutputMaterial', 1000, 0); b = n(t, 'ShaderNodeBsdfPrincipled', 700, 0); L(t, b, 0, out, 0)
     tc = n(t, 'ShaderNodeTexCoord', -1100, 0)
     n1 = n(t, 'ShaderNodeTexNoise', -800, 200, Scale=9.0, Detail=2.0, Distortion=1.5); L(t, tc, 'Object', n1, 'Vector')
-    camo = A._ramp(t, -550, 200, [(0.38, (0.10, 0.09, 0.06, 1)), (0.46, (0.24, 0.21, 0.14, 1)), (0.56, (0.17, 0.19, 0.11, 1)), (0.66, (0.33, 0.29, 0.20, 1))])
+    camo = A._ramp(t, -550, 200, [(0.38, (0.05, 0.045, 0.03, 1)), (0.46, (0.14, 0.12, 0.08, 1)), (0.56, (0.08, 0.09, 0.05, 1)), (0.66, (0.19, 0.16, 0.11, 1))])
     camo.color_ramp.interpolation = 'CONSTANT'; L(t, n1, 'Fac', camo, 'Fac')
     dirt = n(t, 'ShaderNodeTexNoise', -800, -150, Scale=4.0, Detail=8.0); L(t, tc, 'Object', dirt, 'Vector')
-    dr = A._ramp(t, -550, -150, [(0.55, (0, 0, 0, 1)), (0.75, (1, 1, 1, 1))]); L(t, dirt, 'Fac', dr, 'Fac')
-    c = n(t, 'ShaderNodeMix', -250, 100, data_type='RGBA'); L(t, dr, 'Color', c, 'Factor'); L(t, camo, 'Color', c, 'A'); c.inputs['B'].default_value = (0.13, 0.02, 0.012, 1)
+    dr = A._ramp(t, -550, -150, [(0.66, (0, 0, 0, 1)), (0.8, (0.7, 0.7, 0.7, 1))]); L(t, dirt, 'Fac', dr, 'Fac')
+    c = n(t, 'ShaderNodeMix', -250, 100, data_type='RGBA'); L(t, dr, 'Color', c, 'Factor'); L(t, camo, 'Color', c, 'A'); c.inputs['B'].default_value = (0.07, 0.035, 0.02, 1)
     L(t, c, 'Result', b, 'Base Color'); b.inputs['Roughness'].default_value = 0.9
     wv = n(t, 'ShaderNodeTexWave', -550, -450, Scale=500.0); L(t, tc, 'Object', wv, 'Vector')
     bump = n(t, 'ShaderNodeBump', 400, -400, Strength=0.15, Distance=0.0005); L(t, wv, 'Fac', bump, 'Height'); L(t, bump, 'Normal', b, 'Normal')
@@ -106,8 +106,8 @@ def box(name, bone, c, s, mat, rot=(0, 0, 0), bevel=0.004):
 def torso(M):
     """lofted gaunt torso in a torn fatigue shirt (rigid per segment: lower on spine_01, upper on spine_02)"""
     out = []
-    for nm, bone, z0, z1, a0, a1, b0, b1 in (('Belly', 'spine_01', 0.93, 1.32, 0.150, 0.155, 0.110, 0.105),
-                                              ('Chest', 'spine_02', 1.28, 1.55, 0.160, 0.115, 0.115, 0.085)):
+    for nm, bone, z0, z1, a0, a1, b0, b1 in (('Belly', 'spine_01', 0.90, 1.32, 0.178, 0.182, 0.128, 0.122),
+                                              ('Chest', 'spine_02', 1.28, 1.56, 0.190, 0.135, 0.130, 0.095)):
         rows = []
         for i in range(12):
             v = i / 11; z = z0 + (z1 - z0) * v; a = a0 + (a1 - a0) * v; b = b0 + (b1 - b0) * v
@@ -123,15 +123,15 @@ def torso(M):
 
 def head(M):
     out = []
-    H0, H1 = bone_pts('head'); c = Vector((0, -0.01, 1.715))
-    out.append(ellipsoid('ZMB_Skull', 'head', c, (0.082, 0.098, 0.112), M['skin']))
+    H0, H1 = bone_pts('head'); c = Vector((0, -0.012, 1.715))
+    out.append(ellipsoid('ZMB_Skull', 'head', c, (0.09, 0.104, 0.116), M['skin']))
     out.append(ellipsoid('ZMB_Jaw', 'head', c + Vector((0, -0.045, -0.085)), (0.062, 0.06, 0.035), M['skin']))
     for s in (-1, 1):
         out.append(ellipsoid('ZMB_Socket%d' % s, 'head', c + Vector((s * 0.035, -0.083, 0.012)), (0.024, 0.014, 0.018), M['eye']))
         out.append(ellipsoid('ZMB_Cheek%d' % s, 'head', c + Vector((s * 0.05, -0.07, -0.035)), (0.022, 0.02, 0.03), M['skin']))
     out.append(box('ZMB_Teeth', 'head', c + Vector((0, -0.092, -0.06)), (0.06, 0.012, 0.022), M['teeth'], bevel=0.003))
     out.append(ellipsoid('ZMB_NoseHole', 'head', c + Vector((0, -0.097, -0.018)), (0.012, 0.008, 0.016), M['eye']))
-    out.append(tube('ZMB_Neck', 'neck_01', Vector((0, -0.005, 1.50)), Vector((0, -0.005, 1.66)), 0.0, 1.0, lambda v: (0.048, 0.046), M['skin'], 6, 16))
+    out.append(tube('ZMB_Neck', 'neck_01', Vector((0, -0.005, 1.50)), Vector((0, -0.005, 1.66)), 0.0, 1.0, lambda v: (0.056, 0.054), M['skin'], 6, 16))
     # combat helmet: dome + rim + chin strap
     rows = []
     for i in range(12):
@@ -151,8 +151,8 @@ def head(M):
 def arms(M):
     for s, sd in ((1, 'l'), (-1, 'r')):
         U0, U1 = bone_pts('upperarm_' + sd); L0, L1 = bone_pts('lowerarm_' + sd); H0, H1 = bone_pts('hand_' + sd)
-        tube('ZMB_Sleeve_' + sd, 'upperarm_' + sd, U0, U1, -0.05, 1.0, lambda v: (0.058 - 0.01 * v, 0.055 - 0.01 * v), M['camo'], 8, 20, tear=0.6, seed=3 + s)
-        tube('ZMB_Forearm_' + sd, 'lowerarm_' + sd, L0, L1, 0.0, 1.02, lambda v: (0.038 - 0.01 * v, 0.033 - 0.01 * v), M['skin'], 8, 16)
+        tube('ZMB_Sleeve_' + sd, 'upperarm_' + sd, U0, U1, -0.05, 1.0, lambda v: (0.072 - 0.01 * v, 0.068 - 0.01 * v), M['camo'], 8, 20, tear=0.6, seed=3 + s)
+        tube('ZMB_Forearm_' + sd, 'lowerarm_' + sd, L0, L1, 0.0, 1.02, lambda v: (0.042 - 0.012 * v, 0.038 - 0.01 * v), M['skin'], 8, 16)
         ellipsoid('ZMB_Elbow_' + sd, 'lowerarm_' + sd, L0, (0.036, 0.036, 0.036), M['skin'])
         d = (H1 - H0).normalized()
         box('ZMB_Palm_' + sd, 'hand_' + sd, H0 + d * 0.035, (0.022, 0.06, 0.07), M['skin'], rot=d.to_track_quat('Z', 'Y').to_euler(), bevel=0.008)
@@ -165,10 +165,10 @@ def arms(M):
 def legs(M):
     for s, sd in ((1, 'l'), (-1, 'r')):
         T0, T1 = bone_pts('thigh_' + sd); C0, C1 = bone_pts('calf_' + sd); F0, F1 = bone_pts('foot_' + sd); B0, B1 = bone_pts('ball_' + sd)
-        tube('ZMB_Thigh_' + sd, 'thigh_' + sd, T0 + Vector((0, 0, 0.04)), T1, 0.0, 1.05, lambda v: (0.088 - 0.022 * v, 0.085 - 0.02 * v), M['camo'], 10, 22)
-        tube('ZMB_Shin_' + sd, 'calf_' + sd, C0, C1, -0.03, 0.75, lambda v: (0.062 - 0.012 * v, 0.066 - 0.016 * v), M['camo'], 8, 22, tear=0.5, seed=7 + s)
+        tube('ZMB_Thigh_' + sd, 'thigh_' + sd, T0 + Vector((0, 0, 0.04)), T1, 0.0, 1.05, lambda v: (0.105 - 0.025 * v, 0.1 - 0.022 * v), M['camo'], 10, 22)
+        tube('ZMB_Shin_' + sd, 'calf_' + sd, C0, C1, -0.03, 0.75, lambda v: (0.074 - 0.012 * v, 0.078 - 0.016 * v), M['camo'], 8, 22, tear=0.5, seed=7 + s)
         box('ZMB_KneePad_' + sd, 'calf_' + sd, C0 + Vector((0, -0.065, -0.02)), (0.07, 0.025, 0.09), M['webbing'], bevel=0.01)
-        tube('ZMB_BootShaft_' + sd, 'calf_' + sd, C0, C1, 0.68, 1.05, lambda v: (0.052, 0.056), M['boot'], 6, 18)
+        tube('ZMB_BootShaft_' + sd, 'calf_' + sd, C0, C1, 0.68, 1.05, lambda v: (0.058, 0.062), M['boot'], 6, 18)
         ft = (B1 - F0); box('ZMB_Boot_' + sd, 'foot_' + sd, F0 + ft * 0.5 + Vector((0, 0, -0.02)), (0.09, ft.length + 0.06, 0.07), M['boot'],
                             rot=Vector((ft.x, ft.y, 0)).normalized().to_track_quat('Y', 'Z').to_euler(), bevel=0.02)
 
@@ -229,8 +229,8 @@ def z_idle(t, L):
 def z_walk(t, L):
     """dragging shamble: right leg lurches, left drags, arms reaching forward"""
     ph = 2 * math.pi * t / L; s = math.sin(ph); c = math.cos(ph)
-    p = {'thigh_r': E(x=-30 * max(0.0, s) + 10 * max(0.0, -s)), 'calf_r': E(x=-(10 + 35 * max(0.0, math.sin(ph + 0.6)))),
-         'thigh_l': E(x=-12 * max(0.0, -s) + 14 * max(0.0, s), z=-8), 'calf_l': E(x=-6), 'foot_l': E(x=12),
+    p = {'thigh_r': E(x=-16 * max(0.0, s) + 10 * max(0.0, -s)), 'calf_r': E(x=-(8 + 26 * max(0.0, math.sin(ph + 0.6)))),
+         'thigh_l': E(x=-8 * max(0.0, -s) + 12 * max(0.0, s), z=-6), 'calf_l': E(x=-6), 'foot_l': E(x=10),
          'pelvis': E(z=8 * s, y=6 * c), 'spine_01': E(x=12, z=-6 * s), 'spine_02': E(x=10, y=-5 * c), 'head': E(x=12, z=8 * s, y=6 * c),
          'upperarm_l': E(x=-62 + 6 * s, z=-6), 'lowerarm_l': E(x=-18), 'upperarm_r': E(x=-70 - 6 * s, z=8), 'lowerarm_r': E(x=-10)}
     return full(p), {'pelvis': (0, 0, -0.06 + 0.03 * abs(c))}
