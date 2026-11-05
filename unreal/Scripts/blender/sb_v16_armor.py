@@ -226,7 +226,7 @@ def edge_lines(rows, closed=False):
     return bot, top, left, right
 
 # ------------------------------------------------------------------ cross pattee decal
-def cross_pattee_outline(half=1.0, waist=0.13, flare=0.36, notch=0.06):
+def cross_pattee_outline(half=1.0, waist=0.085, flare=0.30, notch=0.045):
     """2D outline (x, y) of a Templar cross pattee, arms flared, ends slightly concave"""
     pts = []
     for k in range(4):
@@ -407,8 +407,8 @@ def pauldrons(M):
 
 def chest_cross(M, bp):
     c = Vector((0.0, CY - 0.24, 1.315)); n = Vector((0, -1, 0.12)); up = Vector((0, 0, 1))
-    decal('V16_ChestCrossGold', cross_pattee_outline(), c, n, up, 0.118, M['gold'], bp, 0.0012, 0.0012, 'spine_02')
-    decal('V16_ChestCross', cross_pattee_outline(), c, n, up, 0.106, M['red'], bp, 0.0026, 0.0014, 'spine_02')
+    decal('V16_ChestCrossGold', cross_pattee_outline(waist=0.10, flare=0.33), c, n, up, 0.128, M['gold'], bp, 0.0012, 0.0012, 'spine_02')
+    decal('V16_ChestCross', cross_pattee_outline(), c, n, up, 0.115, M['red'], bp, 0.0026, 0.0014, 'spine_02')
 
 OLD_TORSO = re.compile(r'^(Breastplate|Backplate|Plackart|Gorget\d|Pauldron|PauldronLame|PCross|ChestCross|BPRivet|BPSideRivet|PLRivet|Fauld\d|SealPauldron|PendH|PendLink|PendV)')
 
@@ -443,3 +443,133 @@ def setup_cams():
         co.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
         cams[nm] = co
     return cams
+
+
+# ------------------------------------------------------------------ global material upgrade for remaining legacy parts
+SWAP = {'ArmorPlate': 'ivory', 'Armor': 'ivory', 'Gold': 'gold', 'RedPaint': 'red', 'DarkSteel': 'dark', 'DarkMetal': 'dark'}
+
+def swap_materials(M=None):
+    M = M or {'ivory': D.materials['V16_Ivory'], 'gold': D.materials['V16_Gold'], 'red': D.materials['V16_Crimson'], 'dark': D.materials['V16_DarkSteel']}
+    n = 0
+    for o in D.objects:
+        if o.type not in ('MESH', 'CURVE') or o.name.startswith('V16_'): continue
+        for sl in o.material_slots:
+            if sl.material and sl.material.name in SWAP:
+                if sl.link == 'OBJECT': sl.material = M[SWAP[sl.material.name]]
+                else: o.data.materials[sl.slot_index] = M[SWAP[sl.material.name]]
+                n += 1
+    return n
+
+def rebuild_crosses():
+    M = {'gold': D.materials['V16_Gold'], 'red': D.materials['V16_Crimson']}
+    for o in [o for o in D.objects if re.match(r'^V16_(Paul|Chest)Cross', o.name)]: D.objects.remove(o, do_unlink=True)
+    r = rig(); r.data.pose_position = 'REST'; bpy.context.view_layer.update()
+    chest_cross(M, D.objects['V16_Breastplate'])
+    for s, sd in ((1, 'l'), (-1, 'r')):
+        A, E1, E2 = _paul_frame(s); C = Vector((s * 0.232, CY + 0.004, 1.418)); dome = D.objects['V16_PauldronDome_' + sd]
+        cpos = paul_pt(C, A, E1, E2, 0.16, 34, 0); nrm = (cpos - C).normalized()
+        decal('V16_PaulCrossGold_' + sd, cross_pattee_outline(), cpos, nrm, A, 0.078, M['gold'], dome, 0.0012, 0.0012, 'upperarm_' + sd)
+        decal('V16_PaulCross_' + sd, cross_pattee_outline(), cpos, nrm, A, 0.068, M['red'], dome, 0.0026, 0.0012, 'upperarm_' + sd)
+    r.data.pose_position = 'POSE'
+
+# ------------------------------------------------------------------ limbs
+def bone_pts(bn):
+    r = rig(); b = r.data.bones[bn]
+    return r.matrix_world @ b.head_local, r.matrix_world @ b.tail_local
+
+def tube_pts(P0, P1, t, rx, ry, front, theta, n=2.3, keel=0.0):
+    d = (P1 - P0).normalized(); f = (front - d * front.dot(d)).normalized(); sd = d.cross(f)
+    c = P0 + (P1 - P0) * t; s, co = math.sin(theta), math.cos(theta)
+    x = rx * sgnpow(s, 2.0 / n); y = ry * sgnpow(co, 2.0 / n)
+    y += keel * math.exp(-(x / 0.02) ** 2)
+    return c + sd * x + f * y
+
+def limb(name, bone, P0, P1, t0, t1, rad, front, M, theta_max=180.0, nr=14, nc=36, keel=0.0, thick=0.004, pipes=(True, True), n=2.3):
+    closed = theta_max >= 180.0
+    rows = []
+    for i in range(nr):
+        v = i / (nr - 1); t = t0 + (t1 - t0) * v; rx, ry = rad(v)
+        if closed: ths = [2 * math.pi * j / nc for j in range(nc)]
+        else: ths = [math.radians(theta_max) * (j / (nc - 1) * 2 - 1) for j in range(nc)]
+        rows.append([tube_pts(P0, P1, t, rx, ry, front, th, n, keel) for th in ths])
+    axisP0, axisP1 = P0, P1
+    def outward(p):
+        d = (axisP1 - axisP0).normalized(); q = p - axisP0; return q - d * q.dot(d)
+    o = grid_obj(name, rows, [M['ivory'], M['gold']], border_fn(1, 1, 0 if closed else 1, 1), closed=closed, outward=outward)
+    finish_plate(o, thick)
+    if pipes[0]: bind_rigid(pipe(name + 'PipeA', rows[0], thick * 0.95, M['gold'], closed=closed), bone)
+    if pipes[1]: bind_rigid(pipe(name + 'PipeB', rows[-1], thick * 0.95, M['gold'], closed=closed), bone)
+    bind_rigid(o, bone)
+    return o, rows
+
+def strap(name, bone, P0, P1, t, rx, ry, front, M, width=0.022):
+    rows = [[tube_pts(P0, P1, t + dt, rx, ry, front, 2 * math.pi * j / 40) for j in range(40)] for dt in (-width / (P1 - P0).length / 2, width / (P1 - P0).length / 2)]
+    leather = D.materials.get('Leather') or M['dark']
+    o = grid_obj(name, rows, [leather], closed=True, outward=lambda p: p - (P0 + (P1 - P0) * t))
+    s = o.modifiers.new('Thick', 'SOLIDIFY'); s.thickness = 0.003; s.offset = 1.0
+    bind_rigid(o, bone)
+    # buckle on the outer side
+    side = (P1 - P0).normalized().cross((front - (P1 - P0).normalized() * front.dot((P1 - P0).normalized())).normalized())
+    pos = tube_pts(P0, P1, t, rx + 0.004, ry + 0.004, front, math.pi / 2)
+    bpy.ops.mesh.primitive_cube_add(size=1.0, location=pos)
+    bk = bpy.context.active_object; bk.name = name + 'Buckle'
+    bk.scale = (0.006, 0.024, 0.026)
+    bk.rotation_euler = side.to_track_quat('X', 'Z').to_euler()
+    for c in bk.users_collection: c.objects.unlink(bk)
+    coll().objects.link(bk); bk.data.materials.append(M['gold'])
+    bv = bk.modifiers.new('B', 'BEVEL'); bv.width = 0.002; bv.segments = 2
+    bind_rigid(bk, bone)
+    return o
+
+def cap(name, bone, C, axis, r, phi_max, M, sq=(0.75, 1.0, 1.0), up=Vector((0, 0, 1)), thick=0.0045, boss=True, ncol=40):
+    A = axis.normalized(); E1 = (up - A * up.dot(A)).normalized(); E2 = A.cross(E1)
+    rows = []
+    for i in range(12):
+        ph = math.radians(6 + (phi_max - 6) * i / 11)
+        rows.append([C + r * (math.cos(ph) * A * sq[0] + math.sin(ph) * (math.cos(2 * math.pi * j / ncol) * E2 * sq[1] + math.sin(2 * math.pi * j / ncol) * E1 * sq[2])) for j in range(ncol)])
+    o = grid_obj(name, rows, [M['ivory'], M['gold']], border_fn(0, 1, 0, 1), closed=True, outward=lambda p: p - C)
+    finish_plate(o, thick)
+    bind_rigid(pipe(name + 'Pipe', rows[-1], thick * 0.95, M['gold'], closed=True), bone)
+    if boss:
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, radius=r * 0.16, location=C + A * r * sq[0])
+        bs = bpy.context.active_object; bs.name = name + 'Boss'; bs.scale = (1, 1, 0.5); bs.rotation_euler = A.to_track_quat('Z', 'Y').to_euler()
+        for c in bs.users_collection: c.objects.unlink(bs)
+        coll().objects.link(bs); bs.data.materials.append(M['gold'])
+        for p in bs.data.polygons: p.use_smooth = True
+        bind_rigid(bs, bone)
+    bind_rigid(o, bone)
+    return o
+
+OLD_LIMBS = re.compile(r'^(Rerebrace|RereStrap|Couter|CouterWing|Vambrace|VambStrap|Cuisse|CuisseLame|CuisseStrap|Greave|GreaveLame|GreaveStrap|Poleyn|PoleynWing|KneeCross|HandLCuff|HandRCuff)')
+
+def build_limbs():
+    r = rig(); r.data.pose_position = 'REST'; bpy.context.view_layer.update()
+    for o in [o for o in D.objects if re.match(r'^V16_(Rere|Couter|Vamb|Cuff|Cuisse|Poleyn|Greave|Strap)', o.name)]: D.objects.remove(o, do_unlink=True)
+    M = {'ivory': D.materials['V16_Ivory'], 'gold': D.materials['V16_Gold'], 'red': D.materials['V16_Crimson'], 'dark': D.materials['V16_DarkSteel']}
+    hide_old(OLD_LIMBS)
+    F = Vector((0, -1, 0))
+    for s, sd in ((1, 'l'), (-1, 'r')):
+        # ---- arm
+        U0, U1 = bone_pts('upperarm_' + sd); L0, L1 = bone_pts('lowerarm_' + sd); H0, H1 = bone_pts('hand_' + sd)
+        limb('V16_Rere_' + sd, 'upperarm_' + sd, U0, U1, 0.36, 0.86, lambda v: (0.083 - 0.008 * v + 0.004 * math.sin(math.pi * v), 0.080 - 0.008 * v), F, M, nr=12, nc=40)
+        strap('V16_StrapRere_' + sd, 'upperarm_' + sd, U0, U1, 0.62, 0.0845, 0.0815, F, M)
+        du = (U1 - U0).normalized(); dl = (L1 - L0).normalized()
+        ax = (du - dl).normalized() + Vector((0, 0.9, 0)) + Vector((s * 0.5, 0, 0))
+        cap('V16_Couter_' + sd, 'lowerarm_' + sd, L0 + ax.normalized() * 0.012, ax, 0.078, 72, M, sq=(0.75, 1.0, 1.08), up=du)
+        limb('V16_Vamb_' + sd, 'lowerarm_' + sd, L0, L1, 0.22, 0.95, lambda v: (0.072 - 0.014 * v + 0.006 * math.exp(-((v - 0.25) / 0.2) ** 2), 0.068 - 0.014 * v), F, M, nr=12, nc=40)
+        strap('V16_StrapVamb_' + sd, 'lowerarm_' + sd, L0, L1, 0.55, 0.0655, 0.0615, F, M)
+        # gauntlet cuff (flared bell over the wrist)
+        limb('V16_Cuff_' + sd, 'hand_' + sd, L1 - dl * 0.045, L1 + dl * 0.035, 0.0, 1.0, lambda v: (0.060 + 0.022 * v * v, 0.058 + 0.020 * v * v), F, M, nr=8, nc=40, thick=0.0035)
+        # ---- leg
+        T0, T1 = bone_pts('thigh_' + sd); C0, C1 = bone_pts('calf_' + sd)
+        limb('V16_Cuisse_' + sd, 'thigh_' + sd, T0, T1, 0.16, 0.86, lambda v: (0.118 - 0.026 * v, 0.112 - 0.022 * v), F, M, theta_max=128, nr=16, nc=34, keel=0.006)
+        strap('V16_StrapCuisse_' + sd, 'thigh_' + sd, T0, T1, 0.45, 0.112, 0.106, F, M, width=0.026)
+        kc = C0 + Vector((0, -0.035, 0.0))
+        cap('V16_Poleyn_' + sd, 'calf_' + sd, kc, Vector((s * 0.25, -1.0, 0.05)), 0.080, 74, M, sq=(0.72, 1.0, 1.18), up=Vector((0, 0, 1)))
+        limb('V16_Greave_' + sd, 'calf_' + sd, C0, C1, 0.13, 0.93, lambda v: (0.072 + 0.012 * math.sin(math.pi * min(1, v * 1.6)) - 0.02 * v, 0.078 + 0.012 * math.sin(math.pi * min(1, v * 1.6)) - 0.024 * v), F, M, nr=18, nc=40, keel=0.007)
+        strap('V16_StrapGreave_' + sd, 'calf_' + sd, C0, C1, 0.72, 0.0705, 0.0745, F, M)
+        # small red cross on each poleyn
+        pol = D.objects['V16_Poleyn_' + sd]; pc = kc + Vector((s * 0.25, -1.0, 0.05)).normalized() * 0.06
+        decal('V16_PoleynCross_' + sd, cross_pattee_outline(), pc, Vector((s * 0.25, -1.0, 0.05)), Vector((0, 0, 1)), 0.028, M['red'], pol, 0.0022, 0.001, 'calf_' + sd)
+    r.data.pose_position = 'POSE'
+    return len([o for o in D.objects if o.name.startswith('V16_')])
