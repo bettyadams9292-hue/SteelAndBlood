@@ -922,3 +922,148 @@ def rebuild_all():
     except Exception: res['limbs'] = 'ERROR ' + traceback.format_exc()[-800:]
     res.update(run_rest())
     return res
+
+# ------------------------------------------------------------------ texture bake for Unreal
+# Unreal cannot run the Cycles shaders (bevel-node edge wear, AO grime, engraving, scratches), so the joined
+# game mesh is UV-unwrapped and every material is baked into one PBR set: BaseColor, Roughness, Metallic, Normal.
+BAKE_DIR = 'C:/Users/decca/OneDrive/Documents/Unreal Projects/Steelandblood/Saved/SB/out/v16bake/'
+
+def _join_game_mesh(decimate=0.5, curve_res=3):
+    import sb_v14 as K
+    r = rig(); r.data.pose_position = 'REST'
+    saved_cv = [(o.data, o.data.resolution_u, o.data.bevel_resolution) for o in D.objects if o.type == 'CURVE']
+    for c, ru, br in saved_cv: c.resolution_u = min(ru, curve_res); c.bevel_resolution = min(br, 1)
+    bpy.context.view_layer.update(); dg = bpy.context.evaluated_depsgraph_get(); pieces = []
+    for o in D.objects:
+        if o.type not in ('MESH', 'CURVE') or K.EXCLUDE.match(o.name) or o.hide_render: continue
+        p = o; bn = None; grad = False
+        while p:
+            if p.parent == r: bn = p.parent_bone if p.parent_type == 'BONE' else None; grad = p.parent_type != 'BONE'; break
+            p = p.parent
+        if p is None: continue
+        try: me = D.meshes.new_from_object(o.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
+        except Exception: continue
+        if not me.polygons: D.meshes.remove(me); continue
+        me.transform(o.matrix_world)
+        po = D.objects.new('X_' + o.name, me); bpy.context.scene.collection.objects.link(po)
+        if grad:
+            fn = K.GRAD.get(o.get('sb_grad', 'torso'), K.w_torso); gs = {}
+            for v in me.vertices:
+                for b2, w in fn(v.co):
+                    if w > 1e-4:
+                        g = gs.get(b2) or po.vertex_groups.new(name=b2); gs[b2] = g; g.add([v.index], w, 'REPLACE')
+        else:
+            g = po.vertex_groups.new(name=bn); g.add(list(range(len(me.vertices))), 1.0, 'REPLACE')
+        pieces.append(po)
+    for c, ru, br in saved_cv: c.resolution_u = ru; c.bevel_resolution = br
+    bpy.ops.object.select_all(action='DESELECT')
+    for po in pieces: po.select_set(True)
+    bpy.context.view_layer.objects.active = pieces[0]; bpy.ops.object.join()
+    gm = bpy.context.view_layer.objects.active; gm.name = 'SK_HeroKnight_v14'
+    if decimate and decimate < 1:
+        dm = gm.modifiers.new('Dec', 'DECIMATE'); dm.ratio = decimate; dm.use_collapse_triangulate = True
+        bpy.ops.object.modifier_apply(modifier=dm.name)
+    return gm
+
+def _uv(gm):
+    bpy.ops.object.select_all(action='DESELECT'); gm.select_set(True); bpy.context.view_layer.objects.active = gm
+    while len(gm.data.uv_layers): gm.data.uv_layers.remove(gm.data.uv_layers[0])
+    gm.data.uv_layers.new(name='UVMap')
+    bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project(angle_limit=math.radians(55), island_margin=0.0015, area_weight=0.0, scale_to_bounds=False)
+    try: bpy.ops.uv.pack_islands(margin=0.0015, rotate=True)
+    except Exception: pass
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+def _bake_target(gm, img):
+    for sl in gm.material_slots:
+        m = sl.material
+        if not m or not m.use_nodes: continue
+        t = m.node_tree; n = t.nodes.get('SB_BAKE') or t.nodes.new('ShaderNodeTexImage'); n.name = 'SB_BAKE'
+        n.image = img; t.nodes.active = n; n.select = True
+
+def _metal_to_emit(gm, on=True):
+    """route each Principled's Metallic into an Emission shader for the metallic bake (and restore)."""
+    for sl in gm.material_slots:
+        m = sl.material
+        if not m or not m.use_nodes: continue
+        t = m.node_tree; out = next((n for n in t.nodes if n.bl_idname == 'ShaderNodeOutputMaterial' and n.is_active_output), None)
+        b = next((n for n in t.nodes if n.bl_idname == 'ShaderNodeBsdfPrincipled'), None)
+        if not out or not b: continue
+        if on:
+            m['sb_out_from'] = out.inputs['Surface'].links[0].from_node.name if out.inputs['Surface'].links else ''
+            em = t.nodes.get('SB_EMIT') or t.nodes.new('ShaderNodeEmission'); em.name = 'SB_EMIT'
+            for l in list(em.inputs['Color'].links): t.links.remove(l)
+            src = b.inputs['Metallic']
+            if src.links: t.links.new(src.links[0].from_socket, em.inputs['Color'])
+            else: v = src.default_value; em.inputs['Color'].default_value = (v, v, v, 1)
+            t.links.new(em.outputs[0], out.inputs['Surface'])
+        else:
+            prev = t.nodes.get(m.get('sb_out_from', ''))
+            if prev: t.links.new(prev.outputs[0], out.inputs['Surface'])
+            em = t.nodes.get('SB_EMIT')
+            if em: t.nodes.remove(em)
+
+def bake_textures(gm, res=4096, samples=24):
+    import os
+    os.makedirs(BAKE_DIR, exist_ok=True)
+    sc = bpy.context.scene; sc.render.engine = 'CYCLES'; sc.cycles.samples = samples
+    bk = sc.render.bake; bk.margin = 8; bk.use_clear = True
+    imgs = {}
+    def new_img(nm, non_color):
+        im = D.images.get(nm)
+        if im: D.images.remove(im)
+        im = D.images.new(nm, res, res, alpha=False, float_buffer=False)
+        if non_color: im.colorspace_settings.name = 'Non-Color'
+        return im
+    bpy.ops.object.select_all(action='DESELECT'); gm.select_set(True); bpy.context.view_layer.objects.active = gm
+    # base colour
+    im = new_img('T_Knight_BaseColor', False); _bake_target(gm, im)
+    bk.use_pass_direct = False; bk.use_pass_indirect = False; bk.use_pass_color = True
+    bpy.ops.object.bake(type='DIFFUSE'); im.filepath_raw = BAKE_DIR + 'T_Knight_BaseColor.png'; im.file_format = 'PNG'; im.save(); imgs['base'] = im
+    # roughness
+    im = new_img('T_Knight_Roughness', True); _bake_target(gm, im)
+    bpy.ops.object.bake(type='ROUGHNESS'); im.filepath_raw = BAKE_DIR + 'T_Knight_Roughness.png'; im.file_format = 'PNG'; im.save(); imgs['rough'] = im
+    # normal (tangent space, includes shader bump)
+    im = new_img('T_Knight_Normal', True); _bake_target(gm, im)
+    bk.normal_space = 'TANGENT'
+    bpy.ops.object.bake(type='NORMAL'); im.filepath_raw = BAKE_DIR + 'T_Knight_Normal.png'; im.file_format = 'PNG'; im.save(); imgs['normal'] = im
+    # metallic via emission
+    im = new_img('T_Knight_Metallic', True); _bake_target(gm, im)
+    _metal_to_emit(gm, True)
+    try: bpy.ops.object.bake(type='EMIT')
+    finally: _metal_to_emit(gm, False)
+    im.filepath_raw = BAKE_DIR + 'T_Knight_Metallic.png'; im.file_format = 'PNG'; im.save(); imgs['metal'] = im
+    return imgs
+
+def apply_baked_material(gm, imgs):
+    m = D.materials.get('M_Knight_Baked') or D.materials.new('M_Knight_Baked'); m.use_nodes = True; t = m.node_tree
+    for n in list(t.nodes): t.nodes.remove(n)
+    out = _n(t, 'ShaderNodeOutputMaterial', 600, 0); b = _n(t, 'ShaderNodeBsdfPrincipled', 300, 0); _L(t, b, 0, out, 0)
+    def tex(im, y):
+        n = t.nodes.new('ShaderNodeTexImage'); n.image = im; n.location = (-400, y); return n
+    _L(t, tex(imgs['base'], 300), 'Color', b, 'Base Color')
+    _L(t, tex(imgs['rough'], 0), 'Color', b, 'Roughness')
+    _L(t, tex(imgs['metal'], -300), 'Color', b, 'Metallic')
+    nm = _n(t, 'ShaderNodeNormalMap', 0, -600); _L(t, tex(imgs['normal'], -600), 'Color', nm, 'Color'); _L(t, nm, 'Normal', b, 'Normal')
+    gm.data.materials.clear(); gm.data.materials.append(m)
+    for p in gm.data.polygons: p.material_index = 0
+    return m
+
+def export_baked(path=None, res=4096, decimate=0.5):
+    """join -> UV -> bake -> single PBR material -> skinned glTF with all actions. Returns stats."""
+    import time
+    t0 = time.time(); r = rig(); path = path or BAKE_DIR + 'SK_HeroKnight_v14.gltf'
+    gm = _join_game_mesh(decimate); _uv(gm)
+    imgs = bake_textures(gm, res); apply_baked_material(gm, imgs)
+    gm.parent = r; am = gm.modifiers.new('Armature', 'ARMATURE'); am.object = r
+    bpy.ops.object.select_all(action='DESELECT'); gm.select_set(True); r.select_set(True); bpy.context.view_layer.objects.active = r
+    for tr in r.animation_data.nla_tracks: tr.mute = False
+    bpy.ops.export_scene.gltf(filepath=path, use_selection=True, export_format='GLTF_SEPARATE', export_animations=True,
+                              export_animation_mode='ACTIONS', export_skins=True, export_apply=False, export_yup=True,
+                              export_texcoords=True, export_normals=True, export_tangents=True, export_materials='EXPORT', export_image_format='AUTO')
+    for tr in r.animation_data.nla_tracks: tr.mute = True
+    tris = sum(len(p.vertices) - 2 for p in gm.data.polygons)
+    D.objects.remove(gm, do_unlink=True)
+    r.data.pose_position = 'POSE'
+    return {'tris': tris, 'seconds': round(time.time() - t0), 'path': path}
