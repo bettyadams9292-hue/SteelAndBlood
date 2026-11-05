@@ -18,6 +18,23 @@ def ensure_instances(P):
     M.PALETTE['Brass'] = ((0.80, 0.58, 0.26), 1.0, 0.36, 0.5, (0.35, 0.25, 0.15), False, None)
     M.PALETTE['Walnut'] = ((0.20, 0.10, 0.045), 0.0, 0.55, 0.3, (0.6, 0.55, 0.5), False, None)
     for k in ('Enamel', 'Brass', 'Walnut'): M.instance(k, True)
+    tune()
+
+TUNE = {'Enamel': {'GrimeAmount': 0.10, 'Roughness': 0.30, 'Metallic': 0.0, 'BaseColor': (0.74, 0.69, 0.57)},
+        'Brass': {'GrimeAmount': 0.12, 'Roughness': 0.28, 'BaseColor': (0.85, 0.60, 0.26)},
+        'ClothWhite': {'GrimeAmount': 0.25, 'BaseColor': (0.66, 0.62, 0.53)},
+        'ClothRed': {'GrimeAmount': 0.12, 'Roughness': 0.55, 'BaseColor': (0.32, 0.012, 0.015)},
+        'SteelDark': {'GrimeAmount': 0.1}}
+
+def tune():
+    """hero-specific MI values (the library defaults are grimy for environment props)"""
+    L = unreal.MaterialEditingLibrary
+    for k, v in TUNE.items():
+        mi = unreal.load_asset('/Game/SteelAndBlood/Materials/Instances/MI_' + k + '_SK')
+        for p, val in v.items():
+            if isinstance(val, tuple): L.set_material_instance_vector_parameter_value(mi, p, unreal.LinearColor(*val, 1.0))
+            else: L.set_material_instance_scalar_parameter_value(mi, p, val)
+        L.update_material_instance(mi); unreal.EditorAssetLibrary.save_asset(mi.get_path_name())
 
 def import_hero(gltf_path, P):
     ensure_instances(P)
