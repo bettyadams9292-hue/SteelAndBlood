@@ -1,32 +1,57 @@
-; BP_OrderMember (parent Character) - EventGraph, written with BlueprintTools.write_graph_dsl
-; vars: IdleAnim, WalkAnim (AnimSequence, instance-editable), FormOffset (Vector, instance-editable), CurAnim (int)
-; CDO: mesh rel loc (0,0,-96) yaw -90, AlwaysTickPoseAndRefreshBones; CharacterMovement orient-to-movement, 330 cm/s, yaw rate 540;
-; AutoPossessAI PlacedInWorldOrSpawned. Pathfinding via SimpleMoveToLocation on NavBounds_Courtyard navmesh.
+; BP_OrderMember (parent Character) - EventGraph (BlueprintTools.write_graph_dsl)
+; vars: IdleAnim, WalkAnim, AttackAnim (AnimSequence, instance-editable), FormOffset (Vector, ed), AttackRange (float, ed),
+;       CurAnim (int), AttackCD, ActionT, NearD (float), Nearest (Actor)
+; CDO: mesh rel loc (0,0,-96) yaw -90, AlwaysTickPose; walk 420 cm/s, orient-to-movement, yaw rate 540; AutoPossessAI placed/spawned.
+; Behaviour: nearest BP_Zombie within 5.5 m -> engage (move to it, attack inside AttackRange: ApplyDamage 35, 1.6 s cooldown);
+;            otherwise hold formation slot (FormOffset from the hero, projected onto the navmesh). Navmesh path following
+;            with a direct-steering fallback when path following isn't moving the pawn.
 (event EventBeginPlay
   (Variables|Default|SetCurAnim -1))
 
 (event EventTick (DeltaSeconds)
-  (bind pawn (Game|GetPlayerPawn 0))
+  (Variables|Default|SetAttackCD (- (Variables|Default|GetAttackCD) DeltaSeconds))
+  (Variables|Default|SetActionT (- (Variables|Default|GetActionT) DeltaSeconds))
+  (Variables|Default|SetNearD 99999.0)
   (bind me (Transformation|GetActorLocation))
+  (for z (Actor|GetAllActorsOfClass :ActorClass "/Game/SteelAndBlood/Blueprints/BP_Zombie.BP_Zombie_C")
+    (bind zd (Math|Vector|VectorLength (- (Transformation|GetActorLocation :self z) me)))
+    (if (< zd (Variables|Default|GetNearD))
+      (Variables|Default|SetNearD zd)
+      (Variables|Default|SetNearest z)))
+  (bind nearD (Variables|Default|GetNearD))
+  (bind nz (Variables|Default|GetNearest))
+  (bind engaged (< nearD 550.0))
+  (bind pawn (Game|GetPlayerPawn 0))
   (bind tgt (Transformation|GetActorLocation :self pawn))
   (bind raw (+ tgt (Variables|Default|GetFormOffset)))
-  ; formation slots can land inside props (barricades): snap to the nearest walkable point
   (bind (projLoc onNav) (AI|Navigation|ProjectPointtoNavigation :Point raw :QueryExtent (Math|Vector|MakeVector :X 400.0 :Y 400.0 :Z 300.0)))
-  (bind goal (select onNav projLoc raw))
+  (bind form (select onNav projLoc raw))
+  (bind zloc (Transformation|GetActorLocation :self nz))
+  (bind goal (select engaged zloc form))
   (bind d (- goal me))
   (bind flat (Math|Vector|MakeVector :X (.x d) :Y (.y d) :Z 0.0))
   (bind dist (Math|Vector|VectorLength flat))
-  (bind want (select (> dist 70.0) 1 0))
+  (bind stop (select engaged (* (Variables|Default|GetAttackRange) 0.8) 70.0))
   (bind speed (Math|Vector|VectorLength (Transformation|GetVelocity)))
   (bind ctrl (Pawn|GetController))
-  ; fallback steering when path following isn't moving us (e.g. no nav data under the goal)
-  (Pawn|Input|AddMovementInput :WorldDirection flat :ScaleValue (select (and (> dist 70.0) (< speed 30.0)) 1.0 0.0))
-  (if (> dist 70.0)
-    (AI|Navigation|SimpleMovetoLocation :Controller ctrl :Goal goal))
   (bind mesh (Variables|Character|GetMesh))
-  (if (!= want (Variables|Default|GetCurAnim))
-    (Variables|Default|SetCurAnim want)
-    (if (== want 1)
-      (Components|Animation|PlayAnimation :self mesh :NewAnimToPlay (Variables|Default|GetWalkAnim) :bLooping true)
-      (else
-        (Components|Animation|PlayAnimation :self mesh :NewAnimToPlay (Variables|Default|GetIdleAnim) :bLooping true)))))
+  (if (and engaged (and (< nearD (Variables|Default|GetAttackRange)) (<= (Variables|Default|GetAttackCD) 0.0)))
+    (Variables|Default|SetAttackCD 1.6)
+    (Variables|Default|SetActionT 0.9)
+    (Variables|Default|SetCurAnim 2)
+    (Transformation|SetActorRotation :NewRotation (Math|Rotator|MakeRotfromX flat))
+    (Components|Animation|PlayAnimation :self mesh :NewAnimToPlay (Variables|Default|GetAttackAnim) :bLooping false)
+    (Game|Damage|ApplyDamage :DamagedActor nz :BaseDamage 35.0))
+  (if (> (Variables|Default|GetActionT) 0.0)
+    (AI|Navigation|StopMovement :self ctrl)
+    (else
+      (Pawn|Input|AddMovementInput :WorldDirection flat :ScaleValue (select (and (> dist stop) (< speed 30.0)) 1.0 0.0))
+      (if (> dist stop)
+        (AI|Navigation|SimpleMovetoLocation :Controller ctrl :Goal goal))
+      (bind want (select (> dist stop) 1 0))
+      (if (!= want (Variables|Default|GetCurAnim))
+        (Variables|Default|SetCurAnim want)
+        (if (== want 1)
+          (Components|Animation|PlayAnimation :self mesh :NewAnimToPlay (Variables|Default|GetWalkAnim) :bLooping true)
+          (else
+            (Components|Animation|PlayAnimation :self mesh :NewAnimToPlay (Variables|Default|GetIdleAnim) :bLooping true)))))))
