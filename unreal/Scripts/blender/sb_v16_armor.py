@@ -168,7 +168,8 @@ def clear(prefix='V16_'):
     for cu in [c for c in D.curves if c.name.startswith(prefix) and c.users == 0]: D.curves.remove(cu)
 
 def bind_rigid(o, bn):
-    r = rig(); mw = o.matrix_world.copy()
+    # matrix_world is stale until a depsgraph update; for unparented objects matrix_basis is current and identical
+    r = rig(); mw = (o.parent.matrix_world @ o.matrix_parent_inverse @ o.matrix_basis) if o.parent else o.matrix_basis.copy()
     o.parent = r; o.parent_type = 'BONE'; o.parent_bone = bn
     pb = r.pose.bones[bn]
     o.matrix_parent_inverse = (r.matrix_world @ pb.matrix @ Matrix.Translation((0, pb.bone.length, 0))).inverted()
@@ -895,4 +896,15 @@ def run_rest():
         try: res[nm] = fn()
         except Exception: res[nm] = 'ERROR ' + traceback.format_exc()[-800:]
     bpy.ops.wm.save_mainfile()
+    return res
+
+
+def rebuild_all():
+    import traceback
+    res = {}
+    try: res['torso'] = build_torso()
+    except Exception: res['torso'] = 'ERROR ' + traceback.format_exc()[-800:]
+    try: res['limbs'] = build_limbs()
+    except Exception: res['limbs'] = 'ERROR ' + traceback.format_exc()[-800:]
+    res.update(run_rest())
     return res
