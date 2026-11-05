@@ -148,25 +148,34 @@ def build_sallet():
 # ------------------------------------------------------------------ hooded great helm (wool hood + short mantle)
 def build_hooded():
     P = 'V16H_hooded_'; _clear(P); m = M(); r = A.rig(); r.data.pose_position = 'REST'; bpy.context.view_layer.update()
-    # hood: follows the great helm ~2.5 cm out, rounded crown, slight point at the back (liripipe start)
-    rows = []
-    for i in range(50):
-        v = i / 49; z = 1.545 + v * (1.915 - 1.545)
-        k = math.cos(min(1.0, max(0.0, (z - 1.80) / 0.115)) ** 1.3 * math.pi / 2)
-        flare = max(0.0, (1.60 - z) / 0.055) * 0.035
-        a = (0.150 + flare) * (0.10 + 0.90 * k); bf = (0.170 + flare) * (0.10 + 0.90 * k); bb = (0.160 + flare) * (0.10 + 0.90 * k)
-        rows.append(_ring(z, a, bf, bb, 2.1, 96, yoff=0.025 * (1 - k)))
-    def opening(c, g=0.0):
-        hw = 0.100 + g
-        top = 1.835 + g
-        if c.z > top - 0.05: hw *= max(0.0, (top - c.z) / 0.05)
-        return c.y < HY - 0.05 and (1.575 - g) < c.z < top and abs(c.x) < hw
-    hd = _shell(P + 'Hood', rows, [m['wool'], m['red']], True,
-                lambda i, j, nr, nc, c: 1 if (opening(c, 0.016) and not opening(c)) or i < 2 else 0,
-                skip=opening, apex=Vector((0, HY + 0.045, 1.925)))
+    # hood hugs the great helm (sections derived from A.helm_section, pushed out ~2.4 cm), opening is a smooth
+    # parametric edge (theta range per row) instead of cut faces, crown ends in a soft point toward the back
+    cen = lambda z: Vector((0, HY, z))
+    zs = [1.552 + (1.872 - 1.552) * (i / 36) for i in range(37)]
+    nc = 64; rows = []
+    for z in zs:
+        op = math.radians(44) * min(1.0, max(0.0, (1.872 - z) / 0.06)) ** 0.7   # opening half-angle, closes at the crown
+        row = []
+        for j in range(nc):
+            th = op + (2 * math.pi - 2 * op) * j / (nc - 1)
+            p = A.helm_section(min(z, 1.86), th, keel=False); p.z = z
+            d = p - cen(z); dl = d.length or 1.0
+            fold = 0.006 * math.sin(th * 9 + z * 40) * max(0.0, (1.70 - z) / 0.15)
+            row.append(cen(z) + d * ((dl + 0.024 + fold) / dl))
+        rows.append(row)
+    # crown: close over the top toward a point slightly back
+    apex = Vector((0, HY + 0.05, 1.93))
+    for k in range(1, 7):
+        t = k / 6
+        rows.append([rows[-1][j].lerp(apex, 0.0) * 0 + (rows[36][j] - cen(1.872)) * (1 - t) ** 0.8 + cen(1.872).lerp(apex, t) for j in range(nc)])
+    hd = _shell(P + 'Hood', rows, [m['wool'], m['red']], False,
+                lambda i, j, nr, nc_, c: 1 if (j < 2 or j >= nc_ - 3) and i < 37 else 0, centre=Vector((0, HY, 1.72)))
     s = hd.modifiers.new('Thick', 'SOLIDIFY'); s.thickness = 0.008; s.offset = 1.0
     sub = hd.modifiers.new('Sub', 'SUBSURF'); sub.levels = 1; sub.render_levels = 1
     A.bind_rigid(hd, 'head')
+    # rolled red hem along the face opening (both edges + across the brow where they meet)
+    edge = [rows[i][0] for i in range(37)][::-1] + [rows[i][-1] for i in range(37)]
+    A.bind_rigid(A.pipe(P + 'Hem', edge, 0.006, m['red']), 'head')
     # mantle: drapes from the neck over the shoulders, longer at the back, with soft folds
     mrows = []
     for i in range(16):
