@@ -9,7 +9,10 @@
   (bind pawn (Game|GetPlayerPawn 0))
   (bind me (Transformation|GetActorLocation))
   (bind tgt (Transformation|GetActorLocation :self pawn))
-  (bind goal (+ tgt (Variables|Default|GetFormOffset)))
+  (bind raw (+ tgt (Variables|Default|GetFormOffset)))
+  ; formation slots can land inside props (barricades): snap to the nearest walkable point
+  (bind (projLoc onNav) (AI|Navigation|ProjectPointtoNavigation :Point raw :QueryExtent (Math|Vector|MakeVector :X 400.0 :Y 400.0 :Z 300.0)))
+  (bind goal (select onNav projLoc raw))
   (bind d (- goal me))
   (bind flat (Math|Vector|MakeVector :X (.x d) :Y (.y d) :Z 0.0))
   (bind dist (Math|Vector|VectorLength flat))
