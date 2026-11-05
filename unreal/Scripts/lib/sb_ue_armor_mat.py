@@ -69,7 +69,7 @@ def build_master():
     filscale = g.scalar('FiligreeScale', 10.0, 'Detail')
     scol = g.vec('ScratchColor', (0.55, 0.55, 0.56, 1), 'Detail'); gcol = g.vec('GrimeColor', (0.30, 0.25, 0.18, 1), 'Detail')
     # pre-skinned position (cm) -> metres * scale
-    psp = g.n(unreal.MaterialExpressionPreSkinnedLocalPosition); psn = g.n(unreal.MaterialExpressionPreSkinnedNormal)
+    psp = g.n(unreal.MaterialExpressionPreSkinnedPosition); psn = g.n(unreal.MaterialExpressionPreSkinnedNormal)
     k = g.n(unreal.MaterialExpressionConstant, r=0.01)
     pm = g.mul(g.mul(psp, k), scale)
     pf = g.mul(g.mul(psp, k), filscale)
